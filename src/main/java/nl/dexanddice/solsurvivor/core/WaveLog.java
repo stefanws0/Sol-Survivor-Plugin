@@ -1,6 +1,7 @@
 package nl.dexanddice.solsurvivor.core;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -14,9 +15,10 @@ import java.util.Map;
  *
  * The RuneLite layer starts it on the first tick of a wave the tracker saw start, feeds it every hitsplat as it comes and
  * one snapshot of the player and the arena's NPCs each game tick, and finishes it when the wave is completed or the player
- * leaves. The log is kept after that, so that the player can copy it once the wave is over, until the next wave starts
- * it again. It holds at most MAX_TICKS ticks, so that a wave left running cannot fill the memory; past that it says it
- * was cut.
+ * leaves. The log is kept after that, so that the player can copy it once the wave is over. When the next wave starts,
+ * the finished log is kept among the past ones as its JSON, so that any wave since the plugin started can still be
+ * copied and reviewed, up to MAX_PAST of them. It holds at most MAX_TICKS ticks, so that a wave left running cannot
+ * fill the memory; past that it says it was cut.
  *
  * The animation ids are logged as the game gives them, unfiltered: they are how each NPC's attack animation will be
  * confirmed (an open question in the design spec), so nothing here decides which of them matter.
@@ -25,6 +27,9 @@ public final class WaveLog
 {
 	/** The most ticks a log holds: 15 minutes, far longer than a wave lasts. */
 	public static final int MAX_TICKS = 1500;
+
+	/** The most past waves kept besides the one under way: two whole runs. As JSON, each is at most a few hundred kB. */
+	public static final int MAX_PAST = 24;
 
 	/** An actor's target when it is interacting with nothing. */
 	public static final int TARGET_NONE = -1;
@@ -83,12 +88,21 @@ public final class WaveLog
 		private final List<String> prayers;
 		private final int animation;
 		private final int target;
+		private final int[] worn;
+
+		/** The player without their gear, as when "Include gear and stats" is off. */
+		public PlayerTick(GridTile tile, int hitpoints, int prayerPoints, List<String> prayers, int animation, int target)
+		{
+			this(tile, hitpoints, prayerPoints, prayers, animation, target, null);
+		}
 
 		/**
 		 * `tile` is null when the player is off the grid; `prayers` names the prayers on, as prayerName gives them;
-		 * `animation` is the game's id, -1 for none; `target` is an NPC's index, TARGET_PLAYER or TARGET_NONE.
+		 * `animation` is the game's id, -1 for none; `target` is an NPC's index, TARGET_PLAYER or TARGET_NONE; `worn` is the
+		 * item id in each of the link's gear slots, in its order (WORN_SLOTS), -1 for an empty one, or null to leave the gear
+		 * out.
 		 */
-		public PlayerTick(GridTile tile, int hitpoints, int prayerPoints, List<String> prayers, int animation, int target)
+		public PlayerTick(GridTile tile, int hitpoints, int prayerPoints, List<String> prayers, int animation, int target, int[] worn)
 		{
 			this.tile = tile;
 			this.hitpoints = hitpoints;
@@ -96,6 +110,7 @@ public final class WaveLog
 			this.prayers = Collections.unmodifiableList(new ArrayList<>(prayers));
 			this.animation = animation;
 			this.target = target;
+			this.worn = worn == null ? null : worn.clone();
 		}
 
 		public GridTile getTile()
@@ -127,6 +142,12 @@ public final class WaveLog
 		{
 			return target;
 		}
+
+		/** The item ids worn, slot by slot in WORN_SLOTS' order, or null when the gear is left out. */
+		public int[] getWorn()
+		{
+			return worn == null ? null : worn.clone();
+		}
 	}
 
 	/** An NPC on one tick, any NPC in the arena by its raw id: the waves' NPCs, the frems, Solarflare's orbs and the rest. */
@@ -139,12 +160,20 @@ public final class WaveLog
 		private final int healthRatio;
 		private final int healthScale;
 		private final int target;
+		private final int[] spotAnims;
+
+		/** An NPC that shows no graphics. */
+		public NpcTick(int index, int npcId, GridTile tile, int animation, int healthRatio, int healthScale, int target)
+		{
+			this(index, npcId, tile, animation, healthRatio, healthScale, target, new int[0]);
+		}
 
 		/**
 		 * `tile` is its south-west tile; `animation` is the game's id, -1 for none; the health ratio and scale are as the
-		 * game gives them, -1 when unknown; `target` is an NPC's index, TARGET_PLAYER or TARGET_NONE.
+		 * game gives them, -1 when unknown; `target` is an NPC's index, TARGET_PLAYER or TARGET_NONE; `spotAnims` are the
+		 * ids of the graphics it shows, such as a Manticore's orbs, unfiltered.
 		 */
-		public NpcTick(int index, int npcId, GridTile tile, int animation, int healthRatio, int healthScale, int target)
+		public NpcTick(int index, int npcId, GridTile tile, int animation, int healthRatio, int healthScale, int target, int[] spotAnims)
 		{
 			this.index = index;
 			this.npcId = npcId;
@@ -153,6 +182,7 @@ public final class WaveLog
 			this.healthRatio = healthRatio;
 			this.healthScale = healthScale;
 			this.target = target;
+			this.spotAnims = spotAnims.clone();
 		}
 
 		public int getIndex()
@@ -189,6 +219,60 @@ public final class WaveLog
 		{
 			return target;
 		}
+
+		/** The ids of the graphics it shows on the tick. */
+		public int[] getSpotAnims()
+		{
+			return spotAnims.clone();
+		}
+	}
+
+	/** A past wave's log, kept as its JSON once the next wave started. */
+	public static final class Past
+	{
+		private final int id;
+		private final int wave;
+		private final int size;
+		private final End end;
+		private final String json;
+
+		Past(int id, int wave, int size, End end, String json)
+		{
+			this.id = id;
+			this.wave = wave;
+			this.size = size;
+			this.end = end;
+			this.json = json;
+		}
+
+		/** The log's id, as getId gave it while it was the one under way. */
+		public int getId()
+		{
+			return id;
+		}
+
+		public int getWave()
+		{
+			return wave;
+		}
+
+		/** How many ticks it holds. */
+		public int size()
+		{
+			return size;
+		}
+
+		/** How the wave ended, or null when the next wave started before its end was seen. */
+		public End getEnd()
+		{
+			return end;
+		}
+
+		/** The log as WaveLogWriter wrote it. */
+		public String getJson()
+		{
+			return json;
+		}
 	}
 
 	/** One tick of the wave: the player, the NPCs, the hitsplats that came with it and Solarflare's orbs. */
@@ -207,9 +291,13 @@ public final class WaveLog
 		 * is what times the NPCs' attacks.
 		 */
 		final List<int[]> animations;
+		/** The animations the player started since the last tick, in the order they came: each attack, a repeat included. */
+		final List<Integer> playerAnimations;
+		/** The item ids worn, on the wave's first tick and on each tick the gear changed; null on the others. */
+		final int[] worn;
 
 		Tick(int t, PlayerTick player, List<Hit> playerHits, List<NpcTick> npcs, Map<Integer, List<Hit>> npcHits, List<GridTile> orbs,
-			List<int[]> animations)
+			List<int[]> animations, List<Integer> playerAnimations, int[] worn)
 		{
 			this.t = t;
 			this.player = player;
@@ -218,41 +306,70 @@ public final class WaveLog
 			this.npcHits = npcHits;
 			this.orbs = orbs;
 			this.animations = animations;
+			this.playerAnimations = playerAnimations;
+			this.worn = worn;
 		}
 	}
+
+	/** The gear slots `worn` lists, in its order: those the state link names (Equipment), not the player's look. */
+	public static final List<String> WORN_SLOTS = Collections.unmodifiableList(Arrays.asList(
+		"head", "cape", "amulet", "weapon", "body", "shield", "legs", "gloves", "boots", "ring", "ammo"));
 
 	private Integer wave;
 	private int startTick;
 	private Map<Modifier, Integer> modifiers = new EnumMap<>(Modifier.class);
 	private boolean modifiersComplete;
 	private String version = "";
+	/** The state link's payload on the wave's first tick, as StatePayload wrote it, or null when it could not be taken. */
+	private String startState;
 	private final List<Tick> ticks = new ArrayList<>();
 	private boolean cut;
 	private End end;
 	private boolean recording;
+	/** The log's id, which tells it apart from the past ones, and the last id given. */
+	private int id;
+	private int lastId;
+	/** The past waves' logs, newest first. */
+	private final List<Past> past = new ArrayList<>();
+	/** The gear worn on the last tick recorded, so that a tick lists it only when it changed. */
+	private int[] lastWorn;
 
 	/** The hitsplats since the last tick was recorded, which go in the next one. */
 	private final List<Hit> pendingPlayerHits = new ArrayList<>();
 	private final Map<Integer, List<Hit>> pendingNpcHits = new LinkedHashMap<>();
 	/** The animations NPCs started since the last tick was recorded, which go in the next one. */
 	private final List<int[]> pendingAnimations = new ArrayList<>();
+	/** The animations the player started since the last tick was recorded. */
+	private final List<Integer> pendingPlayerAnimations = new ArrayList<>();
 
 	/**
-	 * A wave starts on game tick `gameTick`: the log forgets the last wave and records this one. The hitsplats already
-	 * passed on this tick are kept for it.
+	 * A wave starts on game tick `gameTick`: the last wave's log goes among the past ones, and the log records this one.
+	 * `startState` is the state link's payload on this tick (StatePayload.toJson), or null. The hitsplats already passed on
+	 * this tick are kept for it.
 	 */
-	public void start(int wave, int gameTick, Map<Modifier, Integer> modifiers, boolean modifiersComplete, String version)
+	public void start(int wave, int gameTick, Map<Modifier, Integer> modifiers, boolean modifiersComplete, String version, String startState)
 	{
+		if (this.wave != null)
+		{
+			past.add(0, new Past(id, this.wave, ticks.size(), end, WaveLogWriter.toJson(this)));
+			while (past.size() > MAX_PAST)
+			{
+				past.remove(past.size() - 1);
+			}
+		}
 		this.wave = wave;
 		this.startTick = gameTick;
 		this.modifiers = new EnumMap<>(Modifier.class);
 		this.modifiers.putAll(modifiers);
 		this.modifiersComplete = modifiersComplete;
 		this.version = version;
+		this.startState = startState;
 		ticks.clear();
 		cut = false;
 		end = null;
 		recording = true;
+		id = ++lastId;
+		lastWorn = null;
 	}
 
 	/** A hitsplat on the player, as it comes; it goes in the next tick recorded. */
@@ -273,10 +390,17 @@ public final class WaveLog
 		pendingAnimations.add(new int[] {index, animation});
 	}
 
+	/** The player started an animation, as it comes; it goes in the next tick recorded. */
+	public void onPlayerAnimation(int animation)
+	{
+		pendingPlayerAnimations.add(animation);
+	}
+
 	/**
 	 * Game tick `gameTick` of the wave: the player and every NPC the game shows. NPCs off the grid are left out, and the
-	 * tiles of Solarflare's orbs are taken from the orb NPCs. A tick already recorded, or one past MAX_TICKS, is passed
-	 * over; either way the hitsplats since the last tick are used up.
+	 * tiles of Solarflare's orbs are taken from the orb NPCs. The player's gear is kept for the tick only when it changed
+	 * since the tick before. A tick already recorded, or one past MAX_TICKS, is passed over; either way the hitsplats since
+	 * the last tick are used up.
 	 */
 	public void record(int gameTick, PlayerTick player, List<NpcTick> npcs)
 	{
@@ -316,8 +440,15 @@ public final class WaveLog
 		{
 			npcHits.put(e.getKey(), Collections.unmodifiableList(new ArrayList<>(e.getValue())));
 		}
+		int[] worn = player == null ? null : player.getWorn();
+		int[] changed = worn != null && !Arrays.equals(worn, lastWorn) ? worn : null;
+		if (worn != null)
+		{
+			lastWorn = worn;
+		}
 		ticks.add(new Tick(t, player, Collections.unmodifiableList(new ArrayList<>(pendingPlayerHits)), Collections.unmodifiableList(onGrid),
-			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations))));
+			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations)),
+			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed));
 		discardPending();
 	}
 
@@ -327,6 +458,7 @@ public final class WaveLog
 		pendingPlayerHits.clear();
 		pendingNpcHits.clear();
 		pendingAnimations.clear();
+		pendingPlayerAnimations.clear();
 	}
 
 	/** The wave ended: the log stops recording and is kept until the next wave starts. */
@@ -340,7 +472,7 @@ public final class WaveLog
 		discardPending();
 	}
 
-	/** Forget the log altogether: the plugin was switched off. */
+	/** Forget the log and the past ones altogether: the plugin or its log was switched off. */
 	public void clear()
 	{
 		wave = null;
@@ -351,6 +483,10 @@ public final class WaveLog
 		modifiers = new EnumMap<>(Modifier.class);
 		modifiersComplete = false;
 		version = "";
+		startState = null;
+		id = 0;
+		lastWorn = null;
+		past.clear();
 		discardPending();
 	}
 
@@ -364,6 +500,18 @@ public final class WaveLog
 	public boolean hasLog()
 	{
 		return wave != null;
+	}
+
+	/** The log's id, given when its wave started, or 0 when there is none. */
+	public int getId()
+	{
+		return id;
+	}
+
+	/** The past waves' logs, newest first. */
+	public List<Past> getPast()
+	{
+		return Collections.unmodifiableList(past);
 	}
 
 	/** The wave logged, or null when there is none. */
@@ -403,6 +551,11 @@ public final class WaveLog
 	String getVersion()
 	{
 		return version;
+	}
+
+	String getStartState()
+	{
+		return startState;
 	}
 
 	List<Tick> getTicks()

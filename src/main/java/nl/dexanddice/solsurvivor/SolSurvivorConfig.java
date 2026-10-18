@@ -35,7 +35,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "includeGear",
 		name = "Include gear and stats",
-		description = "Puts your worn items, weapon, attack style, prayer bonus, prayer points and combat levels in the link.",
+		description = "Puts your worn items, weapon, attack style, prayer bonus, prayer points and combat levels in the link, and your gear in the wave log.",
 		position = 2
 	)
 	default boolean includeGear()
@@ -57,7 +57,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Records each wave a tick at a time, your tile, hitpoints, prayers and hitsplats and the NPCs', for the panel to copy for the site's wave reviewer. It is sent nowhere.",
+		description = "Records each wave a tick at a time, your tile, hitpoints, prayers, attacks and hitsplats and the NPCs', for the panel to copy for the site's wave reviewer. Keeps the last 25 waves in memory until RuneLite closes. It is sent nowhere.",
 		position = 4
 	)
 	default boolean recordWaveLog()

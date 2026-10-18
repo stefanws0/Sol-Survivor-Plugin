@@ -10,11 +10,13 @@ import java.util.Map;
  * each tick is on a line of its own, so that a log reads and diffs a tick at a time.
  *
  * <pre>
- * {"v":1,"kind":"solSurvivorWaveLog","plugin":"0.1.0","wave":4,
+ * {"v":1,"kind":"solSurvivorWaveLog","plugin":"0.2.0","wave":4,
  *  "modifiers":{"reentry":2,"quartet":"random"},"modifiersComplete":true,
- *  "maxTicks":1500,"cut":false,"end":"completed","ticks":[
+ *  "maxTicks":1500,"cut":false,"end":"completed","start":{"v":1,"setup":{...}},"ticks":[
  * {"t":0,"player":[7,15,99,77,["magic","piety"],-1,null],"hits":[],
- *  "npcs":[[11,12811,13,20,-1,-1,-1,"player",[]],[12,12818,16,24,7590,30,30,"player",[[0,12]]]],"orbs":[]},
+ *  "npcs":[[11,12811,13,20,-1,-1,-1,"player",[]],[12,12818,16,24,7590,30,30,"player",[[0,12]]]],"orbs":[],
+ *  "worn":[26382,21295,-1,20997,26384,-1,26386,-1,-1,-1,-1]},
+ * {"t":1,...,"anims":[[11,10859]],"playerAnims":[426],"spots":[[12,2681]]},
  * ...
  * ]}
  * </pre>
@@ -27,7 +29,10 @@ import java.util.Map;
  * "random"); `modifiersComplete`: whether Quartet, Red Flag and Totemic are known (see ArenaState).</li>
  * <li>`maxTicks`: the most ticks a log holds; `cut`: whether the wave ran past it and the rest was left out.</li>
  * <li>`end`: "completed" when the game said the wave was completed, "left" when the player left the arena (died, ran or
- * logged out), null while the wave is under way.</li>
+ * logged out), null while the wave is under way, or when the next wave started before its end was seen.</li>
+ * <li>`start`: the state link's payload on the wave's first tick (StatePayload, the site's src/link/statePayload.ts),
+ * with the gear and stats when "Include gear and stats" is on, so that the site can plan the wave from where it began
+ * and put the plan beside what the player did; null when it could not be taken.</li>
  * <li>`ticks`: one object a game tick, from the wave's first tick on:
  * <ul>
  * <li>`t`: the tick within the wave, 0 on the tick of the game's "Wave: N" message;</li>
@@ -44,6 +49,12 @@ import java.util.Map;
  * <li>`anims`, only when there are any: the animations NPCs started since the tick before, [index, animation id] each,
  * in the order they came. Each start is there, an attack that repeats the one before included, where the animation in
  * `npcs` only shows what an NPC is doing on the tick. An NPC whose animation stops is there too, with -1.</li>
+ * <li>`playerAnims`, only when there are any: the animations the player started since the tick before, as `anims` has
+ * the NPCs', so that each of the player's attacks is there even when the weapon's animation runs on unbroken.</li>
+ * <li>`spots`, only when there are any: the graphics the NPCs in `npcs` show on the tick, [index, graphic id] each, such
+ * as a Manticore's orbs as it charges them, unfiltered.</li>
+ * <li>`worn`, on the wave's first tick and on each tick the player's gear changed, when "Include gear and stats" is on:
+ * the item id in each slot of WaveLog.WORN_SLOTS, in its order, -1 for an empty one.</li>
  * </ul>
  * </li>
  * </ul>
@@ -94,6 +105,7 @@ public final class WaveLogWriter
 		{
 			StatePayload.string(b, log.getEnd().getKey());
 		}
+		b.append(",\"start\":").append(log.getStartState() == null ? "null" : log.getStartState());
 		b.append(",\"ticks\":[");
 		first = true;
 		for (WaveLog.Tick tick : log.getTicks())
@@ -191,6 +203,36 @@ public final class WaveLogWriter
 			{
 				int[] a = tick.animations.get(i);
 				b.append(i == 0 ? "" : ",").append('[').append(a[0]).append(',').append(a[1]).append(']');
+			}
+			b.append(']');
+		}
+		if (!tick.playerAnimations.isEmpty())
+		{
+			b.append(",\"playerAnims\":[");
+			for (int i = 0; i < tick.playerAnimations.size(); i++)
+			{
+				b.append(i == 0 ? "" : ",").append(tick.playerAnimations.get(i));
+			}
+			b.append(']');
+		}
+		StringBuilder spots = new StringBuilder();
+		for (WaveLog.NpcTick n : tick.npcs)
+		{
+			for (int id : n.getSpotAnims())
+			{
+				spots.append(spots.length() == 0 ? "" : ",").append('[').append(n.getIndex()).append(',').append(id).append(']');
+			}
+		}
+		if (spots.length() > 0)
+		{
+			b.append(",\"spots\":[").append(spots).append(']');
+		}
+		if (tick.worn != null)
+		{
+			b.append(",\"worn\":[");
+			for (int i = 0; i < tick.worn.length; i++)
+			{
+				b.append(i == 0 ? "" : ",").append(tick.worn[i]);
 			}
 			b.append(']');
 		}

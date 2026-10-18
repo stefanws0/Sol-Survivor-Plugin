@@ -12,7 +12,8 @@ Everything happens on the site, in your browser.
 - **Open arena now** opens the arena as it is right now.
 - **Open in recommender** is available while Minimus offers his three modifiers. It opens the site's modifier pick
   with those offers, the modifiers you hold and the next wave already filled in.
-- **Copy wave log** copies a record of the last wave: where you and every NPC stood on each tick, and what each did.
+- **Copy wave log** copies a record of a wave: where you and every NPC stood on each tick, what each did, and the gear
+  you wore when **Include gear and stats** is on. Pick any wave since RuneLite started from the list above the button.
   Paste it on the site to see where the planner's simulation differed from your run.
 
 Each Open button also copies its link, so you can share it. A hotkey (unset by default) copies the current arena's link
@@ -28,8 +29,8 @@ uses to work out how quickly you kill each NPC.
 ## Privacy
 
 The plugin sends nothing over the network. A link opens in your browser or goes to your clipboard. The arena rides in
-the part of the link after `#`, which browsers do not send to the site's server. The wave log only goes to your
-clipboard.
+the part of the link after `#`, which browsers do not send to the site's server. The wave logs stay in memory and only
+go to your clipboard; nothing is written to disk.
 
 ## Settings
 
@@ -37,7 +38,8 @@ clipboard.
 - **Copy link hotkey**: copies the current arena's link.
 - **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
 - **Include gear and stats**: on by default.
-- **Record wave log**: on by default; it keeps the last wave, up to 1,500 ticks.
+- **Record wave log**: on by default; it keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
+  closes.
 
 ## Credits
 
