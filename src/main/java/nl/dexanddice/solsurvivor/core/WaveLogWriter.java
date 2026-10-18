@@ -1,0 +1,256 @@
+package nl.dexanddice.solsurvivor.core;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * The wave log's JSON, for the site's log checker (src/viewer/waveLogCheck.ts). Like StatePayload it is written by
+ * hand, ASCII only and in a fixed order, so that a log always gives the same text and the tests can compare it whole;
+ * each tick is on a line of its own, so that a log reads and diffs a tick at a time.
+ *
+ * <pre>
+ * {"v":1,"kind":"solSurvivorWaveLog","plugin":"0.1.0","wave":4,
+ *  "modifiers":{"reentry":2,"quartet":"random"},"modifiersComplete":true,
+ *  "maxTicks":1500,"cut":false,"end":"completed","ticks":[
+ * {"t":0,"player":[7,15,99,77,["magic","piety"],-1,null],"hits":[],
+ *  "npcs":[[11,12811,13,20,-1,-1,-1,"player",[]],[12,12818,16,24,7590,30,30,"player",[[0,12]]]],"orbs":[]},
+ * ...
+ * ]}
+ * </pre>
+ *
+ * <ul>
+ * <li>`v`: the log's version, 1; `kind`: always "solSurvivorWaveLog", which tells it apart from a state link's payload;
+ * `plugin`: the plugin's version.</li>
+ * <li>`wave`: the wave, 1 to 11, or 12 for Sol Heredit's.</li>
+ * <li>`modifiers`: the modifiers taken at the wave's start, written as the state link writes them (its tier, true or
+ * "random"); `modifiersComplete`: whether Quartet, Red Flag and Totemic are known (see ArenaState).</li>
+ * <li>`maxTicks`: the most ticks a log holds; `cut`: whether the wave ran past it and the rest was left out.</li>
+ * <li>`end`: "completed" when the game said the wave was completed, "left" when the player left the arena (died, ran or
+ * logged out), null while the wave is under way.</li>
+ * <li>`ticks`: one object a game tick, from the wave's first tick on:
+ * <ul>
+ * <li>`t`: the tick within the wave, 0 on the tick of the game's "Wave: N" message;</li>
+ * <li>`player`: [x, y, hitpoints, prayer points, [prayers on], animation id, target], with x and y the grid tile (null
+ * off the grid), the prayers as WaveLog.prayerName names them, -1 for no animation, and the target an NPC's index,
+ * "player" or null;</li>
+ * <li>`hits`: the hitsplats on the player that came with this tick, [amount, hitsplat type id] each;</li>
+ * <li>`npcs`: every NPC on the grid, by its raw id: [index, NPC id, x, y, animation id, health ratio, health scale,
+ * target, [hitsplats]], with x and y its south-west tile, -1 for no animation and for an unknown health ratio or scale,
+ * the target as the player's, and its hitsplats this tick as the player's;</li>
+ * <li>`orbs`: the tiles of Solarflare's orbs (NPC 12826), [x, y] each, which are in `npcs` too;</li>
+ * <li>`strayHits`, only when there are any: hitsplats on an NPC that is not in `npcs` this tick, [index, amount, type]
+ * each;</li>
+ * <li>`anims`, only when there are any: the animations NPCs started since the tick before, [index, animation id] each,
+ * in the order they came. Each start is there, an attack that repeats the one before included, where the animation in
+ * `npcs` only shows what an NPC is doing on the tick. An NPC whose animation stops is there too, with -1.</li>
+ * </ul>
+ * </li>
+ * </ul>
+ * The hitsplats of a tick are those the game showed since the tick before, which RuneLite passes on between ticks.
+ */
+public final class WaveLogWriter
+{
+	/** The log's version. */
+	public static final int VERSION = 1;
+
+	/** The log's `kind`. */
+	public static final String KIND = "solSurvivorWaveLog";
+
+	private WaveLogWriter()
+	{
+	}
+
+	/** The log's JSON; an empty log, with no wave, has a null wave and no ticks. */
+	public static String toJson(WaveLog log)
+	{
+		StringBuilder b = new StringBuilder();
+		b.append("{\"v\":").append(VERSION).append(",\"kind\":");
+		StatePayload.string(b, KIND);
+		b.append(",\"plugin\":");
+		StatePayload.string(b, log.getVersion());
+		b.append(",\"wave\":").append(log.getWave());
+		b.append(",\"modifiers\":{");
+		boolean first = true;
+		for (Map.Entry<Modifier, Integer> e : log.getModifiers().entrySet())
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			StatePayload.string(b, e.getKey().getKey());
+			b.append(':').append(StatePayload.valueOf(e.getKey(), e.getValue()));
+		}
+		b.append("},\"modifiersComplete\":").append(log.isModifiersComplete());
+		b.append(",\"maxTicks\":").append(WaveLog.MAX_TICKS);
+		b.append(",\"cut\":").append(log.isCut());
+		b.append(",\"end\":");
+		if (log.getEnd() == null)
+		{
+			b.append("null");
+		}
+		else
+		{
+			StatePayload.string(b, log.getEnd().getKey());
+		}
+		b.append(",\"ticks\":[");
+		first = true;
+		for (WaveLog.Tick tick : log.getTicks())
+		{
+			b.append(first ? "\n" : ",\n");
+			first = false;
+			tick(b, tick);
+		}
+		b.append(first ? "]}" : "\n]}");
+		return b.toString();
+	}
+
+	private static void tick(StringBuilder b, WaveLog.Tick tick)
+	{
+		b.append("{\"t\":").append(tick.t).append(",\"player\":");
+		WaveLog.PlayerTick p = tick.player;
+		if (p == null)
+		{
+			b.append("null");
+		}
+		else
+		{
+			b.append('[');
+			tile(b, p.getTile());
+			b.append(',').append(p.getHitpoints()).append(',').append(p.getPrayerPoints()).append(",[");
+			boolean first = true;
+			for (String prayer : p.getPrayers())
+			{
+				if (!first)
+				{
+					b.append(',');
+				}
+				first = false;
+				StatePayload.string(b, prayer);
+			}
+			b.append("],").append(p.getAnimation()).append(',');
+			target(b, p.getTarget());
+			b.append(']');
+		}
+		b.append(",\"hits\":");
+		hits(b, tick.playerHits);
+
+		b.append(",\"npcs\":[");
+		boolean first = true;
+		for (WaveLog.NpcTick n : tick.npcs)
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[').append(n.getIndex()).append(',').append(n.getNpcId()).append(',');
+			tile(b, n.getTile());
+			b.append(',').append(n.getAnimation()).append(',').append(n.getHealthRatio()).append(',').append(n.getHealthScale()).append(',');
+			target(b, n.getTarget());
+			b.append(',');
+			hits(b, tick.npcHits.getOrDefault(n.getIndex(), Collections.emptyList()));
+			b.append(']');
+		}
+		b.append("],\"orbs\":[");
+		first = true;
+		for (GridTile t : tick.orbs)
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[').append(t.getX()).append(',').append(t.getY()).append(']');
+		}
+		b.append(']');
+
+		// Hitsplats on an NPC the tick does not list, such as one that despawned before the tick's snapshot, are kept.
+		StringBuilder stray = new StringBuilder();
+		for (Map.Entry<Integer, List<WaveLog.Hit>> e : tick.npcHits.entrySet())
+		{
+			if (listed(tick.npcs, e.getKey()))
+			{
+				continue;
+			}
+			for (WaveLog.Hit h : e.getValue())
+			{
+				stray.append(stray.length() == 0 ? "" : ",").append('[').append(e.getKey()).append(',').append(h.getAmount()).append(',')
+					.append(h.getType()).append(']');
+			}
+		}
+		if (stray.length() > 0)
+		{
+			b.append(",\"strayHits\":[").append(stray).append(']');
+		}
+		if (!tick.animations.isEmpty())
+		{
+			b.append(",\"anims\":[");
+			for (int i = 0; i < tick.animations.size(); i++)
+			{
+				int[] a = tick.animations.get(i);
+				b.append(i == 0 ? "" : ",").append('[').append(a[0]).append(',').append(a[1]).append(']');
+			}
+			b.append(']');
+		}
+		b.append('}');
+	}
+
+	private static boolean listed(List<WaveLog.NpcTick> npcs, int index)
+	{
+		for (WaveLog.NpcTick n : npcs)
+		{
+			if (n.getIndex() == index)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** A tile as two numbers, x and y, or two nulls for none. */
+	private static void tile(StringBuilder b, GridTile t)
+	{
+		if (t == null)
+		{
+			b.append("null,null");
+		}
+		else
+		{
+			b.append(t.getX()).append(',').append(t.getY());
+		}
+	}
+
+	private static void target(StringBuilder b, int target)
+	{
+		if (target == WaveLog.TARGET_PLAYER)
+		{
+			b.append("\"player\"");
+		}
+		else if (target < 0)
+		{
+			b.append("null");
+		}
+		else
+		{
+			b.append(target);
+		}
+	}
+
+	private static void hits(StringBuilder b, List<WaveLog.Hit> hits)
+	{
+		b.append('[');
+		boolean first = true;
+		for (WaveLog.Hit h : hits)
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[').append(h.getAmount()).append(',').append(h.getType()).append(']');
+		}
+		b.append(']');
+	}
+}
