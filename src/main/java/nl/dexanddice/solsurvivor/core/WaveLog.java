@@ -295,9 +295,11 @@ public final class WaveLog
 		final List<Integer> playerAnimations;
 		/** The item ids worn, on the wave's first tick and on each tick the gear changed; null on the others. */
 		final int[] worn;
+		/** The graphics the game put on the grid's tiles since the last tick, [x, y, graphic id] each, in the order they came. */
+		final List<int[]> tileGraphics;
 
 		Tick(int t, PlayerTick player, List<Hit> playerHits, List<NpcTick> npcs, Map<Integer, List<Hit>> npcHits, List<GridTile> orbs,
-			List<int[]> animations, List<Integer> playerAnimations, int[] worn)
+			List<int[]> animations, List<Integer> playerAnimations, int[] worn, List<int[]> tileGraphics)
 		{
 			this.t = t;
 			this.player = player;
@@ -308,6 +310,7 @@ public final class WaveLog
 			this.animations = animations;
 			this.playerAnimations = playerAnimations;
 			this.worn = worn;
+			this.tileGraphics = tileGraphics;
 		}
 	}
 
@@ -341,6 +344,8 @@ public final class WaveLog
 	private final List<int[]> pendingAnimations = new ArrayList<>();
 	/** The animations the player started since the last tick was recorded. */
 	private final List<Integer> pendingPlayerAnimations = new ArrayList<>();
+	/** The graphics put on tiles since the last tick was recorded. */
+	private final List<int[]> pendingTileGraphics = new ArrayList<>();
 
 	/**
 	 * A wave starts on game tick `gameTick`: the last wave's log goes among the past ones, and the log records this one.
@@ -397,6 +402,18 @@ public final class WaveLog
 	}
 
 	/**
+	 * The game put a graphic on a tile, such as where a Javelin Colossus's special lands, as it comes; it goes in the next
+	 * tick recorded. One off the grid, or with no tile, is left out.
+	 */
+	public void onTileGraphic(GridTile tile, int graphic)
+	{
+		if (tile != null && ArenaGeometry.onGrid(tile))
+		{
+			pendingTileGraphics.add(new int[] {tile.getX(), tile.getY(), graphic});
+		}
+	}
+
+	/**
 	 * Game tick `gameTick` of the wave: the player and every NPC the game shows. NPCs off the grid are left out, and the
 	 * tiles of Solarflare's orbs are taken from the orb NPCs. The player's gear is kept for the tick only when it changed
 	 * since the tick before. A tick already recorded, or one past MAX_TICKS, is passed over; either way the hitsplats since
@@ -448,7 +465,7 @@ public final class WaveLog
 		}
 		ticks.add(new Tick(t, player, Collections.unmodifiableList(new ArrayList<>(pendingPlayerHits)), Collections.unmodifiableList(onGrid),
 			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations)),
-			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed));
+			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed, Collections.unmodifiableList(new ArrayList<>(pendingTileGraphics))));
 		discardPending();
 	}
 
@@ -459,6 +476,7 @@ public final class WaveLog
 		pendingNpcHits.clear();
 		pendingAnimations.clear();
 		pendingPlayerAnimations.clear();
+		pendingTileGraphics.clear();
 	}
 
 	/** The wave ended: the log stops recording and is kept until the next wave starts. */

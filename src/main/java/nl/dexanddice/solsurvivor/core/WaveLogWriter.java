@@ -55,6 +55,8 @@ import java.util.Map;
  * as a Manticore's orbs as it charges them, unfiltered.</li>
  * <li>`worn`, on the wave's first tick and on each tick the player's gear changed, when "Include gear and stats" is on:
  * the item id in each slot of WaveLog.WORN_SLOTS, in its order, -1 for an empty one.</li>
+ * <li>`tileGraphics`, only when there are any: the graphics the game put on the grid's tiles since the tick before,
+ * [x, y, graphic id] each, in the order they came, unfiltered, such as where a Javelin Colossus's special lands.</li>
  * </ul>
  * </li>
  * </ul>
@@ -233,6 +235,16 @@ public final class WaveLogWriter
 			for (int i = 0; i < tick.worn.length; i++)
 			{
 				b.append(i == 0 ? "" : ",").append(tick.worn[i]);
+			}
+			b.append(']');
+		}
+		if (!tick.tileGraphics.isEmpty())
+		{
+			b.append(",\"tileGraphics\":[");
+			for (int i = 0; i < tick.tileGraphics.size(); i++)
+			{
+				int[] g = tick.tileGraphics.get(i);
+				b.append(i == 0 ? "" : ",").append('[').append(g[0]).append(',').append(g[1]).append(',').append(g[2]).append(']');
 			}
 			b.append(']');
 		}

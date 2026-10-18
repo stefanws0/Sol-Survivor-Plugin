@@ -15,6 +15,7 @@ import net.runelite.api.Client;
 import net.runelite.api.EnumID;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.GameState;
+import net.runelite.api.GraphicsObject;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.NPC;
@@ -28,6 +29,7 @@ import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.GraphicsObjectCreated;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
@@ -312,6 +314,21 @@ public class SolSurvivorPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * The game put a graphic on a tile, such as where a Javelin Colossus's special lands: the wave log keeps those on the
+	 * grid for the next tick it records, as it does the hitsplats.
+	 */
+	@Subscribe
+	public void onGraphicsObjectCreated(GraphicsObjectCreated e)
+	{
+		if (!inColosseum || !config.recordWaveLog())
+		{
+			return;
+		}
+		GraphicsObject graphic = e.getGraphicsObject();
+		waveLog.onTileGraphic(gridTileOf(graphic.getLocation()), graphic.getId());
+	}
+
 	@Subscribe
 	public void onGameTick(GameTick e)
 	{
@@ -542,7 +559,12 @@ public class SolSurvivorPlugin extends Plugin
 	/** A tile's grid tile, through the instance's template so that it is in region 7216's coordinates. */
 	private GridTile gridTileOf(WorldPoint world)
 	{
-		LocalPoint lp = LocalPoint.fromWorld(client.getTopLevelWorldView(), world);
+		return gridTileOf(LocalPoint.fromWorld(client.getTopLevelWorldView(), world));
+	}
+
+	/** A scene point's grid tile, or null for none, as gridTileOf(WorldPoint). */
+	private GridTile gridTileOf(LocalPoint lp)
+	{
 		if (lp == null)
 		{
 			return null;

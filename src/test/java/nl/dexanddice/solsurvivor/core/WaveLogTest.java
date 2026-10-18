@@ -105,6 +105,9 @@ public class WaveLogTest
 		// The player switched to the fang and struck twice with the same animation; the Manticore showed an orb.
 		log.onPlayerAnimation(7552);
 		log.onPlayerAnimation(7552);
+		// A graphic on a tile of the grid is kept, one off it is not.
+		log.onTileGraphic(new GridTile(9, 12), 4001);
+		log.onTileGraphic(new GridTile(40, 4), 4002);
 		log.record(101, new WaveLog.PlayerTick(new GridTile(7, 14), 86, 75, Arrays.asList("ranged", "rigour"), 7552, 11, FANG), Arrays.asList(
 			npc(11, NpcKind.SHAMAN_ID, 13, 19, 7579, 20, 30, WaveLog.TARGET_PLAYER),
 			new WaveLog.NpcTick(12, NpcKind.MANTICORE_ID, new GridTile(16, 23), -1, 30, 30, WaveLog.TARGET_PLAYER, new int[] {3001}),
