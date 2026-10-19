@@ -8,15 +8,24 @@ Everything happens on the site, in your browser.
 
 ## The panel
 
+The card at the top is for the wave you are in:
+
 - **Open wave start** opens the arena as it was on the wave's first tick.
 - **Open arena now** opens the arena as it is right now.
 - **Open in recommender** is available while Minimus offers his three modifiers. It opens the site's modifier pick
   with those offers, the modifiers you hold and the next wave already filled in.
-- **Copy wave log** copies a record of a wave: where you and every NPC stood on each tick, what each did, and the gear
-  you wore when **Include gear and stats** is on. Pick any wave since RuneLite started from the list above the button.
-  Paste it on the site to see where the planner's simulation differed from your run.
-- **Copy whole run** copies every wave of your latest run in one paste, from wave 1, or from the first wave the plugin
-  saw if you turned it on mid-run, to the latest, so the site can go through them one wave after another.
+
+Under it, **Past waves** lists every wave since RuneLite started, grouped by run, newest first. Click a run's head to
+fold it open or shut. Each wave's row has three small buttons:
+
+- The orange play button opens the wave on the site as it was on its first tick.
+- The orange two-figure button opens it on the tick its reinforcements came.
+- The grey copy button copies the wave's log: where you and every NPC stood on each tick, what each did, and the gear
+  you wore when **Include gear and stats** is on. Paste it on the site to see where the planner's simulation differed
+  from your run.
+
+The copy button on a run's head copies the whole run in one paste, so the site can go through its waves one after
+another.
 
 Each Open button also copies its link, so you can share it. A hotkey (unset by default) copies the current arena's link
 without leaving the game.

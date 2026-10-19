@@ -138,8 +138,10 @@ public class SolSurvivorPlugin extends Plugin
 	/** What the panel last showed, so that it is redrawn only when that changes rather than every tick. */
 	private boolean shownInColosseum;
 	private boolean shownWaveStart;
-	private String shownWaveLog;
-	private List<SolSurvivorPanel.LogChoice> shownLogs = new ArrayList<>();
+	private String shownTitle;
+	private String shownState;
+	private String shownNote;
+	private List<SolSurvivorPanel.RunGroup> shownRuns = new ArrayList<>();
 	private boolean shownOffers;
 
 	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.copyHotkey())
@@ -160,7 +162,50 @@ public class SolSurvivorPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		panel = new SolSurvivorPanel(this::openWaveStart, () -> copyCurrent(true), this::openRecommender, this::copyWaveLog, this::copyRun);
+		panel = new SolSurvivorPanel(new SolSurvivorPanel.Actions()
+		{
+			@Override
+			public void openWaveStart()
+			{
+				SolSurvivorPlugin.this.openWaveStart();
+			}
+
+			@Override
+			public void openNow()
+			{
+				copyCurrent(true);
+			}
+
+			@Override
+			public void openRecommender()
+			{
+				SolSurvivorPlugin.this.openRecommender();
+			}
+
+			@Override
+			public void openPastStart(int id)
+			{
+				openPast(id, false);
+			}
+
+			@Override
+			public void openPastReinforcements(int id)
+			{
+				openPast(id, true);
+			}
+
+			@Override
+			public void copyWaveLog(int id)
+			{
+				SolSurvivorPlugin.this.copyWaveLog(id);
+			}
+
+			@Override
+			public void copyRun(int id)
+			{
+				SolSurvivorPlugin.this.copyRun(id);
+			}
+		});
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
 			.icon(SolSurvivorPanel.icon())
@@ -183,8 +228,10 @@ public class SolSurvivorPlugin extends Plugin
 		waveStartState = null;
 		shownInColosseum = false;
 		shownWaveStart = false;
-		shownWaveLog = null;
-		shownLogs = new ArrayList<>();
+		shownTitle = null;
+		shownState = null;
+		shownNote = null;
+		shownRuns = new ArrayList<>();
 		shownOffers = false;
 		panel = null;
 	}
@@ -414,6 +461,18 @@ public class SolSurvivorPlugin extends Plugin
 			return;
 		}
 		waveLog.record(tick, playerTick(), npcTicks());
+		if (tracker.isReinforcementsArrived() && !waveLog.hasReinforcementState())
+		{
+			// The tick the reinforcements came, which the panel opens on the site for a wave gone by.
+			try
+			{
+				waveLog.reinforcementsCame(StatePayload.toJson(capture(), gear()));
+			}
+			catch (ExportException ex)
+			{
+				log.debug("Could not take the arena as the reinforcements came", ex);
+			}
+		}
 		if (!tracker.isWaveStarted())
 		{
 			waveLog.finish(WaveLog.End.COMPLETED);
@@ -830,52 +889,86 @@ public class SolSurvivorPlugin extends Plugin
 		});
 	}
 
-	/** Copies the log the panel's list picked, by its id: the wave under way or the last one, or a past one. */
+	/**
+	 * Opens a logged wave on the site, and copies its link: at its first tick, or on the tick its reinforcements came
+	 * (`reinforcements`), as the wave log kept them.
+	 */
+	private void openPast(int id, boolean reinforcements)
+	{
+		clientThread.invokeLater(() ->
+		{
+			WaveLog.Past wave = loggedWave(id);
+			if (wave == null)
+			{
+				report("That wave is no longer kept: more waves have come since than the log keeps.");
+				return;
+			}
+			String state = reinforcements ? wave.getReinforcementState() : wave.getStartState();
+			if (state == null)
+			{
+				report(reinforcements
+					? "The plugin did not see wave " + wave.getWave() + "'s reinforcements come."
+					: "The plugin did not see wave " + wave.getWave() + " start.");
+				return;
+			}
+			String link = StatePayload.linkOfJson(config.siteUrl(), state);
+			String what = reinforcements ? "wave " + wave.getWave() + " at its reinforcements" : "wave " + wave.getWave() + "'s start";
+			LinkBrowser.browse(link);
+			copy(link, "Opened " + what + " on the site, and copied its link.", "Opened " + what + " on the site.");
+		});
+	}
+
+	/** The logged wave `id`, the one under way or the last one or a past one, or null when it is no longer kept. */
+	private WaveLog.Past loggedWave(int id)
+	{
+		for (List<WaveLog.Past> run : waveLog.getRuns())
+		{
+			for (WaveLog.Past wave : run)
+			{
+				if (wave.getId() == id)
+				{
+					return wave;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Copies the log of the panel's row `id`: the wave under way or the last one, or a past one. */
 	private void copyWaveLog(int id)
 	{
 		clientThread.invokeLater(() ->
 		{
-			if (!waveLog.hasLog())
+			WaveLog.Past wave = loggedWave(id);
+			if (wave == null)
 			{
-				report(config.recordWaveLog()
-					? "No wave log to copy: the plugin records each wave it sees start."
-					: "No wave log to copy: switch on \"Record wave log\" in the plugin's settings.");
+				report("That wave log is no longer kept: more waves have come since than the log keeps.");
 				return;
 			}
-			if (waveLog.getId() == id)
-			{
-				String note = "Copied the wave log of wave " + waveLog.getWave() + ", " + waveLog.size() + " ticks"
-					+ (waveLog.isCut() ? ", cut at " + WaveLog.MAX_TICKS : "") + ".";
-				copy(WaveLogWriter.toJson(waveLog), note, null);
-				return;
-			}
-			for (WaveLog.Past past : waveLog.getPast())
-			{
-				if (past.getId() == id)
-				{
-					copy(past.getJson(), "Copied the wave log of wave " + past.getWave() + ", " + past.size() + " ticks.", null);
-					return;
-				}
-			}
-			// Kept no longer: more waves have come since than the log keeps.
-			report("That wave log is no longer kept: pick another.");
+			String cut = waveLog.getId() == id && waveLog.isCut() ? ", cut at " + WaveLog.MAX_TICKS : "";
+			copy(wave.getJson(), "Copied the wave log of wave " + wave.getWave() + ", " + wave.size() + " ticks" + cut + ".", null);
 		});
 	}
 
-	/**
-	 * Copies every wave of the newest run in one paste, whichever wave the list picked: the logs WaveLog.getRun picks, as
-	 * RunLogWriter writes them.
-	 */
-	private void copyRun()
+	/** Copies the whole run that holds the panel's row `id` in one paste, as RunLogWriter writes it. */
+	private void copyRun(int id)
 	{
 		clientThread.invokeLater(() ->
 		{
-			List<WaveLog.Past> run = waveLog.getRun();
-			if (run.isEmpty())
+			List<WaveLog.Past> run = null;
+			for (List<WaveLog.Past> r : waveLog.getRuns())
 			{
-				report(config.recordWaveLog()
-					? "No wave log to copy: the plugin records each wave it sees start."
-					: "No wave log to copy: switch on \"Record wave log\" in the plugin's settings.");
+				for (WaveLog.Past wave : r)
+				{
+					if (wave.getId() == id)
+					{
+						run = r;
+					}
+				}
+			}
+			if (run == null)
+			{
+				report("That run is no longer kept: more waves have come since than the log keeps.");
 				return;
 			}
 			int from = run.get(0).getWave();
@@ -938,74 +1031,85 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		boolean colosseum = inColosseum;
 		boolean waveStart = waveStartLink != null;
-		String log = waveLogStatus();
-		List<SolSurvivorPanel.LogChoice> logs = logChoices();
+		Integer wave = tracker.getWave();
+		String title;
+		String state;
+		if (!colosseum)
+		{
+			title = "Not in the Colosseum";
+			state = "";
+		}
+		else if (wave == null)
+		{
+			title = "In the Fortis Colosseum";
+			state = "Waiting for a wave to start.";
+		}
+		else if (tracker.isWaveStarted())
+		{
+			title = "Wave " + wave;
+			state = "Under way.";
+		}
+		else
+		{
+			title = "Wave " + wave + " next";
+			state = "Between waves.";
+		}
+		String note = config.recordWaveLog()
+			? "Each wave you play shows here, newest first, once the plugin sees it start."
+			: "Switch on \"Record wave log\" in the plugin's settings to keep past waves here.";
+		List<SolSurvivorPanel.RunGroup> runs = runGroups();
 		boolean offers = !tracker.getOptions().isEmpty();
-		if (colosseum == shownInColosseum && waveStart == shownWaveStart && log.equals(shownWaveLog) && logs.equals(shownLogs)
-			&& offers == shownOffers)
+		if (colosseum == shownInColosseum && waveStart == shownWaveStart && title.equals(shownTitle) && state.equals(shownState)
+			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers)
 		{
 			return;
 		}
 		shownInColosseum = colosseum;
 		shownWaveStart = waveStart;
-		shownWaveLog = log;
-		shownLogs = logs;
+		shownTitle = title;
+		shownState = state;
+		shownNote = note;
+		shownRuns = runs;
 		shownOffers = offers;
-		SwingUtilities.invokeLater(() -> p.showState(colosseum, waveStart, offers, log, logs));
+		SwingUtilities.invokeLater(() -> p.showState(colosseum, title, state, waveStart, offers, note, runs));
 	}
 
 	/**
-	 * The logs the panel's list offers, newest first: the wave under way or the last one, then the past ones. A wave under
-	 * way leaves its tick count out, so that the list stays as it is, and keeps the player's pick, while it records.
+	 * The runs the panel shows, newest first, each its waves newest first. A wave under way says so without its time, so
+	 * that its row stays as it is while it records.
 	 */
-	private List<SolSurvivorPanel.LogChoice> logChoices()
+	private List<SolSurvivorPanel.RunGroup> runGroups()
 	{
-		List<SolSurvivorPanel.LogChoice> out = new ArrayList<>();
-		if (!waveLog.hasLog())
+		List<SolSurvivorPanel.RunGroup> out = new ArrayList<>();
+		List<List<WaveLog.Past>> runs = waveLog.getRuns();
+		for (int i = 0; i < runs.size(); i++)
 		{
-			return out;
-		}
-		String now = waveLog.isRecording() ? "recording" : waveLog.size() + " ticks, " + endName(waveLog.getEnd());
-		out.add(new SolSurvivorPanel.LogChoice(waveLog.getId(), "Wave " + waveLog.getWave() + ", " + now));
-		for (WaveLog.Past past : waveLog.getPast())
-		{
-			out.add(new SolSurvivorPanel.LogChoice(past.getId(), "Wave " + past.getWave() + ", " + past.size() + " ticks, " + endName(past.getEnd())));
+			List<WaveLog.Past> run = runs.get(i);
+			List<SolSurvivorPanel.WaveRow> rows = new ArrayList<>();
+			for (WaveLog.Past wave : run)
+			{
+				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave.getEnd());
+				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.getStartState() != null,
+					wave.getReinforcementState() != null));
+			}
+			int from = run.get(0).getWave();
+			int to = run.get(run.size() - 1).getWave();
+			String title = (i == 0 ? "Latest run: " : "Earlier run: ") + (from == to ? "wave " + from : from + " to " + to);
+			out.add(new SolSurvivorPanel.RunGroup(run.get(0).getId(), title, rows));
 		}
 		return out;
 	}
 
-	/** How a log's wave ended, in the panel's words. */
-	private static String endName(WaveLog.End end)
+	/** A wave's length in game time, minutes and seconds, from its ticks of 0.6 seconds. */
+	private static String duration(int ticks)
 	{
-		if (end == null)
-		{
-			return "end not seen";
-		}
-		return end == WaveLog.End.COMPLETED ? "completed" : "left";
+		int seconds = ticks * 3 / 5;
+		return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
 	}
 
-	/** What the panel says of the wave log: which wave, how many ticks, and whether it is still recording. */
-	private String waveLogStatus()
+	/** How a log's wave ended, after its time: only a wave the player left says so, as completing it is the rule. */
+	private static String endName(WaveLog.End end)
 	{
-		if (!config.recordWaveLog())
-		{
-			return "Wave log: off.";
-		}
-		if (!waveLog.hasLog())
-		{
-			return "Wave log: none yet. It records each wave the plugin sees start.";
-		}
-		String state;
-		if (waveLog.isRecording())
-		{
-			state = waveLog.isCut() ? "full, the rest is left out" : "recording";
-		}
-		else
-		{
-			state = waveLog.getEnd() == WaveLog.End.COMPLETED ? "wave completed" : "left the wave";
-		}
-		int past = waveLog.getPast().size();
-		return "Wave log: wave " + waveLog.getWave() + ", " + waveLog.size() + (waveLog.size() == 1 ? " tick" : " ticks") + " (" + state + ")."
-			+ (past == 0 ? "" : " The list also holds " + (past == 1 ? "the wave" : "the " + past + " waves") + " before it.");
+		return end == WaveLog.End.LEFT ? ", left" : "";
 	}
 }

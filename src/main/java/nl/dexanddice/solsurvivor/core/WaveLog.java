@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A tick-by-tick record of one wave as the player played it, for the site's wave reviewer to replay; WaveLogWriter turns
@@ -228,8 +229,9 @@ public final class WaveLog
 	}
 
 	/**
-	 * A past wave's log, kept as its JSON once the next wave started. getRun gives the wave under way or the last one the
-	 * same way, as its JSON when it was asked for.
+	 * A past wave's log, kept as its JSON once the next wave started, with the state links' payloads on its first tick and
+	 * on the tick its reinforcements came. getRun and getRuns give the wave under way or the last one the same way, its
+	 * JSON written when it is asked for, so that the panel can list the waves every tick without writing any.
 	 */
 	public static final class Past
 	{
@@ -237,15 +239,21 @@ public final class WaveLog
 		private final int wave;
 		private final int size;
 		private final End end;
-		private final String json;
+		private final boolean recording;
+		private final Supplier<String> json;
+		private final String startState;
+		private final String reinforcementState;
 
-		Past(int id, int wave, int size, End end, String json)
+		Past(int id, int wave, int size, End end, boolean recording, Supplier<String> json, String startState, String reinforcementState)
 		{
 			this.id = id;
 			this.wave = wave;
 			this.size = size;
 			this.end = end;
+			this.recording = recording;
 			this.json = json;
+			this.startState = startState;
+			this.reinforcementState = reinforcementState;
 		}
 
 		/** The log's id, as getId gave it while it was the one under way. */
@@ -271,10 +279,28 @@ public final class WaveLog
 			return end;
 		}
 
+		/** Whether this is the wave under way, still recording. */
+		public boolean isRecording()
+		{
+			return recording;
+		}
+
 		/** The log as WaveLogWriter wrote it. */
 		public String getJson()
 		{
-			return json;
+			return json.get();
+		}
+
+		/** The state link's payload on the wave's first tick (StatePayload.toJson), or null when it could not be taken. */
+		public String getStartState()
+		{
+			return startState;
+		}
+
+		/** The state link's payload on the tick the wave's reinforcements came, or null when they were not seen to come. */
+		public String getReinforcementState()
+		{
+			return reinforcementState;
 		}
 	}
 
@@ -328,6 +354,8 @@ public final class WaveLog
 	private String version = "";
 	/** The state link's payload on the wave's first tick, as StatePayload wrote it, or null when it could not be taken. */
 	private String startState;
+	/** The state link's payload on the tick the reinforcements came, or null before then. */
+	private String reinforcementState;
 	private final List<Tick> ticks = new ArrayList<>();
 	private boolean cut;
 	private End end;
@@ -359,7 +387,8 @@ public final class WaveLog
 	{
 		if (this.wave != null)
 		{
-			past.add(0, new Past(id, this.wave, ticks.size(), end, WaveLogWriter.toJson(this)));
+			String json = WaveLogWriter.toJson(this);
+			past.add(0, new Past(id, this.wave, ticks.size(), end, false, () -> json, this.startState, reinforcementState));
 			while (past.size() > MAX_PAST)
 			{
 				past.remove(past.size() - 1);
@@ -372,6 +401,7 @@ public final class WaveLog
 		this.modifiersComplete = modifiersComplete;
 		this.version = version;
 		this.startState = startState;
+		reinforcementState = null;
 		ticks.clear();
 		cut = false;
 		end = null;
@@ -505,10 +535,29 @@ public final class WaveLog
 		modifiersComplete = false;
 		version = "";
 		startState = null;
+		reinforcementState = null;
 		id = 0;
 		lastWorn = null;
 		past.clear();
 		discardPending();
+	}
+
+	/**
+	 * The wave's reinforcements came on this tick: `state` is the state link's payload on it (StatePayload.toJson), which
+	 * the panel opens on the site. Only the first is kept, while the wave records.
+	 */
+	public void reinforcementsCame(String state)
+	{
+		if (recording && reinforcementState == null)
+		{
+			reinforcementState = state;
+		}
+	}
+
+	/** Whether the reinforcements' state was taken this wave. */
+	public boolean hasReinforcementState()
+	{
+		return reinforcementState != null;
 	}
 
 	/** Whether a wave is being recorded. */
@@ -547,23 +596,38 @@ public final class WaveLog
 	 */
 	public List<Past> getRun()
 	{
-		List<Past> run = new ArrayList<>();
+		List<List<Past>> runs = getRuns();
+		return runs.isEmpty() ? Collections.<Past>emptyList() : runs.get(0);
+	}
+
+	/**
+	 * Every run logged, newest first, each its logs oldest first: the newest is getRun's, and each run before it is
+	 * parted from the next the same way, where a log's wave is not the one before the wave of the log after it. The
+	 * wave under way or the last one comes as it is now, its JSON written when it is asked for. Empty when there is no
+	 * log.
+	 */
+	public List<List<Past>> getRuns()
+	{
+		List<List<Past>> runs = new ArrayList<>();
 		if (wave == null)
 		{
-			return run;
+			return runs;
 		}
-		run.add(new Past(id, wave, ticks.size(), end, WaveLogWriter.toJson(this)));
+		List<Past> run = new ArrayList<>();
+		run.add(new Past(id, wave, ticks.size(), end, recording, () -> WaveLogWriter.toJson(this), startState, reinforcementState));
 		int next = wave;
 		for (Past p : past)
 		{
 			if (p.getWave() != next - 1)
 			{
-				break;
+				runs.add(Collections.unmodifiableList(run));
+				run = new ArrayList<>();
 			}
 			run.add(0, p);
 			next = p.getWave();
 		}
-		return Collections.unmodifiableList(run);
+		runs.add(Collections.unmodifiableList(run));
+		return Collections.unmodifiableList(runs);
 	}
 
 	/** The wave logged, or null when there is none. */
@@ -608,6 +672,12 @@ public final class WaveLog
 	String getStartState()
 	{
 		return startState;
+	}
+
+	/** The state link's payload on the tick the reinforcements came, or null before then. */
+	public String getReinforcementState()
+	{
+		return reinforcementState;
 	}
 
 	List<Tick> getTicks()

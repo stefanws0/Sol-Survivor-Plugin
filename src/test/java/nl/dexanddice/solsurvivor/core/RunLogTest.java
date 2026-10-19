@@ -206,6 +206,59 @@ public class RunLogTest
 	}
 
 	@Test
+	public void theRunsBeforeTheNewestArePartedTheSameWay()
+	{
+		// A run of waves 1 to 3, then a new run from wave 1, then the plugin picking up at wave 6 after missing some.
+		int tick = 100;
+		for (int w : new int[]{1, 2, 3, 1, 2, 6, 7})
+		{
+			wave(w, tick, 1);
+			log.finish(WaveLog.End.COMPLETED);
+			tick += 100;
+		}
+		List<List<Integer>> runs = new ArrayList<>();
+		for (List<WaveLog.Past> run : log.getRuns())
+		{
+			List<Integer> waves = new ArrayList<>();
+			for (WaveLog.Past p : run)
+			{
+				waves.add(p.getWave());
+			}
+			runs.add(waves);
+		}
+		assertEquals(Arrays.asList(Arrays.asList(6, 7), Arrays.asList(1, 2), Arrays.asList(1, 2, 3)), runs);
+		assertEquals(Arrays.asList(6, 7), runWaves());
+		assertTrue(log.getRuns().get(2).get(0).getJson().contains("\"wave\":1"));
+	}
+
+	@Test
+	public void eachWaveKeepsItsStartAndTheTickItsReinforcementsCame()
+	{
+		log.start(4, 100, Collections.emptyMap(), true, "test", START_STATE);
+		log.record(100, player(7, 15, 99), Collections.emptyList());
+		assertTrue(!log.hasReinforcementState());
+		log.reinforcementsCame("{\"first\":true}");
+		// Only the first tick they came is kept.
+		log.reinforcementsCame("{\"second\":true}");
+		WaveLog.Past now = log.getRun().get(0);
+		assertTrue(now.isRecording());
+		assertEquals(Arrays.asList(START_STATE, "{\"first\":true}"), Arrays.asList(now.getStartState(), now.getReinforcementState()));
+
+		log.finish(WaveLog.End.COMPLETED);
+		// After the wave, none are taken: the next wave's come with its own.
+		log.reinforcementsCame("{\"late\":true}");
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		WaveLog.Past four = log.getPast().get(0);
+		assertEquals(Arrays.asList(START_STATE, "{\"first\":true}"), Arrays.asList(four.getStartState(), four.getReinforcementState()));
+		assertTrue(!four.isRecording());
+		WaveLog.Past five = log.getRun().get(1);
+		assertEquals(Arrays.asList(null, null), Arrays.asList(five.getStartState(), five.getReinforcementState()));
+		log.finish(WaveLog.End.LEFT);
+		log.reinforcementsCame("{\"after\":true}");
+		assertEquals(null, log.getReinforcementState());
+	}
+
+	@Test
 	public void noLogNoRun()
 	{
 		assertTrue(log.getRun().isEmpty());

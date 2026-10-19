@@ -114,6 +114,12 @@ public final class ColosseumTracker
 		return waveStarted;
 	}
 
+	/** Whether a reinforcement has spawned in the wave under way, even one that has since died. */
+	public boolean isReinforcementsArrived()
+	{
+		return reinforcementsArrived;
+	}
+
 	/** The wave under way, or the next one between waves; null when the plugin has not seen a wave's message yet. */
 	public Integer getWave()
 	{

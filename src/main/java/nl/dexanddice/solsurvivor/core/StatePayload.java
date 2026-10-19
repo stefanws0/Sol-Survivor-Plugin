@@ -329,6 +329,12 @@ public final class StatePayload
 	/** The whole link, with the player's gear when `equipment` is not null. */
 	public static String link(String siteUrl, ArenaState state, Equipment equipment)
 	{
+		return linkOfJson(siteUrl, toJson(state, equipment));
+	}
+
+	/** The whole link of a payload toJson wrote earlier, such as a past wave's start the wave log kept. */
+	public static String linkOfJson(String siteUrl, String json)
+	{
 		String base = siteUrl.trim();
 		int hash = base.indexOf('#');
 		if (hash >= 0)
@@ -339,6 +345,6 @@ public final class StatePayload
 		{
 			base += "/";
 		}
-		return base + STATE_HASH + encode(state, equipment);
+		return base + STATE_HASH + Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII));
 	}
 }
