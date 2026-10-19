@@ -15,6 +15,8 @@ Everything happens on the site, in your browser.
 - **Copy wave log** copies a record of a wave: where you and every NPC stood on each tick, what each did, and the gear
   you wore when **Include gear and stats** is on. Pick any wave since RuneLite started from the list above the button.
   Paste it on the site to see where the planner's simulation differed from your run.
+- **Copy whole run** copies every wave of your latest run in one paste, from wave 1, or from the first wave the plugin
+  saw if you turned it on mid-run, to the latest, so the site can go through them one wave after another.
 
 Each Open button also copies its link, so you can share it. A hotkey (unset by default) copies the current arena's link
 without leaving the game.

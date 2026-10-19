@@ -20,9 +20,9 @@ import net.runelite.client.ui.PluginPanel;
  * The side panel: two buttons that open a link on the site and copy it, the wave start's or the arena's now, a button
  * that opens the site's modifier pick with Minimus's three offers while he offers them, those three in the brand's
  * orange as the ones that open the site, a list of the waves logged since the plugin started and a button that copies
- * the one picked, with a line on what the log holds, and a line that says what the last button did. A bad plan is reported from the site's
- * own page. Like the rest of the plugin it shows nothing about how to
- * play the wave; the plans are the site's.
+ * the one picked, a button under it that copies every wave of the newest run in one paste, with a line on what the log
+ * holds, and a line that says what the last button did. A bad plan is reported from the site's own page. Like the rest
+ * of the plugin it shows nothing about how to play the wave; the plans are the site's.
  */
 class SolSurvivorPanel extends PluginPanel
 {
@@ -34,6 +34,7 @@ class SolSurvivorPanel extends PluginPanel
 	private final DefaultComboBoxModel<LogChoice> logs = new DefaultComboBoxModel<>();
 	private final JComboBox<LogChoice> logPick = new JComboBox<>(logs);
 	private final JButton copyWaveLog = new JButton("Copy wave log");
+	private final JButton copyRun = new JButton("Copy whole run");
 	private final JLabel result = new JLabel();
 
 	/** A wave log the list offers: its id in WaveLog, and how the list names it. */
@@ -73,7 +74,7 @@ class SolSurvivorPanel extends PluginPanel
 		}
 	}
 
-	SolSurvivorPanel(Runnable onOpenWaveStart, Runnable onOpenNow, Runnable onOpenRecommender, IntConsumer onCopyWaveLog)
+	SolSurvivorPanel(Runnable onOpenWaveStart, Runnable onOpenNow, Runnable onOpenRecommender, IntConsumer onCopyWaveLog, Runnable onCopyRun)
 	{
 		JLabel title = new JLabel("Sol Survivor");
 		title.setForeground(Color.WHITE);
@@ -106,9 +107,13 @@ class SolSurvivorPanel extends PluginPanel
 				onCopyWaveLog.accept(picked.getId());
 			}
 		});
+		copyRun.setToolTipText("Copies every wave of the newest run in one paste, whichever wave is picked: the last wave and "
+			+ "those before it back to wave 1, or to the first the plugin logged.");
+		copyRun.addActionListener(e -> onCopyRun.run());
 		add(waveLog);
 		add(logPick);
 		add(copyWaveLog);
+		add(copyRun);
 
 		result.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		add(result);
@@ -135,6 +140,7 @@ class SolSurvivorPanel extends PluginPanel
 		showLogs(waveLogs);
 		logPick.setEnabled(!waveLogs.isEmpty());
 		copyWaveLog.setEnabled(!waveLogs.isEmpty());
+		copyRun.setEnabled(!waveLogs.isEmpty());
 	}
 
 	/**

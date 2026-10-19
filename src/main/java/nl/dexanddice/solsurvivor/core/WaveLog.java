@@ -227,7 +227,10 @@ public final class WaveLog
 		}
 	}
 
-	/** A past wave's log, kept as its JSON once the next wave started. */
+	/**
+	 * A past wave's log, kept as its JSON once the next wave started. getRun gives the wave under way or the last one the
+	 * same way, as its JSON when it was asked for.
+	 */
 	public static final class Past
 	{
 		private final int id;
@@ -530,6 +533,37 @@ public final class WaveLog
 	public List<Past> getPast()
 	{
 		return Collections.unmodifiableList(past);
+	}
+
+	/**
+	 * The newest run's logs, oldest first, for RunLogWriter: the newest log, the wave under way or the last one, and going
+	 * back from it each log whose wave is the one before the wave of the log after it. The run starts at wave 1, which has
+	 * no wave before it, so that it never reaches back into the run before; or, when the plugin did not log the run from
+	 * wave 1, such as when it started mid-run, at the oldest wave of the series it logged. A wave missing from the series
+	 * or logged twice parts it there, and the run is the newer part. How a wave ended does not part a run: the next run
+	 * starts at wave 1 again, which parts the two already. The past waves kept, MAX_PAST, are more than a run's 12 waves
+	 * (wave 12 is Sol Heredit's), so that a run is always whole. Each log is as Copy wave log copies it: a past one as
+	 * its JSON, and the newest as WaveLogWriter writes it now. Empty when there is no log.
+	 */
+	public List<Past> getRun()
+	{
+		List<Past> run = new ArrayList<>();
+		if (wave == null)
+		{
+			return run;
+		}
+		run.add(new Past(id, wave, ticks.size(), end, WaveLogWriter.toJson(this)));
+		int next = wave;
+		for (Past p : past)
+		{
+			if (p.getWave() != next - 1)
+			{
+				break;
+			}
+			run.add(0, p);
+			next = p.getWave();
+		}
+		return Collections.unmodifiableList(run);
 	}
 
 	/** The wave logged, or null when there is none. */

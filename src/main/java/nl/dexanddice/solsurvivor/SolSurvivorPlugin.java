@@ -65,6 +65,7 @@ import nl.dexanddice.solsurvivor.core.Modifier;
 import nl.dexanddice.solsurvivor.core.OrbStyle;
 import nl.dexanddice.solsurvivor.core.PickPayload;
 import nl.dexanddice.solsurvivor.core.PluginVersion;
+import nl.dexanddice.solsurvivor.core.RunLogWriter;
 import nl.dexanddice.solsurvivor.core.SeenNpc;
 import nl.dexanddice.solsurvivor.core.StatePayload;
 import nl.dexanddice.solsurvivor.core.WaveLog;
@@ -83,7 +84,8 @@ import org.slf4j.LoggerFactory;
  * This class passes the game's events to ColosseumTracker, which holds the logic and is tested without RuneLite, and
  * reads the arena on the client thread when a link is asked for. With "Record wave log" on it also records each wave it
  * saw start, a tick at a time, in a WaveLog that keeps the waves since the plugin started and that the panel copies as
- * JSON for the site's wave reviewer, any of them picked from a list.
+ * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
+ * (RunLogWriter).
  *
  * It sends nothing anywhere: a bad plan is reported from the site's own page.
  */
@@ -158,7 +160,7 @@ public class SolSurvivorPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		panel = new SolSurvivorPanel(this::openWaveStart, () -> copyCurrent(true), this::openRecommender, this::copyWaveLog);
+		panel = new SolSurvivorPanel(this::openWaveStart, () -> copyCurrent(true), this::openRecommender, this::copyWaveLog, this::copyRun);
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
 			.icon(SolSurvivorPanel.icon())
@@ -857,6 +859,36 @@ public class SolSurvivorPlugin extends Plugin
 			}
 			// Kept no longer: more waves have come since than the log keeps.
 			report("That wave log is no longer kept: pick another.");
+		});
+	}
+
+	/**
+	 * Copies every wave of the newest run in one paste, whichever wave the list picked: the logs WaveLog.getRun picks, as
+	 * RunLogWriter writes them.
+	 */
+	private void copyRun()
+	{
+		clientThread.invokeLater(() ->
+		{
+			List<WaveLog.Past> run = waveLog.getRun();
+			if (run.isEmpty())
+			{
+				report(config.recordWaveLog()
+					? "No wave log to copy: the plugin records each wave it sees start."
+					: "No wave log to copy: switch on \"Record wave log\" in the plugin's settings.");
+				return;
+			}
+			int from = run.get(0).getWave();
+			int to = run.get(run.size() - 1).getWave();
+			int ticks = 0;
+			for (WaveLog.Past wave : run)
+			{
+				ticks += wave.size();
+			}
+			String waves = from == to ? "wave " + from : "waves " + from + " to " + to;
+			String note = "Copied the whole run, " + waves + ", " + ticks + (ticks == 1 ? " tick" : " ticks") + "."
+				+ (from == 1 ? "" : " The plugin logged it from wave " + from + " on.");
+			copy(RunLogWriter.toJson(run, PluginVersion.VERSION), note, null);
 		});
 	}
 

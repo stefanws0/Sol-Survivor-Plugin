@@ -1,0 +1,12 @@
+{"v":1,"kind":"solSurvivorRun","plugin":"test","waves":[
+{"v":1,"kind":"solSurvivorWaveLog","plugin":"test","wave":1,"modifiers":{},"modifiersComplete":true,"maxTicks":1500,"cut":false,"end":"completed","start":{"v":1,"setup":{"npcs":[[13,20,"2"]],"player":[7,15],"waveStart":true,"wave":1}},"ticks":[
+{"t":0,"player":[7,15,99,77,[],-1,null],"hits":[],"npcs":[[11,12811,13,20,-1,-1,-1,"player",[]]],"orbs":[]},
+{"t":1,"player":[7,14,99,77,[],-1,null],"hits":[],"npcs":[[11,12811,13,19,10859,-1,-1,"player",[[14,12]]]],"orbs":[],"anims":[[11,10859]]}
+]},
+{"v":1,"kind":"solSurvivorWaveLog","plugin":"test","wave":2,"modifiers":{"reentry":1},"modifiersComplete":true,"maxTicks":1500,"cut":false,"end":null,"start":null,"ticks":[
+{"t":0,"player":[7,15,99,77,[],-1,null],"hits":[],"npcs":[[14,12811,13,20,-1,-1,-1,"player",[]],[15,12811,15,20,-1,-1,-1,"player",[]]],"orbs":[]}
+]},
+{"v":1,"kind":"solSurvivorWaveLog","plugin":"test","wave":3,"modifiers":{"reentry":1},"modifiersComplete":true,"maxTicks":1500,"cut":false,"end":null,"start":null,"ticks":[
+{"t":0,"player":[7,15,90,77,[],-1,null],"hits":[[9,16]],"npcs":[[16,12811,13,20,-1,-1,-1,"player",[]]],"orbs":[]}
+]}
+]}
