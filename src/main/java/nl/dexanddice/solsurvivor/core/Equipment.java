@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * The player's gear and stats as the game shows them (design spec, "Equipment"): each worn item by its slot, with its id,
  * name and quantity; the weapon's attack speed in ticks, its category and the attack style picked, as the game numbers
- * them; the items in the inventory that can be worn, the switches a player brings; each item's attack and strength bonuses; the gear's prayer bonus; the prayer points now; and each combat skill's boosted and real level. The site maps
+ * them; the items in the inventory that can be worn, the switches a player brings; each item's attack and strength bonuses; each worn item's defence bonuses; the gear's prayer bonus; the prayer points now; and each combat skill's boosted and real level. The site maps
  * them to its kill table; the plugin passes on what the game says and works nothing out.
  */
 public final class Equipment
@@ -77,6 +77,9 @@ public final class Equipment
 	/** The numbers an item's bonuses hold (bonuses). */
 	public static final int BONUS_COUNT = 9;
 
+	/** The numbers an item's defence bonuses hold (defences). */
+	public static final int DEFENCE_COUNT = 5;
+
 	/** The most switches kept: the inventory's 28 places. */
 	public static final int MAX_SWITCHES = 28;
 
@@ -84,6 +87,7 @@ public final class Equipment
 	private final List<Switch> switches = new ArrayList<>();
 	private final Map<String, int[]> stats = new LinkedHashMap<>();
 	private final Map<Integer, int[]> bonuses = new LinkedHashMap<>();
+	private final Map<Integer, int[]> defences = new LinkedHashMap<>();
 	private int weaponSpeed;
 	private int weaponCategory;
 	private int attackStyle;
@@ -128,6 +132,21 @@ public final class Equipment
 			throw new IllegalArgumentException("expected " + BONUS_COUNT + " bonuses, not " + values.length);
 		}
 		bonuses.put(id, values.clone());
+		return this;
+	}
+
+	/**
+	 * A worn item's defence bonuses, by its id: stab, slash, crush, magic and ranged. With the Defence and Magic levels
+	 * the site works out how often the NPCs' attacks land on the player. Apart from bonuses, which the site's readers
+	 * before plugin 0.5.0 take only at nine numbers an item.
+	 */
+	public Equipment defences(int id, int[] values)
+	{
+		if (values.length != DEFENCE_COUNT)
+		{
+			throw new IllegalArgumentException("expected " + DEFENCE_COUNT + " defence bonuses, not " + values.length);
+		}
+		defences.put(id, values.clone());
 		return this;
 	}
 
@@ -179,6 +198,11 @@ public final class Equipment
 	public Map<Integer, int[]> getBonuses()
 	{
 		return Collections.unmodifiableMap(bonuses);
+	}
+
+	public Map<Integer, int[]> getDefences()
+	{
+		return Collections.unmodifiableMap(defences);
 	}
 
 	public Map<String, int[]> getStats()

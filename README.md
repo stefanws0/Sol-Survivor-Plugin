@@ -33,7 +33,8 @@ without leaving the game.
 ## What a link holds
 
 A link holds the NPCs and their tiles, your tile, the wave and the tick within it, the modifiers you took, each
-Manticore's orb order once it has shown it, and when each NPC last attacked. With **Include gear and stats** on, it
+Manticore's orb order once it has shown it, and when each NPC last attacked. Mid-wave it also holds the fight so far:
+each NPC's health bar as you last saw it, your Doom stacks this wave, and the molten sand on the floor. With **Include gear and stats** on, it
 also holds your worn gear, the weapons in your inventory, your combat levels and your prayer points, which the site
 uses to work out how quickly you kill each NPC.
 

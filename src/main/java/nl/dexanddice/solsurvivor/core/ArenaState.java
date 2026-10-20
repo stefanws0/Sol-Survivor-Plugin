@@ -20,6 +20,8 @@ public final class ArenaState
 	private final Map<Modifier, Integer> modifiers;
 	private final boolean modifiersComplete;
 	private final List<GridTile> solarflareOrbs;
+	private final Integer doomStacks;
+	private final List<GridTile> sand;
 
 	public ArenaState(
 		List<ExportNpc> npcs,
@@ -30,7 +32,9 @@ public final class ArenaState
 		boolean reinforcementsArrived,
 		Map<Modifier, Integer> modifiers,
 		boolean modifiersComplete,
-		List<GridTile> solarflareOrbs)
+		List<GridTile> solarflareOrbs,
+		Integer doomStacks,
+		List<GridTile> sand)
 	{
 		this.npcs = Collections.unmodifiableList(npcs);
 		this.player = player;
@@ -41,6 +45,23 @@ public final class ArenaState
 		this.modifiers = Collections.unmodifiableMap(modifiers);
 		this.modifiersComplete = modifiersComplete;
 		this.solarflareOrbs = Collections.unmodifiableList(solarflareOrbs);
+		this.doomStacks = doomStacks;
+		this.sand = Collections.unmodifiableList(sand);
+	}
+
+	/**
+	 * Mid-wave under Doom: the hits that dealt the player damage since the wave started, Doom's stacks; null without
+	 * Doom, at the wave's start, or when the plugin did not see the wave start.
+	 */
+	public Integer getDoomStacks()
+	{
+		return doomStacks;
+	}
+
+	/** The tiles of molten sand on the floor, as far as the plugin knows them: see ColosseumTracker.capture. */
+	public List<GridTile> getSand()
+	{
+		return sand;
 	}
 
 	/** The tiles of Solarflare's orbs on this tick, in the order the game lists them; empty without Solarflare. */

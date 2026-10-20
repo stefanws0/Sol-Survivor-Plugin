@@ -1,13 +1,21 @@
 package nl.dexanddice.solsurvivor.core;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
+import java.util.zip.Deflater;
 
 /**
  * Sol Survivor's state link, version 1, as src/link/statePayload.ts defines it: the site's address, "#s=", and the
- * base64url of a JSON payload, unpadded. The plugin writes the `setup`, the arena as the game shows it, and with the
- * player's gear the `prayer` values and the `equipment`; the site keeps its own kill table and solver settings.
+ * JSON payload packed as the site packs its own (src/ui/linkPacking.ts): "1", then the JSON deflated against the site's
+ * preset dictionary and written as unpadded base64url. Plugins before 0.5.0 wrote the JSON's base64url unpacked, which
+ * the site still reads. The plugin writes the `setup`, the arena as the game shows it (mid-wave with the fight so far:
+ * the NPCs' health bars, Doom's stacks; and the molten sand on the floor), and with the player's gear the `prayer`
+ * values and the `equipment`; the site keeps its own kill table and solver settings.
  *
  * The JSON is written by hand, ASCII only and in a fixed order, so that a state always gives the same link and the
  * tests can compare links whole.
@@ -19,6 +27,28 @@ public final class StatePayload
 
 	/** The site's state hash, STATE_HASH. */
 	public static final String STATE_HASH = "#s=";
+
+	/** The leading character of text packed with the site's first dictionary, the site's PACKED_V1. */
+	public static final String PACKED_V1 = "1";
+
+	/**
+	 * The site's first preset dictionary, STATE_DICTIONARY_V1, byte for byte: the site's tests compare the two
+	 * (test/link/pluginFixtures.test.ts). It is frozen, so a link packed with it reads on every later site. Null when
+	 * the resource cannot be read, and the links are then written unpacked, as before 0.5.0, which the site reads too.
+	 */
+	static final byte[] DICTIONARY_V1 = readDictionary();
+
+	private static byte[] readDictionary()
+	{
+		try (InputStream in = StatePayload.class.getResourceAsStream("state-dictionary-v1.txt"))
+		{
+			return in == null ? null : in.readAllBytes();
+		}
+		catch (IOException e)
+		{
+			return null;
+		}
+	}
 
 	private StatePayload()
 	{
@@ -62,6 +92,60 @@ public final class StatePayload
 			{
 				b.append('[').append(n.getSinceAttack()).append(',').append(n.getAttacks()).append(']');
 			}
+		}
+		b.append(']');
+	}
+
+	/**
+	 * Mid-wave: `health`, one entry per NPC in the order of `npcs`, each its health bar as the game last showed it,
+	 * [ratio, scale], or null for an NPC whose bar the plugin has not seen. Left out when it has seen none.
+	 */
+	private static void health(StringBuilder b, ArenaState state)
+	{
+		boolean any = false;
+		for (ExportNpc n : state.getNpcs())
+		{
+			any |= n.getHealth() != null;
+		}
+		if (!any)
+		{
+			return;
+		}
+		b.append(",\"health\":[");
+		boolean first = true;
+		for (ExportNpc n : state.getNpcs())
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			int[] health = n.getHealth();
+			if (health == null)
+			{
+				b.append("null");
+			}
+			else
+			{
+				b.append('[').append(health[0]).append(',').append(health[1]).append(']');
+			}
+		}
+		b.append(']');
+	}
+
+	/** A list of tiles, such as `[[16,10],[15,11]]`. */
+	private static void tiles(StringBuilder b, List<GridTile> tiles)
+	{
+		b.append('[');
+		boolean first = true;
+		for (GridTile t : tiles)
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[').append(t.getX()).append(',').append(t.getY()).append(']');
 		}
 		b.append(']');
 	}
@@ -116,6 +200,11 @@ public final class StatePayload
 				b.append(",\"waveTick\":").append(state.getWaveTick());
 			}
 			attacks(b, state);
+			health(b, state);
+			if (state.getDoomStacks() != null)
+			{
+				b.append(",\"doomStacks\":").append(state.getDoomStacks());
+			}
 		}
 		b.append(",\"modifiers\":{");
 		first = true;
@@ -132,18 +221,14 @@ public final class StatePayload
 		b.append('}');
 		if (!state.getSolarflareOrbs().isEmpty())
 		{
-			b.append(",\"solarflareOrbs\":[");
-			first = true;
-			for (GridTile t : state.getSolarflareOrbs())
-			{
-				if (!first)
-				{
-					b.append(',');
-				}
-				first = false;
-				b.append('[').append(t.getX()).append(',').append(t.getY()).append(']');
-			}
-			b.append(']');
+			b.append(",\"solarflareOrbs\":");
+			tiles(b, state.getSolarflareOrbs());
+		}
+		// The sand on the floor, at a wave's start too, where Reentry II's and III's from earlier waves lie.
+		if (!state.getSand().isEmpty())
+		{
+			b.append(",\"sand\":");
+			tiles(b, state.getSand());
 		}
 		b.append('}');
 		if (equipment != null)
@@ -233,29 +318,37 @@ public final class StatePayload
 			b.append(":[").append(st.getValue()[0]).append(',').append(st.getValue()[1]).append(']');
 		}
 		b.append('}');
-		if (!e.getBonuses().isEmpty())
+		byItem(b, "bonuses", e.getBonuses());
+		byItem(b, "defences", e.getDefences());
+		b.append('}');
+	}
+
+	/** A map of numbers by item id, as `,"name":{"id":[...],...}`, or nothing when it is empty. */
+	private static void byItem(StringBuilder b, String name, Map<Integer, int[]> values)
+	{
+		if (values.isEmpty())
 		{
-			b.append(",\"bonuses\":{");
-			first = true;
-			for (Map.Entry<Integer, int[]> bonus : e.getBonuses().entrySet())
+			return;
+		}
+		b.append(",\"").append(name).append("\":{");
+		boolean first = true;
+		for (Map.Entry<Integer, int[]> item : values.entrySet())
+		{
+			if (!first)
 			{
-				if (!first)
+				b.append(',');
+			}
+			first = false;
+			b.append('"').append(item.getKey()).append("\":[");
+			for (int i = 0; i < item.getValue().length; i++)
+			{
+				if (i > 0)
 				{
 					b.append(',');
 				}
-				first = false;
-				b.append('"').append(bonus.getKey()).append("\":[");
-				for (int i = 0; i < bonus.getValue().length; i++)
-				{
-					if (i > 0)
-					{
-						b.append(',');
-					}
-					b.append(bonus.getValue()[i]);
-				}
-				b.append(']');
+				b.append(item.getValue()[i]);
 			}
-			b.append('}');
+			b.append(']');
 		}
 		b.append('}');
 	}
@@ -305,7 +398,7 @@ public final class StatePayload
 		b.append('"');
 	}
 
-	/** The payload's text in a link: its JSON as unpadded base64url. */
+	/** The payload's text in a link: its JSON packed (pack). */
 	public static String encode(ArenaState state)
 	{
 		return encode(state, null);
@@ -314,7 +407,41 @@ public final class StatePayload
 	/** The payload's text in a link, with the player's gear when `equipment` is not null. */
 	public static String encode(ArenaState state, Equipment equipment)
 	{
-		return Base64.getUrlEncoder().withoutPadding().encodeToString(toJson(state, equipment).getBytes(StandardCharsets.US_ASCII));
+		return pack(toJson(state, equipment));
+	}
+
+	/**
+	 * A payload's JSON as link text, packed as the site packs its own: PACKED_V1, then the JSON deflated at the highest
+	 * level against DICTIONARY_V1, raw (no zlib header), as unpadded base64url. The twelve wave starts of Stefan's logs of
+	 * 2026-10-18 and 19, each with three switches, went from 1,796 to 1,921 characters to 849 to 884, well under the
+	 * 2,047 or so at which Windows is reported to cut a link that another program opens. Without the dictionary the
+	 * JSON's base64url, unpacked.
+	 */
+	public static String pack(String json)
+	{
+		byte[] bytes = json.getBytes(StandardCharsets.US_ASCII);
+		if (DICTIONARY_V1 == null)
+		{
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+		}
+		Deflater deflater = new Deflater(Deflater.BEST_COMPRESSION, true);
+		try
+		{
+			deflater.setDictionary(DICTIONARY_V1);
+			deflater.setInput(bytes);
+			deflater.finish();
+			ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length / 2 + 64);
+			byte[] buffer = new byte[4096];
+			while (!deflater.finished())
+			{
+				out.write(buffer, 0, deflater.deflate(buffer));
+			}
+			return PACKED_V1 + Base64.getUrlEncoder().withoutPadding().encodeToString(out.toByteArray());
+		}
+		finally
+		{
+			deflater.end();
+		}
 	}
 
 	/**
@@ -345,6 +472,6 @@ public final class StatePayload
 		{
 			base += "/";
 		}
-		return base + STATE_HASH + Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII));
+		return base + STATE_HASH + pack(json);
 	}
 }

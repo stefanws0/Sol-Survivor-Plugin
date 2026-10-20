@@ -1,0 +1,1 @@
+{"v":1,"setup":{"npcs":[[13,20,1],[19,20,2],[16,24,4,"u"]],"player":[16,8],"waveStart":false,"wave":5,"waveTick":60,"attacks":[[null,0],[null,0],null],"health":[[15,30],[30,30],null],"doomStacks":2,"modifiers":{"reentry":2,"doom":2},"sand":[[8,11],[7,12],[16,10],[15,11],[20,14]]}}

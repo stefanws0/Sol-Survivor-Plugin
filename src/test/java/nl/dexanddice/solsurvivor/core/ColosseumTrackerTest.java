@@ -10,7 +10,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +70,7 @@ public class ColosseumTrackerTest
 	{
 		String json = fixture(name);
 		assertEquals(json, StatePayload.toJson(state));
-		assertEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII)), StatePayload.encode(state));
+		assertEquals(json, StatePayloadTest.unpack(StatePayload.encode(state)));
 	}
 
 	/** Wave 4 from its first tick: a shaman, a Manticore and a frem, after picking Quartet with Reentry II and Totemic taken. */
@@ -232,7 +231,10 @@ public class ColosseumTrackerTest
 		assertFalse(state.isWaveStart());
 	}
 
-	/** Ranged gear as the RuneLite layer reads it from the worn items, the varps and the skills. */
+	/**
+	 * Ranged gear as the RuneLite layer reads it from the worn items, the varps and the skills. The worn items' defence
+	 * bonuses are numbers made up for the test, the mask's and the quiver's.
+	 */
 	private static Equipment rangedGear()
 	{
 		return new Equipment()
@@ -244,9 +246,14 @@ public class ColosseumTrackerTest
 			.switchItem("body", new Equipment.Item(26384, "Torva platebody", 1))
 			.bonuses(20997, new int[]{0, 0, 0, 0, 70, 0, 20, 0, 1})
 			.bonuses(22325, new int[]{70, 125, 30, -6, 0, 75, 0, 0, 1})
+			.defences(27235, new int[]{8, 10, 12, 12, 9})
+			.defences(28947, new int[]{2, 2, 2, 5, 15})
+			.defences(20997, new int[]{0, 0, 0, 0, 0})
 			.weapon(5, 3, 1)
 			.prayer(9, 77)
+			.stat("defence", 99, 99)
 			.stat("ranged", 112, 99)
+			.stat("magic", 94, 94)
 			.stat("hitpoints", 88, 99)
 			.stat("prayer", 77, 77);
 	}
@@ -273,7 +280,7 @@ public class ColosseumTrackerTest
 		assertEquals(2, state.getNpcs().size());
 		String json = fixture("wave8-gear.json");
 		assertEquals(json, StatePayload.toJson(state, rangedGear()));
-		assertEquals(Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII)), StatePayload.encode(state, rangedGear()));
+		assertEquals(json, StatePayloadTest.unpack(StatePayload.encode(state, rangedGear())));
 	}
 
 	@Test
@@ -308,6 +315,27 @@ public class ColosseumTrackerTest
 		assertEquals(Equipment.MAX_SWITCHES, gear.getSwitches().size());
 		String none = StatePayload.toJson(capture(1, 7, 15), new Equipment());
 		assertTrue(none, !none.contains("switches"));
+	}
+
+	@Test
+	public void theDefencesGoApartFromTheBonusesFiveToAnItem() throws Exception
+	{
+		arena.add(new SeenNpc(1, NpcKind.SHAMAN_ID, new GridTile(13, 20)));
+		// Apart, since the site's readers before 0.5.0 refuse an item whose bonuses are not nine numbers.
+		String json = StatePayload.toJson(capture(1, 7, 15), new Equipment().defences(7, new int[]{-1, 2, 3, 4, 5}));
+		assertTrue(json, json.contains("\"defences\":{\"7\":[-1,2,3,4,5]}"));
+		assertTrue(json, !json.contains("bonuses"));
+		String none = StatePayload.toJson(capture(1, 7, 15), new Equipment());
+		assertTrue(none, !none.contains("defences"));
+		try
+		{
+			new Equipment().defences(7, new int[]{1, 2, 3});
+			fail("three defence bonuses were taken");
+		}
+		catch (IllegalArgumentException expected)
+		{
+			assertEquals("expected 5 defence bonuses, not 3", expected.getMessage());
+		}
 	}
 
 	@Test
@@ -358,6 +386,154 @@ public class ColosseumTrackerTest
 		assertFalse(state.isWaveStart());
 		assertTrue(state.getModifiers().isEmpty());
 		assertFalse(state.isModifiersComplete());
+	}
+
+	/**
+	 * Wave 5 under Doom II and Reentry II, fought for 60 ticks: the sand of a special that landed in wave 4 is still on the
+	 * floor, the shaman's bar was seen at half before it hid, the Manticore was healed since its bar showed, and two hits
+	 * dealt the player damage this wave.
+	 */
+	@Test
+	public void aMidWaveLinkKeepsTheFightSoFar() throws Exception
+	{
+		varbits.put(Modifier.DOOM, 2);
+		varbits.put(Modifier.REENTRY, 2);
+		tracker.onGameMessage("<col=ef1020>Wave: 4</col>", 100);
+		tracker.onTileGraphic(new GridTile(8, 11), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 2);
+		tracker.onPlayerHit(20, 16);
+		tracker.onGameMessage("Wave 4 completed! Wave duration: 1:00", 190);
+		// Between waves no hit is a stack.
+		tracker.onPlayerHit(9, 16);
+
+		tracker.onGameMessage("<col=ef1020>Wave: 5</col>", 200);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 200);
+		spawn(12, NpcKind.JAVELIN_ID, 19, 20, 200);
+		spawn(13, NpcKind.MANTICORE_ID, 16, 24, 200);
+		tracker.onHealthBar(11, 15, 30);
+		tracker.onHealthBar(11, -1, -1);
+		tracker.onHealthBar(12, 30, 30);
+		tracker.onHealthBar(13, 8, 30);
+		tracker.onNpcHit(13, 25, ColosseumTracker.HEAL_HITSPLAT);
+		// Two hits of damage; a block and a prayer drain are no stacks.
+		tracker.onPlayerHit(12, 16);
+		tracker.onPlayerHit(0, 12);
+		tracker.onPlayerHit(5, 60);
+		tracker.onPlayerHit(7, 16);
+		// A special lands on (16,10), its shadow before it laying nothing; the game shows sand on (20,14) and on the
+		// landing tile, and some on (21,14) that has gone.
+		tracker.onTileGraphic(new GridTile(16, 10), 1446, 2);
+		tracker.onTileGraphic(new GridTile(16, 10), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 2);
+		tracker.onSandObject(new GridTile(20, 14), true);
+		tracker.onSandObject(new GridTile(21, 14), true);
+		tracker.onSandObject(new GridTile(16, 10), true);
+		tracker.onSandObject(new GridTile(21, 14), false);
+
+		ArenaState state = capture(260, 16, 8);
+		assertEquals(Integer.valueOf(2), state.getDoomStacks());
+		assertTrue(Arrays.equals(new int[] {15, 30}, state.getNpcs().get(0).getHealth()));
+		assertNull(state.getNpcs().get(2).getHealth());
+		// Reentry II's sand lasts: wave 4's landing on (8,11) and the tile south-west of it, then wave 5's, then the
+		// objects', each tile once.
+		assertEquals(Arrays.asList(new GridTile(8, 11), new GridTile(7, 12), new GridTile(16, 10), new GridTile(15, 11), new GridTile(20, 14)),
+			state.getSand());
+		assertMatchesFixture("wave5-fight.json", state);
+	}
+
+	@Test
+	public void aWaveStartLinkHoldsTheSandButNoHealthOrStacks() throws Exception
+	{
+		varbits.put(Modifier.DOOM, 1);
+		varbits.put(Modifier.REENTRY, 3);
+		tracker.onGameMessage("Wave: 2", 10);
+		tracker.onTileGraphic(new GridTile(8, 11), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 3);
+		tracker.onGameMessage("Wave 2 completed!", 90);
+		tracker.onGameMessage("Wave: 3", 100);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 100);
+		tracker.onHealthBar(11, 30, 30);
+
+		ArenaState state = capture(100, 16, 8);
+		assertNull(state.getDoomStacks());
+		assertNull(state.getNpcs().get(0).getHealth());
+		String json = StatePayload.toJson(state);
+		assertFalse(json, json.contains("health") || json.contains("doomStacks"));
+		// Reentry III adds the tile west of the landing to II's.
+		assertTrue(json, json.endsWith(",\"sand\":[[8,11],[7,12],[7,11]]}}"));
+	}
+
+	@Test
+	public void doomsStacksAreTheDamagingHitsOfAWaveThePluginSawStart() throws Exception
+	{
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 50);
+		// Without Doom, none are sent.
+		tracker.onGameMessage("Wave: 1", 40);
+		tracker.onPlayerHit(10, 16);
+		assertNull(capture(60, 16, 8).getDoomStacks());
+		varbits.put(Modifier.DOOM, 3);
+		assertEquals(Integer.valueOf(1), capture(60, 16, 8).getDoomStacks());
+		// A max hit, a burn and a poison are damage too; a heal is not.
+		tracker.onPlayerHit(30, 43);
+		tracker.onPlayerHit(4, 74);
+		tracker.onPlayerHit(6, 65);
+		tracker.onPlayerHit(10, ColosseumTracker.HEAL_HITSPLAT);
+		assertEquals(Integer.valueOf(4), capture(61, 16, 8).getDoomStacks());
+		// A plugin that did not see the wave start does not know them all, and sends none.
+		tracker.reset();
+		varbits.put(Modifier.DOOM, 3);
+		tracker.onPlayerHit(10, 16);
+		assertNull(capture(62, 16, 8).getDoomStacks());
+	}
+
+	@Test
+	public void anNpcsBarIsKeptUntilItDespawnsOrIsHealed() throws Exception
+	{
+		tracker.onGameMessage("Wave: 3", 100);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 100);
+		tracker.onHealthBar(11, 12, 30);
+		// A bar the game hides, or one that makes no sense, changes nothing.
+		tracker.onHealthBar(11, -1, -1);
+		tracker.onHealthBar(11, 31, 30);
+		tracker.onHealthBar(11, 5, 0);
+		assertTrue(Arrays.equals(new int[] {12, 30}, capture(120, 16, 8).getNpcs().get(0).getHealth()));
+		// A hit that heals nothing keeps it; a heal forgets it until the bar shows again.
+		tracker.onNpcHit(11, 9, 16);
+		assertTrue(Arrays.equals(new int[] {12, 30}, capture(121, 16, 8).getNpcs().get(0).getHealth()));
+		tracker.onNpcHit(11, 9, ColosseumTracker.HEAL_HITSPLAT);
+		assertNull(capture(122, 16, 8).getNpcs().get(0).getHealth());
+		tracker.onHealthBar(11, 20, 30);
+		assertTrue(Arrays.equals(new int[] {20, 30}, capture(123, 16, 8).getNpcs().get(0).getHealth()));
+		// An NPC of the same index spawned after starts at full health.
+		tracker.onNpcDespawned(11);
+		tracker.onNpcSpawned(11, NpcKind.SHAMAN_ID, 130);
+		assertNull(capture(131, 16, 8).getNpcs().get(0).getHealth());
+	}
+
+	@Test
+	public void reentryIsSandGoesWithItsWaveAndTheObjectsAreCounted() throws Exception
+	{
+		varbits.put(Modifier.REENTRY, 1);
+		tracker.onGameMessage("Wave: 2", 10);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 10);
+		// Reentry I lays sand on the landing tile alone; a landing without Reentry lays none.
+		tracker.onTileGraphic(new GridTile(16, 10), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 1);
+		tracker.onTileGraphic(new GridTile(12, 10), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 0);
+		// Off the grid, nothing: neither a landing's tile nor an object's.
+		tracker.onTileGraphic(new GridTile(0, 40), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 1);
+		tracker.onSandObject(new GridTile(40, 3), true);
+		tracker.onSandObject(null, true);
+		assertEquals(Arrays.asList(new GridTile(16, 10)), capture(50, 16, 8).getSand());
+		tracker.onGameMessage("Wave 2 completed!", 60);
+		assertTrue(capture(61, 16, 8).getSand().isEmpty());
+		// The objects are counted, and a scene loading again spawns them anew.
+		tracker.onSandObject(new GridTile(20, 14), true);
+		tracker.onSandObject(new GridTile(20, 14), true);
+		tracker.onSandObject(new GridTile(20, 14), false);
+		assertEquals(Arrays.asList(new GridTile(20, 14)), capture(62, 16, 8).getSand());
+		tracker.onSceneLoading();
+		assertTrue(capture(63, 16, 8).getSand().isEmpty());
+		// Leaving the Colosseum forgets the lasting sand too.
+		tracker.onTileGraphic(new GridTile(16, 10), ColosseumTracker.JAVELIN_LANDING_GRAPHIC, 2);
+		tracker.reset();
+		assertTrue(capture(64, 16, 8).getSand().isEmpty());
 	}
 
 	@Test

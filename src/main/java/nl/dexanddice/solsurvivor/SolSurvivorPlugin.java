@@ -23,13 +23,18 @@ import net.runelite.api.ParamID;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
 import net.runelite.api.Skill;
+import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameObjectDespawned;
+import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GraphicsObjectCreated;
+import net.runelite.api.events.GroundObjectDespawned;
+import net.runelite.api.events.GroundObjectSpawned;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
@@ -245,6 +250,11 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			leave();
 		}
+		else if (state == GameState.LOADING)
+		{
+			// The scene loads again and spawns its objects anew, the molten sand among them.
+			tracker.onSceneLoading();
+		}
 	}
 
 	/** "Record wave log" switched off drops the log at once, and the panel shows the setting as it is, in or out of the arena. */
@@ -339,14 +349,15 @@ public class SolSurvivorPlugin extends Plugin
 	}
 
 	/**
-	 * A hitsplat, which RuneLite passes on between ticks: the wave log keeps those on the player and on NPCs for the next
-	 * tick it records. Those on the wave's first tick may come before the wave's message, so they are kept whether or not
-	 * a wave is being recorded, and dropped on the next tick if none is.
+	 * A hitsplat, which RuneLite passes on between ticks. The tracker counts those on the player that dealt damage, Doom's
+	 * stacks, and forgets an NPC's health bar when it is healed. With "Record wave log" on, the wave log keeps those on
+	 * the player and on NPCs for the next tick it records. Those on the wave's first tick may come before the wave's
+	 * message, so they are kept whether or not a wave is being recorded, and dropped on the next tick if none is.
 	 */
 	@Subscribe
 	public void onHitsplatApplied(HitsplatApplied e)
 	{
-		if (!inColosseum || !config.recordWaveLog())
+		if (!inColosseum)
 		{
 			return;
 		}
@@ -355,27 +366,81 @@ public class SolSurvivorPlugin extends Plugin
 		int type = e.getHitsplat().getHitsplatType();
 		if (actor != null && actor == client.getLocalPlayer())
 		{
-			waveLog.onPlayerHit(amount, type);
+			tracker.onPlayerHit(amount, type);
+			if (config.recordWaveLog())
+			{
+				waveLog.onPlayerHit(amount, type);
+			}
 		}
 		else if (actor instanceof NPC)
 		{
-			waveLog.onNpcHit(((NPC) actor).getIndex(), amount, type);
+			int index = ((NPC) actor).getIndex();
+			tracker.onNpcHit(index, amount, type);
+			if (config.recordWaveLog())
+			{
+				waveLog.onNpcHit(index, amount, type);
+			}
 		}
 	}
 
 	/**
-	 * The game put a graphic on a tile, such as where a Javelin Colossus's special lands: the wave log keeps those on the
-	 * grid for the next tick it records, as it does the hitsplats.
+	 * The game put a graphic on a tile, such as where a Javelin Colossus's special lands, which under Reentry lays molten
+	 * sand that the tracker keeps for the link. With "Record wave log" on, the wave log keeps those on the grid for the
+	 * next tick it records, as it does the hitsplats.
 	 */
 	@Subscribe
 	public void onGraphicsObjectCreated(GraphicsObjectCreated e)
 	{
-		if (!inColosseum || !config.recordWaveLog())
+		if (!inColosseum)
 		{
 			return;
 		}
 		GraphicsObject graphic = e.getGraphicsObject();
-		waveLog.onTileGraphic(gridTileOf(graphic.getLocation()), graphic.getId());
+		GridTile tile = gridTileOf(graphic.getLocation());
+		tracker.onTileGraphic(tile, graphic.getId(), readLevel(Modifier.REENTRY.getLevelVarbit()));
+		if (config.recordWaveLog())
+		{
+			waveLog.onTileGraphic(tile, graphic.getId());
+		}
+	}
+
+	/*
+	 * The Molten Sand objects, which the game may place as scenery or on the floor, so both kinds of event are read. They
+	 * spawn as the scene loads, before the player's first tick in the arena, so they are taken whether or not the plugin
+	 * knows the player is in the Colosseum yet: a tile outside the arena has no grid tile and is passed over.
+	 */
+
+	@Subscribe
+	public void onGameObjectSpawned(GameObjectSpawned e)
+	{
+		sandObject(e.getGameObject(), true);
+	}
+
+	@Subscribe
+	public void onGameObjectDespawned(GameObjectDespawned e)
+	{
+		sandObject(e.getGameObject(), false);
+	}
+
+	@Subscribe
+	public void onGroundObjectSpawned(GroundObjectSpawned e)
+	{
+		sandObject(e.getGroundObject(), true);
+	}
+
+	@Subscribe
+	public void onGroundObjectDespawned(GroundObjectDespawned e)
+	{
+		sandObject(e.getGroundObject(), false);
+	}
+
+	/** An object came or went: a Molten Sand one goes to the tracker by its grid tile. */
+	private void sandObject(TileObject object, boolean spawned)
+	{
+		if (object != null && object.getId() == ColosseumTracker.MOLTEN_SAND_ID)
+		{
+			tracker.onSandObject(gridTileOf(object.getLocalLocation()), spawned);
+		}
 	}
 
 	@Subscribe
@@ -392,9 +457,11 @@ public class SolSurvivorPlugin extends Plugin
 			return;
 		}
 
-		// Every tick, rather than on graphic events, which do not fire for a Manticore out of view behind a pillar.
+		// Every tick, rather than on graphic events, which do not fire for a Manticore out of view behind a pillar. Each
+		// NPC's health bar too, while the game shows it, which the tracker keeps for the link once it hides.
 		for (NPC npc : client.getTopLevelWorldView().npcs())
 		{
+			tracker.onHealthBar(npc.getIndex(), npc.getHealthRatio(), npc.getHealthScale());
 			if (npc.getId() != NpcID.COLOSSEUM_MANTICORE)
 			{
 				continue;
@@ -705,6 +772,7 @@ public class SolSurvivorPlugin extends Plugin
 			if (stats != null && stats.getEquipment() != null)
 			{
 				gear.bonuses(item.getId(), bonusesOf(stats.getEquipment()));
+				gear.defences(item.getId(), defencesOf(stats.getEquipment()));
 				prayerBonus += stats.getEquipment().getPrayer();
 				if (slot == EquipmentInventorySlot.WEAPON)
 				{
@@ -765,6 +833,15 @@ public class SolSurvivorPlugin extends Plugin
 			e.getAstab(), e.getAslash(), e.getAcrush(), e.getAmagic(), e.getArange(), e.getStr(), e.getRstr(),
 			Math.round(e.getMdmg() * 10), e.isTwoHanded() ? 1 : 0
 		};
+	}
+
+	/**
+	 * A worn item's defence bonuses as the link writes them (Equipment.defences): stab, slash, crush, magic and ranged,
+	 * which the site rolls the NPCs' accuracy against.
+	 */
+	private static int[] defencesOf(ItemEquipmentStats e)
+	{
+		return new int[]{e.getDstab(), e.getDslash(), e.getDcrush(), e.getDmagic(), e.getDrange()};
 	}
 
 	/** The link's name of a slot, by its index among the worn items, or null for one it does not name. */
