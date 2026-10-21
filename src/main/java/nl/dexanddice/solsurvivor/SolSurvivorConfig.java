@@ -57,7 +57,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Records each wave a tick at a time, your tile, hitpoints, prayers, attacks and hitsplats and the NPCs', for the panel to copy for the site's wave reviewer. Keeps the last 25 waves in memory until RuneLite closes. It is sent nowhere.",
+		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Open past run uploads only the selected run to Site address and opens it in your browser. Anyone with its link can view it for seven days. Nothing uploads automatically.",
 		position = 4
 	)
 	default boolean recordWaveLog()

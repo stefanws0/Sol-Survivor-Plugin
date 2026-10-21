@@ -41,6 +41,15 @@ import net.runelite.client.ui.PluginPanel;
  */
 class SolSurvivorPanel extends PluginPanel
 {
+	private boolean replayBusy;
+
+	/** Runs can be rebuilt on a game tick; their Open buttons keep the upload state. Called on the Swing thread. */
+	void showReplayBusy(boolean busy)
+	{
+		replayBusy = busy;
+		buildRuns();
+	}
+
 	/** What the panel's buttons do, which the plugin carries out on the client thread. */
 	interface Actions
 	{
@@ -60,6 +69,9 @@ class SolSurvivorPanel extends PluginPanel
 
 		/** Copy the whole run that holds the logged wave `id`. */
 		void copyRun(int id);
+
+		/** Upload the selected run and open its recording directly in the browser. */
+		void openPastRun(int id);
 	}
 
 	/** A logged wave, as its row shows it. */
@@ -172,7 +184,8 @@ class SolSurvivorPanel extends PluginPanel
 		add(result);
 
 		JLabel help = new JLabel(wrap("The orange buttons open the Sol Survivor site; the grey ones copy a wave log to paste "
-			+ "into it. This plugin draws nothing in the game."));
+			+ "into it. Open past run uploads the selected run's tiles, hitpoints, prayers, hits and recorded gear to the configured site. "
+			+ "Anyone with its link can view it for seven days. Nothing uploads automatically. This plugin draws nothing in the game."));
 		help.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		help.setFont(FontManager.getRunescapeSmallFont());
 		add(help);
@@ -290,6 +303,13 @@ class SolSurvivorPanel extends PluginPanel
 		JButton copyRun = smallButton(COPY_ICON, false, "Copy whole run: every wave of this run in one paste, for the site.");
 		copyRun.addActionListener(e -> actions.copyRun(newest.id));
 		head.add(copyRun, BorderLayout.EAST);
+
+		JButton replay = new JButton(replayBusy ? "Opening run…" : "Open past run");
+		opensSite(replay);
+		replay.setEnabled(!replayBusy);
+		replay.setToolTipText("Uploads this run's recording to the configured site and opens it in your browser. Anyone with its link can view it for seven days.");
+		replay.addActionListener(e -> actions.openPastRun(newest.id));
+		head.add(replay, BorderLayout.SOUTH);
 
 		head.addMouseListener(new MouseAdapter()
 		{

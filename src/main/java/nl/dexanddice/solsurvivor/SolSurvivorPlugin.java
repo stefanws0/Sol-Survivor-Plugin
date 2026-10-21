@@ -3,6 +3,7 @@ package nl.dexanddice.solsurvivor;
 import com.google.inject.Provides;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -77,6 +78,10 @@ import nl.dexanddice.solsurvivor.core.WaveLog;
 import nl.dexanddice.solsurvivor.core.WaveLogWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Response;
 
 /**
  * Copies the Fortis Colosseum's state as a Sol Survivor link (design spec 2026-10-14-runelite-plugin-design.md). It only
@@ -92,7 +97,7 @@ import org.slf4j.LoggerFactory;
  * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
  * (RunLogWriter).
  *
- * It sends nothing anywhere: a bad plan is reported from the site's own page.
+ * Open past run uploads only the selected run to the configured site, then opens its recording in the browser.
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
@@ -128,6 +133,12 @@ public class SolSurvivorPlugin extends Plugin
 
 	@Inject
 	private SolSurvivorConfig config;
+
+	@Inject
+	private OkHttpClient httpClient;
+
+	/** Only one upload at a time. Cleared and cancelled on shutdown; late callbacks cannot open the browser. */
+	private volatile Call replayCall;
 
 	private final ColosseumTracker tracker = new ColosseumTracker();
 	private boolean inColosseum;
@@ -210,6 +221,12 @@ public class SolSurvivorPlugin extends Plugin
 			{
 				SolSurvivorPlugin.this.copyRun(id);
 			}
+
+			@Override
+			public void openPastRun(int id)
+			{
+				SolSurvivorPlugin.this.openPastRun(id);
+			}
 		});
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
@@ -224,6 +241,12 @@ public class SolSurvivorPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		Call pending = replayCall;
+		replayCall = null;
+		if (pending != null)
+		{
+			pending.cancel();
+		}
 		keyManager.unregisterKeyListener(hotkeyListener);
 		clientToolbar.removeNavigation(navButton);
 		tracker.reset();
@@ -1027,22 +1050,113 @@ public class SolSurvivorPlugin extends Plugin
 		});
 	}
 
+	private List<WaveLog.Past> loggedRun(int id)
+	{
+		for (List<WaveLog.Past> run : waveLog.getRuns())
+		{
+			for (WaveLog.Past wave : run)
+			{
+				if (wave.getId() == id)
+				{
+					return run;
+				}
+			}
+		}
+		return null;
+	}
+
+	/** Snapshot on the client thread, upload in the background, then open the short recording URL directly. */
+	private void openPastRun(int id)
+	{
+		clientThread.invokeLater(() ->
+		{
+			if (panel == null)
+			{
+				return;
+			}
+			if (replayCall != null)
+			{
+				report("A run is already opening. Please wait.");
+				return;
+			}
+			List<WaveLog.Past> run = loggedRun(id);
+			if (run == null)
+			{
+				report("That run is no longer kept: more waves have come since than the log keeps.");
+				return;
+			}
+			String site = config.siteUrl();
+			run = new ArrayList<>(run);
+			run.removeIf(wave -> wave.size() == 0);
+			if (run.isEmpty())
+			{
+				report("No ticks have been recorded yet. Wait for a game tick and try Open past run again.");
+				return;
+			}
+			try
+			{
+				Call call = httpClient.newCall(ReplayUpload.request(site, RunLogWriter.toJson(run, PluginVersion.VERSION)));
+				replayCall = call;
+				SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(true); });
+				report("Opening past run: uploading the selected recording…");
+				call.enqueue(new Callback()
+				{
+					@Override
+					public void onFailure(Call failed, IOException ex)
+					{
+						finishReplay(failed, null, "The run could not reach the site. Check your connection and try Open past run again.");
+					}
+
+					@Override
+					public void onResponse(Call completed, Response response)
+					{
+						try (Response closed = response)
+						{
+							finishReplay(completed, ReplayUpload.browserUrl(site, closed), null);
+						}
+						catch (IOException ex)
+						{
+							finishReplay(completed, null, ex.getMessage());
+						}
+					}
+				});
+			}
+			catch (IllegalArgumentException ex)
+			{
+				replayCall = null;
+				report(ex.getMessage());
+			}
+		});
+	}
+
+	private void finishReplay(Call call, String url, String error)
+	{
+		clientThread.invokeLater(() ->
+		{
+			if (panel == null || replayCall != call)
+			{
+				return;
+			}
+			replayCall = null;
+			SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(false); });
+			if (url != null)
+			{
+				LinkBrowser.browse(url);
+				report("Opened your recorded run in the browser.");
+			}
+			else
+			{
+				report(error);
+			}
+		});
+	}
+
 	/** Copies the whole run that holds the panel's row `id` in one paste, as RunLogWriter writes it. */
 	private void copyRun(int id)
 	{
 		clientThread.invokeLater(() ->
 		{
-			List<WaveLog.Past> run = null;
-			for (List<WaveLog.Past> r : waveLog.getRuns())
-			{
-				for (WaveLog.Past wave : r)
-				{
-					if (wave.getId() == id)
-					{
-						run = r;
-					}
-				}
-			}
+			List<WaveLog.Past> run = loggedRun(id);
 			if (run == null)
 			{
 				report("That run is no longer kept: more waves have come since than the log keeps.");

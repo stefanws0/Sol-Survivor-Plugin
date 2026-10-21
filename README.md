@@ -24,11 +24,12 @@ fold it open or shut. Each wave's row has three small buttons:
   you wore when **Include gear and stats** is on. Paste it on the site to see where the planner's simulation differed
   from your run.
 
-The copy button on a run's head copies the whole run in one paste, so the site can go through its waves one after
-another.
+**Open past run** on a run's head uploads that run's recording and opens it directly in your browser, in the usual
+arena. Choose a wave, play it back, or scrub to a particular tick. The grey copy button still copies the whole run for
+the site's log checker.
 
-Each Open button also copies its link, so you can share it. A hotkey (unset by default) copies the current arena's link
-without leaving the game.
+The arena state Open buttons also copy their links, so you can share them. Open past run opens the browser directly,
+without using the clipboard. A hotkey (unset by default) copies the current arena's link without leaving the game.
 
 ## What a link holds
 
@@ -40,9 +41,13 @@ uses to work out how quickly you kill each NPC.
 
 ## Privacy
 
-The plugin sends nothing over the network. A link opens in your browser or goes to your clipboard. The arena rides in
-the part of the link after `#`, which browsers do not send to the site's server. The wave logs stay in memory and only
-go to your clipboard; nothing is written to disk.
+Arena state links put their state after `#`, which browsers do not send to the site's server. Wave logs stay in memory
+until RuneLite closes, unless you copy them or click **Open past run**.
+
+**Open past run uploads only the selected run to the configured site's `/api/replays`.** It includes recorded positions,
+hitpoints, prayers, animations, hits, NPC state and optional gear/stats, with no account name. Nothing uploads
+automatically. The site stores the recording for seven days; anyone with its replay link can view it. The
+upload happens in the background, then a short replay link opens directly in your browser. Remote uploads use HTTPS.
 
 ## Settings
 
