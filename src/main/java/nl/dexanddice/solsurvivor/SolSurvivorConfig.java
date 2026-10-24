@@ -50,7 +50,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Open past run uploads only the selected run to the Sol Survivor site and opens it in your browser. Anyone with its link can view it for seven days. Nothing else uploads unless Share wave logs is on.",
+		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
 		position = 4
 	)
 	default boolean recordWaveLog()
@@ -58,15 +58,31 @@ public interface SolSurvivorConfig extends Config
 		return true;
 	}
 
-	/** RuneLite's wording for a setting that sends anything to a server it does not run, which the Plugin Hub asks for. */
+	/**
+	 * RuneLite's wording for a setting that sends anything to a server it does not run: each such setting is off by
+	 * default and shows it as the player switches it on, as RuneLite's plugin guide asks (runelite/example-plugin's
+	 * AGENTS.md), so that the Plugin Hub's listing needs no warning of its own.
+	 */
 	String SHARE_WARNING = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers";
+
+	@ConfigItem(
+		keyName = "uploadPastRuns",
+		name = "Upload past runs",
+		description = "Lets Open past run upload the selected run to the Sol Survivor site, which opens it in your browser to play back: tiles, hitpoints, prayers, hits and your gear with Include gear and stats on, with no account name. Anyone with its link can view it for seven days.",
+		warning = SHARE_WARNING,
+		position = 5
+	)
+	default boolean uploadPastRuns()
+	{
+		return false;
+	}
 
 	@ConfigItem(
 		keyName = "shareWaveLogs",
 		name = "Share wave logs",
 		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
 		warning = SHARE_WARNING,
-		position = 5
+		position = 6
 	)
 	default boolean shareWaveLogs()
 	{
@@ -76,7 +92,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 6
+		position = 7
 	)
 	String triangleSection = "triangle";
 

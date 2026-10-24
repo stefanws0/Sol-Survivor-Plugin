@@ -102,8 +102,9 @@ import okhttp3.Response;
  * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
  * (RunLogWriter).
  *
- * Open past run uploads only the selected run to the site, then opens its recording in the browser. With "Share wave
- * logs" on, off by default, each wave's log goes to the site as the wave ends, without the levels (core.WaveShare).
+ * Open past run, with "Upload past runs" on (off by default), uploads only the selected run to the site, then opens its
+ * recording in the browser. With "Share wave logs" on, off by default too, each wave's log goes to the site as the wave
+ * ends, without the levels (core.WaveShare). Nothing else goes to the site.
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
@@ -1159,13 +1160,21 @@ public class SolSurvivorPlugin extends Plugin
 		return null;
 	}
 
-	/** Snapshot on the client thread, upload in the background, then open the short recording URL directly. */
+	/**
+	 * Snapshot on the client thread, upload in the background, then open the short recording URL directly. Only with
+	 * "Upload past runs" on, off by default, which shows RuneLite's warning as the player switches it on.
+	 */
 	private void openPastRun(int id)
 	{
 		clientThread.invokeLater(() ->
 		{
 			if (panel == null)
 			{
+				return;
+			}
+			if (!config.uploadPastRuns())
+			{
+				report("Open past run needs Upload past runs, in the plugin's settings: it sends the run to the Sol Survivor site to play it back there.");
 				return;
 			}
 			if (replayCall != null)

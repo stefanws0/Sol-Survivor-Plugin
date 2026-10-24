@@ -191,9 +191,10 @@ class SolSurvivorPanel extends PluginPanel
 		add(result);
 
 		JLabel help = new JLabel(wrap("The orange buttons open the Sol Survivor site; the grey ones copy a wave log to paste "
-			+ "into it. Open past run uploads the selected run's tiles, hitpoints, prayers, hits and recorded gear to the site. "
-			+ "Anyone with its link can view it for seven days. Nothing uploads automatically unless Share wave logs is on, which sends "
-			+ "each wave's log, without your levels, as the wave ends. This plugin draws nothing in the game."));
+			+ "into it. With Upload past runs on in the settings, Open past run uploads the selected run's tiles, hitpoints, prayers, "
+			+ "hits and recorded gear to the site, where anyone with its link can view it for seven days. With Share wave logs on, "
+			+ "each wave's log goes to the site, without your levels, as the wave ends. Both are off until you turn them on. This "
+			+ "plugin draws nothing in the game."));
 		help.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		help.setFont(FontManager.getRunescapeSmallFont());
 		add(help);

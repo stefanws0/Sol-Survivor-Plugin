@@ -82,8 +82,8 @@ prayer you had up when it landed.
 ## Privacy
 
 - **A wave link keeps the arena after its `#`**, the part of a link that browsers do not send to the site's server.
-- **Open past run uploads only when you press it.** It sends the selected run's recording to the Sol Survivor site's
-  `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits and NPC state, plus your gear and stats when
+- **Open past run uploads only once you turn on Upload past runs, and only when you press it.** It sends the selected
+  run's recording to the Sol Survivor site's `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits and NPC state, plus your gear and stats when
   **Include gear and stats** is on. It holds no account name. The site keeps the recording for seven days, and anyone
   with its link can view it.
 - **Share wave logs is off until you turn it on.** Then each wave's log goes to the site's `/api/wave-logs` as the
@@ -92,7 +92,9 @@ prayer you had up when it landed.
   combat levels or prayer unlocks: your gear only with **Include gear and stats** on, and then without them. A run's
   waves share a random id that the plugin forgets when you leave the arena, so that nothing joins one of your runs to
   another. The site keeps the day a log came, not your address, shows the logs to nobody, and deletes each after 90
-  days. RuneLite warns that this, like Open past run, sends your IP address to a server it does not run.
+  days.
+- **Both are off until you turn them on**, and RuneLite warns as you do that each sends your IP address to a server it
+  does not run. With both off, the plugin sends nothing.
 - **Wave logs stay in memory** until RuneLite closes, unless you copy one, open a past run or share them.
 
 **What a wave link holds:** the NPCs and their tiles, your tile, the wave and the tick within it, the modifiers you
@@ -109,6 +111,8 @@ each NPC.
 - **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
 - **Record wave log**: on by default. It keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
   closes.
+- **Upload past runs**: off by default. Lets Open past run upload the run you pick to the site (see Privacy); until
+  it is on, the button says so.
 - **Share wave logs**: off by default. Sends each wave's log to the site as the wave ends (see Privacy). It needs
   **Record wave log**, and the panel says so under Past waves while it is on.
 - **Safe / Fast / Easy**: with **Set the triangle** on, every wave you open from the plugin starts with the site's
