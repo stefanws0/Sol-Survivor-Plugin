@@ -8,7 +8,7 @@ public class ReplayLinkTest
 	private static final String ID = "0123456789abcdef0123456789abcdef";
 
 	@Test
-	public void uploadAndBrowserUseTheConfiguredOrigin()
+	public void uploadAndBrowserUseTheSitesOrigin()
 	{
 		assertEquals("https://sol.example/api/replays", ReplayLink.endpoint("https://sol.example/old/#s=state"));
 		assertEquals("https://sol.example/#replay=" + ID, ReplayLink.browser("https://sol.example", ID));

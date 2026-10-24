@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * The player's gear and stats as the game shows them (design spec, "Equipment"): each worn item by its slot, with its id,
  * name and quantity; the weapon's attack speed in ticks, its category and the attack style picked, as the game numbers
- * them; the items in the inventory that can be worn, the switches a player brings; each item's attack and strength bonuses; each worn item's defence bonuses; the gear's prayer bonus; the prayer points now; and each combat skill's boosted and real level. The site maps
+ * them; the items in the inventory that can be worn, the switches a player brings; each item's attack and strength bonuses; each worn item's defence bonuses; the gear's prayer bonus; the prayer points now; each combat skill's boosted and real level; and the flags of the offensive prayers that need more than levels. The site maps
  * them to its kill table; the plugin passes on what the game says and works nothing out.
  */
 public final class Equipment
@@ -83,6 +83,9 @@ public final class Equipment
 	/** The most switches kept: the inventory's 28 places. */
 	public static final int MAX_SWITCHES = 28;
 
+	/** The names of the prayer unlock flags (unlocks), in the order they are given and written. */
+	public static final String[] UNLOCK_FLAGS = {"rigour", "augury", "deadeye", "mysticVigour", "knightWaves"};
+
 	private final Map<String, Item> items = new LinkedHashMap<>();
 	private final List<Switch> switches = new ArrayList<>();
 	private final Map<String, int[]> stats = new LinkedHashMap<>();
@@ -94,6 +97,7 @@ public final class Equipment
 	private final List<String> styleNames = new ArrayList<>();
 	private int prayerBonus;
 	private int prayerPoints;
+	private int[] unlocks;
 
 	/** An item worn in a slot, by the slot's name in lower case, such as "weapon" or "ammo". */
 	public Equipment item(String slot, Item item)
@@ -185,6 +189,38 @@ public final class Equipment
 		return this;
 	}
 
+	/**
+	 * The flags of the offensive prayers that need more than levels, as the game's varbits hold them: Rigour's, Augury's,
+	 * Deadeye's and Mystic Vigour's unlocks, none of them 0 once the prayer is unlocked, and the state of the Knight Waves
+	 * Training Grounds, which Piety and Chivalry need finished. The site works out from them, with the Prayer and Defence
+	 * levels, which prayers the kill times take (its src/viewer/offensivePrayers.ts).
+	 */
+	public Equipment unlocks(int rigour, int augury, int deadeye, int mysticVigour, int knightWaves)
+	{
+		this.unlocks = new int[]{rigour, augury, deadeye, mysticVigour, knightWaves};
+		return this;
+	}
+
+	/**
+	 * A copy without what could point to the player's account, for the wave log they share (WaveShare): the skills'
+	 * levels and the prayer unlock flags are left out, and the gear, its bonuses and the prayer points stay as they are.
+	 */
+	public Equipment withoutLevels()
+	{
+		Equipment copy = new Equipment();
+		copy.items.putAll(items);
+		copy.switches.addAll(switches);
+		copy.bonuses.putAll(bonuses);
+		copy.defences.putAll(defences);
+		copy.weaponSpeed = weaponSpeed;
+		copy.weaponCategory = weaponCategory;
+		copy.attackStyle = attackStyle;
+		copy.styleNames.addAll(styleNames);
+		copy.prayerBonus = prayerBonus;
+		copy.prayerPoints = prayerPoints;
+		return copy;
+	}
+
 	public Map<String, Item> getItems()
 	{
 		return Collections.unmodifiableMap(items);
@@ -238,5 +274,11 @@ public final class Equipment
 	public int getPrayerPoints()
 	{
 		return prayerPoints;
+	}
+
+	/** The prayer unlock flags in UNLOCK_FLAGS's order, or null when they were not read. */
+	public int[] getUnlocks()
+	{
+		return unlocks == null ? null : unlocks.clone();
 	}
 }

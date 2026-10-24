@@ -2,6 +2,7 @@ package nl.dexanddice.solsurvivor.core;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -84,6 +85,30 @@ public class StatePayloadTest
 			assertEquals(name, json, unpack(packed));
 			assertTrue(name + ": " + packed.length() + " against " + plain.length(), packed.length() * 5 < plain.length() * 3);
 		}
+	}
+
+	@Test
+	public void theTrianglesPlaceComesAfterTheRestOfTheLink() throws Exception
+	{
+		// wave4-triangle.json is wave4-start.json with the dot of the site's readout "Safe 10% · Fast 0% · Easy 90%", which
+		// the site's tests open (test/link/pluginFixtures.test.ts).
+		String start = fixture("wave4-start.json");
+		TriangleDot dot = TriangleDot.of(10, 0, 90);
+		assertEquals(fixture("wave4-triangle.json"), StatePayload.withTriangle(start, dot));
+		String link = StatePayload.linkOfJson("https://sol.dexanddice.nl/", start, dot);
+		assertEquals(fixture("wave4-triangle.json"), unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
+		// Without one, the link is as it was.
+		assertEquals(start, StatePayload.withTriangle(start, null));
+		assertEquals(StatePayload.linkOfJson("https://sol.dexanddice.nl/", start), StatePayload.linkOfJson("https://sol.dexanddice.nl/", start, null));
+	}
+
+	@Test
+	public void theTrianglesSharesAreKeptToTheSettingsRangeAndNoneAboveNothingPlacesNoDot()
+	{
+		assertEquals(TriangleDot.of(0, 100, 0), TriangleDot.of(-5, 200, 0));
+		assertEquals(TriangleDot.MAX_SHARE, TriangleDot.of(33, 101, 33).getFast());
+		assertNull(TriangleDot.of(0, 0, 0));
+		assertNull(TriangleDot.of(-1, 0, -40));
 	}
 
 	@Test

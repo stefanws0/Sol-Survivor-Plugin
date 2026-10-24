@@ -77,6 +77,20 @@ public final class WaveLogWriter
 	/** The log's JSON; an empty log, with no wave, has a null wave and no ticks. */
 	public static String toJson(WaveLog log)
 	{
+		return toJson(log, log.getStartState());
+	}
+
+	/**
+	 * The log as the player shares it with "Share wave logs" (WaveShare): the same JSON, but with its `start` written
+	 * without the gear's levels and prayer unlocks (Equipment.withoutLevels), which the site refuses in a shared log.
+	 */
+	public static String toShare(WaveLog log)
+	{
+		return toJson(log, log.getShareState());
+	}
+
+	private static String toJson(WaveLog log, String start)
+	{
 		StringBuilder b = new StringBuilder();
 		b.append("{\"v\":").append(VERSION).append(",\"kind\":");
 		StatePayload.string(b, KIND);
@@ -107,7 +121,7 @@ public final class WaveLogWriter
 		{
 			StatePayload.string(b, log.getEnd().getKey());
 		}
-		b.append(",\"start\":").append(log.getStartState() == null ? "null" : log.getStartState());
+		b.append(",\"start\":").append(start == null ? "null" : start);
 		b.append(",\"ticks\":[");
 		first = true;
 		for (WaveLog.Tick tick : log.getTicks())

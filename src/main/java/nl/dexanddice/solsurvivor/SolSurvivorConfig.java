@@ -3,23 +3,16 @@ package nl.dexanddice.solsurvivor;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 import net.runelite.client.config.Keybind;
+import net.runelite.client.config.Range;
+import net.runelite.client.config.Units;
+import nl.dexanddice.solsurvivor.core.TriangleDot;
 
 @ConfigGroup(SolSurvivorConfig.GROUP)
 public interface SolSurvivorConfig extends Config
 {
 	String GROUP = "solsurvivor";
-
-	@ConfigItem(
-		keyName = "siteUrl",
-		name = "Site address",
-		description = "The Sol Survivor site the links open.",
-		position = 0
-	)
-	default String siteUrl()
-	{
-		return "https://sol.dexanddice.nl/";
-	}
 
 	@ConfigItem(
 		keyName = "copyHotkey",
@@ -57,11 +50,87 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Open past run uploads only the selected run to Site address and opens it in your browser. Anyone with its link can view it for seven days. Nothing uploads automatically.",
+		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Open past run uploads only the selected run to the Sol Survivor site and opens it in your browser. Anyone with its link can view it for seven days. Nothing else uploads unless Share wave logs is on.",
 		position = 4
 	)
 	default boolean recordWaveLog()
 	{
 		return true;
+	}
+
+	/** RuneLite's wording for a setting that sends anything to a server it does not run, which the Plugin Hub asks for. */
+	String SHARE_WARNING = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers";
+
+	@ConfigItem(
+		keyName = "shareWaveLogs",
+		name = "Share wave logs",
+		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
+		warning = SHARE_WARNING,
+		position = 5
+	)
+	default boolean shareWaveLogs()
+	{
+		return false;
+	}
+
+	@ConfigSection(
+		name = "Safe / Fast / Easy",
+		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
+		position = 6
+	)
+	String triangleSection = "triangle";
+
+	@ConfigItem(
+		keyName = "setTriangle",
+		name = "Set the triangle",
+		description = "Opens every wave from the plugin with the triangle's dot where Safe, Fast and Easy below put it, and the plan it suggests. Off, the site keeps the dot where you last left it.",
+		position = 1,
+		section = triangleSection
+	)
+	default boolean setTriangle()
+	{
+		return false;
+	}
+
+	@Range(max = TriangleDot.MAX_SHARE)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "triangleSafe",
+		name = "Safe",
+		description = "How much the plan suggested minds the hits you take. Copy the three from the site, as it reads them out under the triangle; they need not add up to 100, as each counts as its share of their total.",
+		position = 2,
+		section = triangleSection
+	)
+	default int triangleSafe()
+	{
+		return 33;
+	}
+
+	@Range(max = TriangleDot.MAX_SHARE)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "triangleFast",
+		name = "Fast",
+		description = "How much the plan suggested minds the ticks the wave takes.",
+		position = 3,
+		section = triangleSection
+	)
+	default int triangleFast()
+	{
+		return 33;
+	}
+
+	@Range(max = TriangleDot.MAX_SHARE)
+	@Units(Units.PERCENT)
+	@ConfigItem(
+		keyName = "triangleEasy",
+		name = "Easy",
+		description = "How much the plan suggested minds the inputs: prayer switches, clicks and tiles walked.",
+		position = 4,
+		section = triangleSection
+	)
+	default int triangleEasy()
+	{
+		return 33;
 	}
 }

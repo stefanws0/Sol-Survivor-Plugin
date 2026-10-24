@@ -153,6 +153,8 @@ class SolSurvivorPanel extends PluginPanel
 	private final JButton openRecommender = new JButton("Open in recommender");
 	private final JPanel runsBox = new JPanel();
 	private final JLabel result = new JLabel();
+	/** Under Past waves, while "Share wave logs" is on: each wave's log goes to the site as it ends. */
+	private final JLabel sharing = new JLabel(wrap("Sharing each wave's log with the site as it ends (Share wave logs)."));
 	/** Which runs the player folded open or shut, by key; a run not here is open when it is the newest. */
 	private final Map<Integer, Boolean> folded = new HashMap<>();
 	private List<RunGroup> shownRuns;
@@ -175,6 +177,11 @@ class SolSurvivorPanel extends PluginPanel
 		past.setBorder(new EmptyBorder(6, 0, 0, 0));
 		add(past);
 
+		sharing.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		sharing.setFont(FontManager.getRunescapeSmallFont());
+		sharing.setVisible(false);
+		add(sharing);
+
 		runsBox.setLayout(new BoxLayout(runsBox, BoxLayout.Y_AXIS));
 		runsBox.setOpaque(false);
 		add(runsBox);
@@ -184,8 +191,9 @@ class SolSurvivorPanel extends PluginPanel
 		add(result);
 
 		JLabel help = new JLabel(wrap("The orange buttons open the Sol Survivor site; the grey ones copy a wave log to paste "
-			+ "into it. Open past run uploads the selected run's tiles, hitpoints, prayers, hits and recorded gear to the configured site. "
-			+ "Anyone with its link can view it for seven days. Nothing uploads automatically. This plugin draws nothing in the game."));
+			+ "into it. Open past run uploads the selected run's tiles, hitpoints, prayers, hits and recorded gear to the site. "
+			+ "Anyone with its link can view it for seven days. Nothing uploads automatically unless Share wave logs is on, which sends "
+			+ "each wave's log, without your levels, as the wave ends. This plugin draws nothing in the game."));
 		help.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		help.setFont(FontManager.getRunescapeSmallFont());
 		add(help);
@@ -249,6 +257,12 @@ class SolSurvivorPanel extends PluginPanel
 		buildRuns();
 	}
 
+	/** Whether the waves' logs are shared, as "Share wave logs" and "Record wave log" are set. On the Swing thread. */
+	void showSharing(boolean on)
+	{
+		sharing.setVisible(on);
+	}
+
 	/** What the last button did. On the Swing thread. */
 	void showResult(String message)
 	{
@@ -307,7 +321,7 @@ class SolSurvivorPanel extends PluginPanel
 		JButton replay = new JButton(replayBusy ? "Opening run…" : "Open past run");
 		opensSite(replay);
 		replay.setEnabled(!replayBusy);
-		replay.setToolTipText("Uploads this run's recording to the configured site and opens it in your browser. Anyone with its link can view it for seven days.");
+		replay.setToolTipText("Uploads this run's recording to the Sol Survivor site and opens it in your browser. Anyone with its link can view it for seven days.");
 		replay.addActionListener(e -> actions.openPastRun(newest.id));
 		head.add(replay, BorderLayout.SOUTH);
 
@@ -443,11 +457,16 @@ class SolSurvivorPanel extends PluginPanel
 		button.setOpaque(true);
 	}
 
-	/** HTML that wraps at the panel's width, which a plain label does not. */
+	/**
+	 * HTML that wraps at the panel's width, which a plain label does not. Swing's HTML counts a CSS pixel as 1.3 of the
+	 * screen's, so the width is the panel's inside width over 1.3: a width of PANEL_WIDTH - 40 came out at 240 pixels,
+	 * wider than the panel, and the end of each line was cut off.
+	 */
 	private static String wrap(String text)
 	{
 		String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-		return "<html><body style='width: " + (PANEL_WIDTH - 40) + "px'>" + escaped + "</body></html>";
+		int width = Math.round((PANEL_WIDTH - 2 * BORDER_OFFSET) / 1.3f);
+		return "<html><body style='width: " + width + "px'>" + escaped + "</body></html>";
 	}
 
 	/** The shapes of the panel's small icons, drawn here so that the plugin carries no image files. */

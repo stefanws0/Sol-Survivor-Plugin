@@ -3,7 +3,7 @@ package nl.dexanddice.solsurvivor.core;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-/** The upload and browser always use the configured site, never a URL returned by the server. */
+/** The upload and browser always use the plugin's site (SolSurvivorPlugin.SITE), never a URL returned by the server. */
 public final class ReplayLink
 {
 	private ReplayLink()
@@ -24,7 +24,8 @@ public final class ReplayLink
 		return origin(site) + "/#replay=" + id;
 	}
 
-	private static String origin(String site)
+	/** The site's origin, its scheme, host and port: HTTPS, or HTTP on localhost for development. WaveShare posts to it too. */
+	static String origin(String site)
 	{
 		try
 		{
@@ -39,7 +40,7 @@ public final class ReplayLink
 		}
 		catch (URISyntaxException | NullPointerException ex)
 		{
-			throw new IllegalArgumentException("Set Site address to an HTTPS site (or localhost for development) and try again.");
+			throw new IllegalArgumentException("The site's address must be HTTPS, or localhost for development.");
 		}
 	}
 }

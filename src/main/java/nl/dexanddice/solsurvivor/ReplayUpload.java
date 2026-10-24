@@ -38,7 +38,7 @@ final class ReplayUpload
 			String error = response.code() == 429 ? "Too many runs opened. Try again in a minute."
 				: response.code() == 413 ? "This run is too large to open. You can still copy its wave logs."
 				: response.code() == 400 ? "The site could not read this recording. Update the plugin and try again."
-				: "The site could not store this run. Try again, and check Site address if it keeps happening.";
+				: "The site could not store this run. Try again.";
 			throw new IOException(error);
 		}
 		ResponseBody body = response.body();

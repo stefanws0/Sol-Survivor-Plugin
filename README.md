@@ -1,64 +1,124 @@
-# Sol Survivor
+**Plan your Fortis Colosseum waves tick by tick.** Press a button in RuneLite and the wave you are in opens on
+[Sol Survivor](https://sol.dexanddice.nl/), a planner in your browser that works out where to stand, what to attack and
+which prayer to have up on every tick, down to the last kill.
 
-Plan your Fortis Colosseum waves on [Sol Survivor](https://sol.dexanddice.nl/). The plugin reads the arena and opens it
-on the site in your browser, so you never have to set up a wave by hand.
+The plugin draws nothing in the game and never plays for you. It reads the arena, turns it into a link, and opens that
+link in your browser.
 
-**It draws nothing in the game.** No tiles, prayers, timers or plans appear in the client, and it never acts for you.
-Everything happens on the site, in your browser.
+![Sol Survivor's planner with a wave 7 opened from the plugin: the arena, the plan's steps tick by tick, and the prayer to have up on each tick](images/planner.webp)
+
+## How it works
+
+1. In the Colosseum, press **Open wave start** in the Sol Survivor panel, or **Open arena now** at any point in a wave.
+2. The planner opens in your browser with the wave as it is in game: the NPCs on their tiles, you on yours, and the
+   modifiers you took. With **Include gear and stats** on, it also knows how quickly your gear kills each NPC.
+3. Press **Solve wave**. Your own computer does the searching, so it gets busy for a while
+   ([more on that below](#your-computer-does-the-solving)); the best plans found so far show as it goes.
+4. Pick a plan on the Safe · Fast · Easy triangle and play it through tick by tick: where to run, what to click, and
+   when to switch prayers.
+
+The site is made for a desktop or laptop browser, beside the game, not for a phone.
+
+## Your computer does the solving
+
+No server works out your plans: the planner runs in your browser, on your own computer, and solving a wave is heavy
+work. Expect your computer to notice.
+
+- **Nothing runs until you press Solve.** Opening a link only shows the wave.
+- **A solve uses all but one of your processor's threads**, 15 at most, for anything from a few seconds to a few
+  minutes: the busier the wave, the longer. On a computer with four threads, a wave 7 kept the processor 85%
+  busy for two minutes.
+- **Your fans may spin up.** A laptop can get warm and drain its battery faster, and on a computer with many threads
+  the tab can take up to about 2 GB of memory. It all stops when the solve ends.
+- **If the game stutters**, solve between waves, or press **Stop**: the plans found so far stay.
+- **The modifier pick solves too.** It plays the next wave under each of Minimus's offers, which keeps your computer
+  busy for a little while.
+- **In RuneLite, the plugin is light.** It notes where everything stands each tick and makes a link when you press a
+  button.
 
 ## The panel
 
-The card at the top is for the wave you are in:
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's card with its Open buttons, and past waves grouped by run">
 
-- **Open wave start** opens the arena as it was on the wave's first tick.
-- **Open arena now** opens the arena as it is right now.
-- **Open in recommender** is available while Minimus offers his three modifiers. It opens the site's modifier pick
-  with those offers, the modifiers you hold and the next wave already filled in.
+Open it from the sun in RuneLite's sidebar. The card at the top is for the wave you are in:
 
-Under it, **Past waves** lists every wave since RuneLite started, grouped by run, newest first. Click a run's head to
-fold it open or shut. Each wave's row has three small buttons:
+- **Open wave start** opens the wave as it was on its first tick.
+- **Open arena now** opens it as it is right now, with the fight so far.
+- **Open in recommender** lights up while Minimus offers his three modifiers. It opens the site's modifier pick with
+  his offers, the modifiers you hold and the next wave filled in.
 
-- The orange play button opens the wave on the site as it was on its first tick.
+Each of these also copies its link, so you can share the wave. A hotkey, unset by default, copies the arena's link
+without leaving the game.
+
+**Past waves** lists every wave since RuneLite started, grouped by run, newest first. Click a run's head to fold it
+open or shut. Each wave's row has three buttons:
+
+- The orange play button opens the wave as it was on its first tick.
 - The orange two-figure button opens it on the tick its reinforcements came.
-- The grey copy button copies the wave's log: where you and every NPC stood on each tick, what each did, and the gear
-  you wore when **Include gear and stats** is on. Paste it on the site to see where the planner's simulation differed
+- The grey copy button copies the wave's log. Paste it on the site to see where the planner's simulation differed
   from your run.
 
-**Open past run** on a run's head uploads that run's recording and opens it directly in your browser, in the usual
-arena. Choose a wave, play it back, or scrub to a particular tick. The grey copy button still copies the whole run for
-the site's log checker.
+**Open past run**, on a run's head, opens the whole run on the site to watch back. The grey copy button beside it
+copies the whole run for the site's log checker.
 
-The arena state Open buttons also copy their links, so you can share them. Open past run opens the browser directly,
-without using the clipboard. A hotkey (unset by default) copies the current arena's link without leaving the game.
+<br clear="right">
 
-## What a link holds
+## Between waves: which modifier to take
 
-A link holds the NPCs and their tiles, your tile, the wave and the tick within it, the modifiers you took, each
-Manticore's orb order once it has shown it, and when each NPC last attacked. Mid-wave it also holds the fight so far:
-each NPC's health bar as you last saw it, your Doom stacks this wave, and the molten sand on the floor. With **Include gear and stats** on, it
-also holds your worn gear, the weapons in your inventory, your combat levels and your prayer points, which the site
-uses to work out how quickly you kill each NPC.
+When Minimus makes his offers, press **Open in recommender**. The site fills in his three offers and the modifiers you
+hold, solves the next wave on a few spawn layouts under each offer, and recommends the one that costs you least. Each
+offer also shows the OSRS Wiki's verdict on it, which decides between offers that cost about the same.
+
+![Sol Survivor's modifier pick with Minimus's three offers for wave 8, filled in from the plugin and priced by what each adds to the next wave](images/modifier-pick.webp)
+
+## After a run: watch it back
+
+**Open past run** uploads that run's recording and opens it on the site: every wave on the arena as it happened, to
+play, step through or scrub to any tick. The review picks out the moments worth a look, such as damage you took and the
+prayer you had up when it landed.
+
+![A recorded wave 6 on Sol Survivor's run review, at the moment four hits got through and the prayer that was up when they landed](images/run-review.webp)
 
 ## Privacy
 
-Arena state links put their state after `#`, which browsers do not send to the site's server. Wave logs stay in memory
-until RuneLite closes, unless you copy them or click **Open past run**.
+- **A wave link keeps the arena after its `#`**, the part of a link that browsers do not send to the site's server.
+- **Open past run uploads only when you press it.** It sends the selected run's recording to the Sol Survivor site's
+  `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits and NPC state, plus your gear and stats when
+  **Include gear and stats** is on. It holds no account name. The site keeps the recording for seven days, and anyone
+  with its link can view it.
+- **Share wave logs is off until you turn it on.** Then each wave's log goes to the site's `/api/wave-logs` as the
+  wave ends, so that the planner can be checked against real games: the same tiles, hitpoints, prayer points,
+  animations, hits and NPC state, the wave and its modifiers. It holds no account name, world or time of day, and no
+  combat levels or prayer unlocks: your gear only with **Include gear and stats** on, and then without them. A run's
+  waves share a random id that the plugin forgets when you leave the arena, so that nothing joins one of your runs to
+  another. The site keeps the day a log came, not your address, shows the logs to nobody, and deletes each after 90
+  days. RuneLite warns that this, like Open past run, sends your IP address to a server it does not run.
+- **Wave logs stay in memory** until RuneLite closes, unless you copy one, open a past run or share them.
 
-**Open past run uploads only the selected run to the configured site's `/api/replays`.** It includes recorded positions,
-hitpoints, prayers, animations, hits, NPC state and optional gear/stats, with no account name. Nothing uploads
-automatically. The site stores the recording for seven days; anyone with its replay link can view it. The
-upload happens in the background, then a short replay link opens directly in your browser. Remote uploads use HTTPS.
+**What a wave link holds:** the NPCs and their tiles, your tile, the wave and the tick within it, the modifiers you
+took, each Manticore's orb order once it has shown it, and when each NPC last attacked. Mid-wave it also holds the fight
+so far: each NPC's health bar as you last saw it, your Doom stacks this wave, and the molten sand on the floor. With
+**Include gear and stats** on, it also holds your worn gear, the weapons in your inventory, your combat levels, your
+prayer points and which of the stronger prayers you have unlocked, from which the site works out how quickly you kill
+each NPC.
 
 ## Settings
 
-- **Site address**: the site the links open.
-- **Copy link hotkey**: copies the current arena's link.
-- **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
+- **Copy link hotkey**: copies the arena's link as it is now.
 - **Include gear and stats**: on by default.
-- **Record wave log**: on by default; it keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
+- **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
+- **Record wave log**: on by default. It keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
   closes.
+- **Share wave logs**: off by default. Sends each wave's log to the site as the wave ends (see Privacy). It needs
+  **Record wave log**, and the panel says so under Past waves while it is on.
+- **Safe / Fast / Easy**: with **Set the triangle** on, every wave you open from the plugin starts with the site's
+  Safe / Fast / Easy triangle where you set it, and so with the plan it suggests, instead of where you last left it.
+  Copy the three numbers from the site's readout under the triangle, such as Safe 10% · Fast 0% · Easy 90%; they need
+  not add up to 100. Off by default.
 
 ## Credits
 
-The modifiers' ids and varbits and the Manticore's orb graphics are the ones LlemonDuck's Fortis Colosseum plugin
-reads.
+Sol Survivor is a fan-made tool, not affiliated with Jagex. The game's mechanics come from the
+[OSRS Wiki](https://oldschool.runescape.wiki/), and the planner's engine is checked tick for tick against Supalosa's
+[LoS tool](https://los.colosim.com/). The modifiers' ids and varbits and the Manticore's orb graphics are the ones
+LlemonDuck's Fortis Colosseum plugin reads.

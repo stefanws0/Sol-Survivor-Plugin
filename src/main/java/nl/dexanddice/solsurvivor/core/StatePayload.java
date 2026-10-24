@@ -15,7 +15,8 @@ import java.util.zip.Deflater;
  * preset dictionary and written as unpadded base64url. Plugins before 0.5.0 wrote the JSON's base64url unpacked, which
  * the site still reads. The plugin writes the `setup`, the arena as the game shows it (mid-wave with the fight so far:
  * the NPCs' health bars, Doom's stacks; and the molten sand on the floor), and with the player's gear the `prayer`
- * values and the `equipment`; the site keeps its own kill table and solver settings.
+ * values and the `equipment`; with the player's setting for it, the place of the dot on the site's Safe / Fast / Easy
+ * triangle (`triangle`, withTriangle). The site keeps its own kill table and solver settings.
  *
  * The JSON is written by hand, ASCII only and in a fixed order, so that a state always gives the same link and the
  * tests can compare links whole.
@@ -320,6 +321,20 @@ public final class StatePayload
 		b.append('}');
 		byItem(b, "bonuses", e.getBonuses());
 		byItem(b, "defences", e.getDefences());
+		int[] unlocks = e.getUnlocks();
+		if (unlocks != null)
+		{
+			b.append(",\"unlocks\":{");
+			for (int i = 0; i < Equipment.UNLOCK_FLAGS.length; i++)
+			{
+				if (i > 0)
+				{
+					b.append(',');
+				}
+				b.append('"').append(Equipment.UNLOCK_FLAGS[i]).append("\":").append(unlocks[i]);
+			}
+			b.append('}');
+		}
 		b.append('}');
 	}
 
@@ -456,11 +471,47 @@ public final class StatePayload
 	/** The whole link, with the player's gear when `equipment` is not null. */
 	public static String link(String siteUrl, ArenaState state, Equipment equipment)
 	{
-		return linkOfJson(siteUrl, toJson(state, equipment));
+		return link(siteUrl, state, equipment, null);
+	}
+
+	/**
+	 * The whole link, with the player's gear when `equipment` is not null, and the place they set for the site's triangle
+	 * when `triangle` is not null (withTriangle).
+	 */
+	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle)
+	{
+		return linkOfJson(siteUrl, toJson(state, equipment), triangle);
+	}
+
+	/**
+	 * A payload's JSON with the place the player set for the dot of the site's Safe / Fast / Easy triangle, `triangle`,
+	 * after the rest: its three shares, as TriangleDot holds them. The site opens the link with the dot there, in place of
+	 * where the viewer last left it. The JSON as it was when `triangle` is null. Only the links take it: the wave log keeps
+	 * its payloads without, so that a past wave opens with the setting as it is when the player opens it.
+	 */
+	public static String withTriangle(String json, TriangleDot triangle)
+	{
+		if (triangle == null)
+		{
+			return json;
+		}
+		// toJson's JSON is one object, so its last character closes it.
+		StringBuilder b = new StringBuilder(json.substring(0, json.lastIndexOf('}')));
+		b.append(",\"triangle\":[").append(triangle.getSafe()).append(',').append(triangle.getFast()).append(',').append(triangle.getEasy()).append("]}");
+		return b.toString();
 	}
 
 	/** The whole link of a payload toJson wrote earlier, such as a past wave's start the wave log kept. */
 	public static String linkOfJson(String siteUrl, String json)
+	{
+		return linkOfJson(siteUrl, json, null);
+	}
+
+	/**
+	 * The whole link of a payload toJson wrote earlier, with the place the player set for the site's triangle when
+	 * `triangle` is not null (withTriangle).
+	 */
+	public static String linkOfJson(String siteUrl, String json, TriangleDot triangle)
 	{
 		String base = siteUrl.trim();
 		int hash = base.indexOf('#');
@@ -472,6 +523,6 @@ public final class StatePayload
 		{
 			base += "/";
 		}
-		return base + STATE_HASH + pack(json);
+		return base + STATE_HASH + pack(withTriangle(json, triangle));
 	}
 }

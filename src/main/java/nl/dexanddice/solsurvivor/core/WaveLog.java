@@ -354,6 +354,11 @@ public final class WaveLog
 	private String version = "";
 	/** The state link's payload on the wave's first tick, as StatePayload wrote it, or null when it could not be taken. */
 	private String startState;
+	/**
+	 * The same payload with the gear's levels left out (Equipment.withoutLevels), for the log the player shares
+	 * (WaveLogWriter.toShare), or null when it could not be taken.
+	 */
+	private String shareState;
 	/** The state link's payload on the tick the reinforcements came, or null before then. */
 	private String reinforcementState;
 	private final List<Tick> ticks = new ArrayList<>();
@@ -385,6 +390,16 @@ public final class WaveLog
 	 */
 	public void start(int wave, int gameTick, Map<Modifier, Integer> modifiers, boolean modifiersComplete, String version, String startState)
 	{
+		start(wave, gameTick, modifiers, modifiersComplete, version, startState, startState);
+	}
+
+	/**
+	 * A wave starts, as start above, with `shareState` the state link's payload on this tick without the gear's levels, for
+	 * the log the player shares, or null.
+	 */
+	public void start(int wave, int gameTick, Map<Modifier, Integer> modifiers, boolean modifiersComplete, String version, String startState,
+		String shareState)
+	{
 		if (this.wave != null)
 		{
 			String json = WaveLogWriter.toJson(this);
@@ -401,6 +416,7 @@ public final class WaveLog
 		this.modifiersComplete = modifiersComplete;
 		this.version = version;
 		this.startState = startState;
+		this.shareState = shareState;
 		reinforcementState = null;
 		ticks.clear();
 		cut = false;
@@ -535,6 +551,7 @@ public final class WaveLog
 		modifiersComplete = false;
 		version = "";
 		startState = null;
+		shareState = null;
 		reinforcementState = null;
 		id = 0;
 		lastWorn = null;
@@ -672,6 +689,11 @@ public final class WaveLog
 	String getStartState()
 	{
 		return startState;
+	}
+
+	String getShareState()
+	{
+		return shareState;
 	}
 
 	/** The state link's payload on the tick the reinforcements came, or null before then. */

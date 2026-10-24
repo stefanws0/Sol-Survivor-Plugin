@@ -74,13 +74,18 @@ import nl.dexanddice.solsurvivor.core.PluginVersion;
 import nl.dexanddice.solsurvivor.core.RunLogWriter;
 import nl.dexanddice.solsurvivor.core.SeenNpc;
 import nl.dexanddice.solsurvivor.core.StatePayload;
+import nl.dexanddice.solsurvivor.core.TriangleDot;
 import nl.dexanddice.solsurvivor.core.WaveLog;
 import nl.dexanddice.solsurvivor.core.WaveLogWriter;
+import nl.dexanddice.solsurvivor.core.WaveShare;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
@@ -97,7 +102,8 @@ import okhttp3.Response;
  * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
  * (RunLogWriter).
  *
- * Open past run uploads only the selected run to the configured site, then opens its recording in the browser.
+ * Open past run uploads only the selected run to the site, then opens its recording in the browser. With "Share wave
+ * logs" on, off by default, each wave's log goes to the site as the wave ends, without the levels (core.WaveShare).
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
@@ -107,6 +113,12 @@ import okhttp3.Response;
 public class SolSurvivorPlugin extends Plugin
 {
 	private static final Logger log = LoggerFactory.getLogger(SolSurvivorPlugin.class);
+
+	/**
+	 * The Sol Survivor site, which every link opens and Open past run uploads to. It is not a setting, as the user asked
+	 * (2026-10-20): there is one site, now that the preview a setting could point at has been retired.
+	 */
+	static final String SITE = "https://sol.dexanddice.nl/";
 
 	/** The script that fills the modifier selector, with the three on offer and the mask of those taken. */
 	private static final int SCRIPT_MODIFIER_SELECT_INIT = 4931;
@@ -140,12 +152,20 @@ public class SolSurvivorPlugin extends Plugin
 	/** Only one upload at a time. Cleared and cancelled on shutdown; late callbacks cannot open the browser. */
 	private volatile Call replayCall;
 
+	/** The last shared wave log on its way to the site, cancelled on shutdown. */
+	private volatile Call shareCall;
+	/** Which run the waves belong to and which log was shared last, for "Share wave logs"; on the client thread only. */
+	private final WaveShare waveShare = new WaveShare();
+
 	private final ColosseumTracker tracker = new ColosseumTracker();
 	private boolean inColosseum;
-	/** The link of the current wave's first tick, taken as it happens, since the player cannot press a key that fast. */
-	private String waveStartLink;
-	/** The same link's payload, which the wave's log starts with. */
+	/**
+	 * The payload of the current wave's first tick, taken as it happens, since the player cannot press a key that fast:
+	 * Open wave start links it, and the wave's log starts with it.
+	 */
 	private String waveStartState;
+	/** The same payload with the gear's levels left out, for the log the player shares (Equipment.withoutLevels). */
+	private String waveShareState;
 	/** The log of the wave under way, or of the last one until the next starts, and the past ones; on the client thread only. */
 	private final WaveLog waveLog = new WaveLog();
 
@@ -159,6 +179,7 @@ public class SolSurvivorPlugin extends Plugin
 	private String shownNote;
 	private List<SolSurvivorPanel.RunGroup> shownRuns = new ArrayList<>();
 	private boolean shownOffers;
+	private boolean shownSharing;
 
 	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.copyHotkey())
 	{
@@ -247,13 +268,20 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			pending.cancel();
 		}
+		Call sharing = shareCall;
+		shareCall = null;
+		if (sharing != null)
+		{
+			sharing.cancel();
+		}
 		keyManager.unregisterKeyListener(hotkeyListener);
 		clientToolbar.removeNavigation(navButton);
 		tracker.reset();
 		waveLog.clear();
+		waveShare.onLeave();
 		inColosseum = false;
-		waveStartLink = null;
 		waveStartState = null;
+		waveShareState = null;
 		shownInColosseum = false;
 		shownWaveStart = false;
 		shownTitle = null;
@@ -261,6 +289,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownNote = null;
 		shownRuns = new ArrayList<>();
 		shownOffers = false;
+		shownSharing = false;
 		panel = null;
 	}
 
@@ -280,11 +309,14 @@ public class SolSurvivorPlugin extends Plugin
 		}
 	}
 
-	/** "Record wave log" switched off drops the log at once, and the panel shows the setting as it is, in or out of the arena. */
+	/**
+	 * "Record wave log" switched off drops the log at once, and the panel shows the settings as they are, in or out of the
+	 * arena: the log's, and whether the waves are shared.
+	 */
 	@Subscribe
 	public void onConfigChanged(ConfigChanged e)
 	{
-		if (!SolSurvivorConfig.GROUP.equals(e.getGroup()) || !"recordWaveLog".equals(e.getKey()))
+		if (!SolSurvivorConfig.GROUP.equals(e.getGroup()) || !("recordWaveLog".equals(e.getKey()) || "shareWaveLogs".equals(e.getKey())))
 		{
 			return;
 		}
@@ -506,19 +538,19 @@ public class SolSurvivorPlugin extends Plugin
 			{
 				ArenaState start = capture();
 				Equipment gear = gear();
-				waveStartLink = StatePayload.link(config.siteUrl(), start, gear);
 				waveStartState = StatePayload.toJson(start, gear);
+				waveShareState = gear == null ? waveStartState : StatePayload.toJson(start, gear.withoutLevels());
 			}
 			catch (ExportException ex)
 			{
-				waveStartLink = null;
 				waveStartState = null;
+				waveShareState = null;
 			}
 		}
 		else if (!tracker.isWaveStarted())
 		{
-			waveStartLink = null;
 			waveStartState = null;
+			waveShareState = null;
 		}
 		recordWaveLog(tick);
 		updatePanel();
@@ -542,8 +574,11 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		if (tracker.isWaveStartTick(tick) && tracker.getWave() != null)
 		{
+			// The last wave's log, when its end was never seen, has its turn before the next wave's starts.
+			shareLog();
+			waveShare.onWaveStart(tracker.getWave());
 			waveLog.start(tracker.getWave(), tick, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), tracker.isModifiersComplete(),
-				PluginVersion.VERSION, waveStartState);
+				PluginVersion.VERSION, waveStartState, waveShareState);
 		}
 		if (!waveLog.isRecording())
 		{
@@ -566,7 +601,49 @@ public class SolSurvivorPlugin extends Plugin
 		if (!tracker.isWaveStarted())
 		{
 			waveLog.finish(WaveLog.End.COMPLETED);
+			shareLog();
 		}
+	}
+
+	/**
+	 * The wave log under way or the last one has its turn to be shared, as its wave ends: with "Share wave logs" on it goes
+	 * to the site as WaveLogWriter.toShare writes it, gzipped, under the run's id (WaveShare). Each log has one turn, so
+	 * that a wave that ended with the setting off is never sent. On the client thread, which the log is read on; the
+	 * upload goes on OkHttp's threads, and a log the site refuses or cannot reach is dropped without a word to the player.
+	 */
+	private void shareLog()
+	{
+		if (!waveLog.hasLog() || waveLog.size() == 0 || !waveShare.claim(waveLog.getId()))
+		{
+			return;
+		}
+		String run = waveShare.getRun();
+		if (!config.shareWaveLogs() || run == null)
+		{
+			return;
+		}
+		Request request = new Request.Builder().url(WaveShare.endpoint(SITE)).header(WaveShare.RUN_HEADER, run)
+			.post(RequestBody.create(MediaType.parse(WaveShare.TYPE), WaveShare.gzip(WaveLogWriter.toShare(waveLog)))).build();
+		Call call = httpClient.newCall(request);
+		shareCall = call;
+		call.enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call failed, IOException ex)
+			{
+				log.debug("Could not share the wave log", ex);
+			}
+
+			@Override
+			public void onResponse(Call completed, Response response)
+			{
+				if (!response.isSuccessful())
+				{
+					log.debug("The site did not take the shared wave log: {}", response.code());
+				}
+				response.close();
+			}
+		});
 	}
 
 	/** The player on this tick, for the wave log, with their gear when "Include gear and stats" is on; on the client thread only. */
@@ -672,12 +749,14 @@ public class SolSurvivorPlugin extends Plugin
 
 	private void leave()
 	{
-		// The log of a wave the player died in or ran from is kept, so that it can be copied after.
+		// The log of a wave the player died in or ran from is kept, so that it can be copied after, and shared as it ends.
 		waveLog.finish(WaveLog.End.LEFT);
+		shareLog();
+		waveShare.onLeave();
 		tracker.reset();
 		inColosseum = false;
-		waveStartLink = null;
 		waveStartState = null;
+		waveShareState = null;
 		updatePanel();
 	}
 
@@ -768,6 +847,15 @@ public class SolSurvivorPlugin extends Plugin
 	};
 
 	/**
+	 * Where the player set the site's Safe / Fast / Easy triangle to start, which the state links give the site; null when
+	 * "Set the triangle" is off, or Safe, Fast and Easy are all 0, and the site keeps its own.
+	 */
+	private TriangleDot triangle()
+	{
+		return config.setTriangle() ? TriangleDot.of(config.triangleSafe(), config.triangleFast(), config.triangleEasy()) : null;
+	}
+
+	/**
 	 * The player's gear and stats now, or null when the player has switched them off. The items' names and stats come
 	 * from RuneLite's item data; the weapon's category and style are the game's own numbers. On the client thread only.
 	 */
@@ -812,6 +900,10 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			gear.stat(skill.name().toLowerCase(Locale.ROOT), client.getBoostedSkillLevel(skill), client.getRealSkillLevel(skill));
 		}
+		// Which offensive prayers need more than levels and are unlocked, for the site to pick the strongest the player has.
+		gear.unlocks(readLevel(VarbitID.PRAYER_RIGOUR_UNLOCKED), readLevel(VarbitID.PRAYER_AUGURY_UNLOCKED),
+			readLevel(VarbitID.PRAYER_DEADEYE_UNLOCKED), readLevel(VarbitID.PRAYER_MYSTIC_VIGOUR_UNLOCKED),
+			readLevel(VarbitID.KR_KNIGHTWAVES_STATE));
 		return gear;
 	}
 
@@ -927,13 +1019,15 @@ public class SolSurvivorPlugin extends Plugin
 	{
 		clientThread.invokeLater(() ->
 		{
-			if (waveStartLink == null)
+			if (waveStartState == null)
 			{
 				report("No wave start to open: the plugin takes one on the first tick of each wave it sees start.");
 				return;
 			}
-			LinkBrowser.browse(waveStartLink);
-			copy(waveStartLink, "Opened the wave start on the site, and copied its link.", "Opened the wave start on the site.");
+			// Linked now rather than at the wave's start, so that the triangle's place is the one set now.
+			String link = StatePayload.linkOfJson(SITE, waveStartState, triangle());
+			LinkBrowser.browse(link);
+			copy(link, "Opened the wave start on the site, and copied its link.", "Opened the wave start on the site.");
 		});
 	}
 
@@ -952,7 +1046,7 @@ public class SolSurvivorPlugin extends Plugin
 				String note = state.isModifiersComplete()
 					? done
 					: done + " Quartet, Red Flag and Totemic show from your next modifier pick on: set them on the site.";
-				String link = StatePayload.link(config.siteUrl(), state, gear());
+				String link = StatePayload.link(SITE, state, gear(), triangle());
 				if (open)
 				{
 					LinkBrowser.browse(link);
@@ -981,7 +1075,7 @@ public class SolSurvivorPlugin extends Plugin
 				return;
 			}
 			Integer wave = tracker.getWave();
-			String link = PickPayload.link(config.siteUrl(), wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers);
+			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers);
 			LinkBrowser.browse(link);
 			report(wave == null
 				? "Opened the recommender with Minimus's offers. The plugin has not seen a wave yet: set the wave on the site."
@@ -1011,7 +1105,7 @@ public class SolSurvivorPlugin extends Plugin
 					: "The plugin did not see wave " + wave.getWave() + " start.");
 				return;
 			}
-			String link = StatePayload.linkOfJson(config.siteUrl(), state);
+			String link = StatePayload.linkOfJson(SITE, state, triangle());
 			String what = reinforcements ? "wave " + wave.getWave() + " at its reinforcements" : "wave " + wave.getWave() + "'s start";
 			LinkBrowser.browse(link);
 			copy(link, "Opened " + what + " on the site, and copied its link.", "Opened " + what + " on the site.");
@@ -1085,7 +1179,6 @@ public class SolSurvivorPlugin extends Plugin
 				report("That run is no longer kept: more waves have come since than the log keeps.");
 				return;
 			}
-			String site = config.siteUrl();
 			run = new ArrayList<>(run);
 			run.removeIf(wave -> wave.size() == 0);
 			if (run.isEmpty())
@@ -1095,7 +1188,7 @@ public class SolSurvivorPlugin extends Plugin
 			}
 			try
 			{
-				Call call = httpClient.newCall(ReplayUpload.request(site, RunLogWriter.toJson(run, PluginVersion.VERSION)));
+				Call call = httpClient.newCall(ReplayUpload.request(SITE, RunLogWriter.toJson(run, PluginVersion.VERSION)));
 				replayCall = call;
 				SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(true); });
 				report("Opening past run: uploading the selected recording…");
@@ -1112,7 +1205,7 @@ public class SolSurvivorPlugin extends Plugin
 					{
 						try (Response closed = response)
 						{
-							finishReplay(completed, ReplayUpload.browserUrl(site, closed), null);
+							finishReplay(completed, ReplayUpload.browserUrl(SITE, closed), null);
 						}
 						catch (IOException ex)
 						{
@@ -1221,7 +1314,7 @@ public class SolSurvivorPlugin extends Plugin
 			return;
 		}
 		boolean colosseum = inColosseum;
-		boolean waveStart = waveStartLink != null;
+		boolean waveStart = waveStartState != null;
 		Integer wave = tracker.getWave();
 		String title;
 		String state;
@@ -1250,8 +1343,9 @@ public class SolSurvivorPlugin extends Plugin
 			: "Switch on \"Record wave log\" in the plugin's settings to keep past waves here.";
 		List<SolSurvivorPanel.RunGroup> runs = runGroups();
 		boolean offers = !tracker.getOptions().isEmpty();
+		boolean sharing = config.shareWaveLogs() && config.recordWaveLog();
 		if (colosseum == shownInColosseum && waveStart == shownWaveStart && title.equals(shownTitle) && state.equals(shownState)
-			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers)
+			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers && sharing == shownSharing)
 		{
 			return;
 		}
@@ -1262,7 +1356,12 @@ public class SolSurvivorPlugin extends Plugin
 		shownNote = note;
 		shownRuns = runs;
 		shownOffers = offers;
-		SwingUtilities.invokeLater(() -> p.showState(colosseum, title, state, waveStart, offers, note, runs));
+		shownSharing = sharing;
+		SwingUtilities.invokeLater(() ->
+		{
+			p.showState(colosseum, title, state, waveStart, offers, note, runs);
+			p.showSharing(sharing);
+		});
 	}
 
 	/**
