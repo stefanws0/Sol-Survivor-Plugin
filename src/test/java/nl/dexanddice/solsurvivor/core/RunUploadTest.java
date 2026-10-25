@@ -11,7 +11,7 @@ import java.util.zip.GZIPInputStream;
 import org.junit.Test;
 
 /**
- * Open past run's body: the run's JSON gzipped, which the site stores as it comes, and a run past the site's limits
+ * The body of a run's Watch: the run's JSON gzipped, which the site stores as it comes, and a run past the site's limits
  * refused before anything is sent, with what the player can do instead.
  */
 public class RunUploadTest

@@ -4,7 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * The body Open past run uploads to the site's /api/replays (its src/edge/replays.ts): the run's JSON, as RunLogWriter
+ * The body a run's Watch uploads to the site's /api/replays (its src/edge/replays.ts): the run's JSON, as RunLogWriter
  * writes it, gzipped here, so that the site, with its few milliseconds of CPU a request, only unpacks it to check it and
  * stores the bytes it got. The site takes at most MAX_PACKED_BYTES gzipped, which unpack to at most MAX_JSON_BYTES; a
  * run past either is refused here, with what the player can do instead, before anything is sent. It holds no RuneLite

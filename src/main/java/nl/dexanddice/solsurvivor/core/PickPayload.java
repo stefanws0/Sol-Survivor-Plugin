@@ -9,19 +9,24 @@ import java.util.Map;
 /**
  * The pick link, as src/link/pickLink.ts defines it: the site's address, "#pick=", and the base64url of a JSON payload
  * that opens the site's modifier pick with Minimus's three offers filled in, and the modifiers held and the next wave as
- * the plugin knows them. The panel's "Open in recommender" opens it while the selector is open.
+ * the plugin knows them. The panel's Modifier pick opens it while the selector is open.
  *
  * <pre>
  * {"v":1,"kind":"solSurvivorPick","wave":4,"modifiers":{"relentless":1,"dynamicDuo":true},
  *  "offers":[["relentless",2],["bees",1],null],
- *  "run":[{"wave":3,"ticks":118,"hit":false,"damage":0,"modifiers":{"relentless":1},"glory":1500}]}
+ *  "run":[{"wave":3,"ticks":118,"hit":false,"damage":0,"modifiers":{"relentless":1},"glory":1500}],
+ *  "chest":{"next":[["Death rune",150]],"held":[["Sunfire splinters",230],["Rune platebody",1]]}}
  * </pre>
  *
  * `wave` is the wave the offers come before, null when the plugin has not seen a wave's message; `modifiers` are written
  * as the state link writes them; each offer is the modifier's key and the tier taking it brings, the one after the tier
  * held for a modifier with tiers and 1 for one without, or null for an id this plugin does not know. `run`, from 0.8.0
  * and only when the plugin saw a wave of the run finish, is the run's waves finished so far (RunWave), from which the
- * site works out the run's glory for the title it aims at.
+ * site works out the run's glory for the title it aims at. `chest`, from the release after 0.8.1 and only when the game
+ * holds either, is the Colosseum's reward chest as it stands between waves (ChestItem): `next`, what clearing the next
+ * wave adds, from the game's InventoryID.COLOSSEUM_REWARDS_FUTURE, and `held`, the chest so far, from
+ * InventoryID.COLOSSEUM_REWARDS, each item by its name and how many. What the two containers hold is read from their
+ * names and is to be checked in game; the site lets the player change what it fills in.
  */
 public final class PickPayload
 {
@@ -44,11 +49,19 @@ public final class PickPayload
 		return toJson(wave, modifiers, offers, Collections.emptyList());
 	}
 
-	/**
-	 * The payload's JSON: the next wave, the modifiers held with their tiers (ColosseumTracker.modifiers), the offers, and
-	 * the run's waves finished so far (ColosseumTracker.getRun), left out when there are none.
-	 */
+	/** The payload's JSON without the chest: see the other. */
 	public static String toJson(Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run)
+	{
+		return toJson(wave, modifiers, offers, run, Collections.emptyList(), Collections.emptyList());
+	}
+
+	/**
+	 * The payload's JSON: the next wave, the modifiers held with their tiers (ColosseumTracker.modifiers), the offers, the
+	 * run's waves finished so far (ColosseumTracker.getRun), left out when there are none, and the reward chest, the next
+	 * wave's reward and the chest so far, left out when the game holds neither.
+	 */
+	public static String toJson(Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
+		List<ChestItem> next, List<ChestItem> held)
 	{
 		StringBuilder b = new StringBuilder();
 		b.append("{\"v\":").append(VERSION).append(",\"kind\":");
@@ -97,8 +110,35 @@ public final class PickPayload
 			}
 			b.append(']');
 		}
+		if (!next.isEmpty() || !held.isEmpty())
+		{
+			b.append(",\"chest\":{\"next\":");
+			itemsJson(b, next);
+			b.append(",\"held\":");
+			itemsJson(b, held);
+			b.append('}');
+		}
 		b.append('}');
 		return b.toString();
+	}
+
+	/** Chest items as the pick link writes them: [["Death rune",150],["Rune platebody",1]]. */
+	private static void itemsJson(StringBuilder b, List<ChestItem> items)
+	{
+		b.append('[');
+		boolean first = true;
+		for (ChestItem item : items)
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[');
+			StatePayload.string(b, item.getName());
+			b.append(',').append(item.getQuantity()).append(']');
+		}
+		b.append(']');
 	}
 
 	/** Modifiers with their tiers as the state link writes them: {"relentless":2,"quartet":"random"}. */
@@ -125,8 +165,15 @@ public final class PickPayload
 		return link(siteUrl, wave, modifiers, offers, Collections.emptyList());
 	}
 
-	/** The whole link: the site's address, losing any hash it had and ending in a slash, "#pick=" and the payload. */
+	/** The whole link without the chest: see the other. */
 	public static String link(String siteUrl, Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run)
+	{
+		return link(siteUrl, wave, modifiers, offers, run, Collections.emptyList(), Collections.emptyList());
+	}
+
+	/** The whole link: the site's address, losing any hash it had and ending in a slash, "#pick=" and the payload. */
+	public static String link(String siteUrl, Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
+		List<ChestItem> next, List<ChestItem> held)
 	{
 		String base = siteUrl.trim();
 		int hash = base.indexOf('#');
@@ -138,7 +185,7 @@ public final class PickPayload
 		{
 			base += "/";
 		}
-		String json = toJson(wave, modifiers, offers, run);
+		String json = toJson(wave, modifiers, offers, run, next, held);
 		return base + PICK_HASH + Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII));
 	}
 }

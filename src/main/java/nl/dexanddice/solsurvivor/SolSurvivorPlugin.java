@@ -69,6 +69,7 @@ import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.LinkBrowser;
 import nl.dexanddice.solsurvivor.core.ArenaGeometry;
 import nl.dexanddice.solsurvivor.core.ArenaState;
+import nl.dexanddice.solsurvivor.core.ChestItem;
 import nl.dexanddice.solsurvivor.core.ColosseumCounter;
 import nl.dexanddice.solsurvivor.core.ColosseumTracker;
 import nl.dexanddice.solsurvivor.core.Equipment;
@@ -100,8 +101,8 @@ import okhttp3.Response;
  * Copies the Fortis Colosseum's state as a Sol Survivor link (design spec 2026-10-14-runelite-plugin-design.md). It only
  * reads the game and exports: it draws nothing in the game, neither tiles nor prayers nor plans, as Jagex's rules for
  * third-party clients require. The link goes to the clipboard from the side panel or a hotkey, and the player pastes it
- * into the site. While Minimus offers his three modifiers, the panel's "Open in recommender" opens the site's modifier
- * pick in the browser with them filled in (core.PickPayload); the offers ride in the link's hash, which the browser
+ * into the site. While Minimus offers his three modifiers, the Open button on the panel's Modifier pick opens the
+ * site's modifier pick in the browser with them filled in (core.PickPayload); the offers ride in the link's hash, which the browser
  * keeps to itself.
  *
  * This class passes the game's events to ColosseumTracker, which holds the logic and is tested without RuneLite, and
@@ -110,7 +111,7 @@ import okhttp3.Response;
  * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
  * (RunLogWriter).
  *
- * Open past run, with "Upload past runs" on (off by default), uploads only the selected run to the site, then opens its
+ * A run's Watch, with "Upload past runs" on (off by default), uploads only the selected run to the site, then opens its
  * recording in the browser. With "Share wave logs" on, off by default too, each wave's log goes to the site as the wave
  * ends, without the levels (core.WaveShare). Nothing else goes to the site. With "Count my flicks" on, off by default
  * too, each wave's protection prayers are counted as it ends (core.PrayerFlicks), and the links carry the totals for the
@@ -118,7 +119,7 @@ import okhttp3.Response;
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
-	description = "Opens the Fortis Colosseum's arena in Sol Survivor. Open past run, once Upload past runs is on, uploads the selected recording to the Sol Survivor site and opens it in your browser. Share wave logs, off by default too, sends each wave's log to the site. Draws nothing in the game.",
+	description = "Opens the Fortis Colosseum's arena in Sol Survivor. Draws nothing in the game. Off by default: Upload past runs lets a past run's Watch button upload it to the Sol Survivor site and open it in your browser, and Share wave logs sends each wave's log to the site.",
 	tags = {"fortis", "colosseum", "sol", "planner", "export"}
 )
 public class SolSurvivorPlugin extends Plugin
@@ -126,7 +127,7 @@ public class SolSurvivorPlugin extends Plugin
 	private static final Logger log = LoggerFactory.getLogger(SolSurvivorPlugin.class);
 
 	/**
-	 * The Sol Survivor site, which every link opens and Open past run uploads to. It is not a setting, as the user asked
+	 * The Sol Survivor site, which every link opens and Watch uploads to. It is not a setting, as the user asked
 	 * (2026-10-20): there is one site, now that the preview a setting could point at has been retired. The site moved
 	 * here from sol.dexanddice.nl on 2026-10-25; that host still answers the releases before this one, and sends their
 	 * links on here.
@@ -185,7 +186,7 @@ public class SolSurvivorPlugin extends Plugin
 	private boolean inColosseum;
 	/**
 	 * The payload of the current wave's first tick, taken as it happens, since the player cannot press a key that fast:
-	 * Open wave start links it, and the wave's log starts with it.
+	 * Wave start links it, and the wave's log starts with it.
 	 */
 	private String waveStartState;
 	/** The same payload with the gear's levels left out, for the log the player shares (Equipment.withoutLevels). */
@@ -1219,8 +1220,8 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * Opens the site's modifier pick in the browser with the three modifiers Minimus offers filled in, while his selector
-	 * is open: the link holds them, the modifiers held, the next wave and the run's waves finished so far, and nothing
-	 * else.
+	 * is open: the link holds them, the modifiers held, the next wave, the run's waves finished so far and the reward
+	 * chest as the game holds it (chestItems), and nothing else.
 	 */
 	private void openRecommender()
 	{
@@ -1233,12 +1234,38 @@ public class SolSurvivorPlugin extends Plugin
 				return;
 			}
 			Integer wave = tracker.getWave();
-			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers, tracker.getRun());
+			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers, tracker.getRun(),
+				chestItems(InventoryID.COLOSSEUM_REWARDS_FUTURE), chestItems(InventoryID.COLOSSEUM_REWARDS));
 			LinkBrowser.browse(link);
 			report(wave == null
 				? "Opened the recommender with Minimus's offers. The plugin has not seen a wave yet: set the wave on the site."
 				: "Opened the recommender with Minimus's offers for wave " + wave + ".");
 		});
+	}
+
+	/**
+	 * The items of one of the Colosseum's reward containers, each by its name, a note read as the item it stands for, and
+	 * how many: COLOSSEUM_REWARDS_FUTURE for what clearing the next wave adds, COLOSSEUM_REWARDS for the chest so far
+	 * (PickPayload's `chest`). None when the game has not sent the container. Called on the client thread.
+	 */
+	private List<ChestItem> chestItems(int containerId)
+	{
+		ItemContainer container = client.getItemContainer(containerId);
+		if (container == null)
+		{
+			return Collections.emptyList();
+		}
+		List<ChestItem> items = new ArrayList<>();
+		for (Item item : container.getItems())
+		{
+			if (item == null || item.getId() <= 0 || item.getQuantity() <= 0)
+			{
+				continue;
+			}
+			String name = itemManager.getItemComposition(itemManager.canonicalize(item.getId())).getName();
+			items.add(new ChestItem(name, item.getQuantity()));
+		}
+		return items;
 	}
 
 	/**
@@ -1331,7 +1358,7 @@ public class SolSurvivorPlugin extends Plugin
 			}
 			if (!config.uploadPastRuns())
 			{
-				report("Open past run needs Upload past runs, in the plugin's settings: it sends the run to the Sol Survivor site to play it back there.");
+				report("Watch needs Upload past runs, in the plugin's settings: it sends the run to the Sol Survivor site to play it back there.");
 				return;
 			}
 			if (replayCall != null)
@@ -1349,7 +1376,7 @@ public class SolSurvivorPlugin extends Plugin
 			run.removeIf(wave -> wave.size() == 0);
 			if (run.isEmpty())
 			{
-				report("No ticks have been recorded yet. Wait for a game tick and try Open past run again.");
+				report("No ticks have been recorded yet. Wait for a game tick and press Watch again.");
 				return;
 			}
 			// The past waves' logs never change once kept, so the run's JSON is written, and gzipped, on OkHttp's thread.
@@ -1357,14 +1384,14 @@ public class SolSurvivorPlugin extends Plugin
 			Call call = httpClient.newCall(ReplayUpload.request(SITE, () -> RunLogWriter.toJson(chosen, PluginVersion.VERSION)));
 			replayCall = call;
 			SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(true); });
-			report("Opening past run: uploading the selected recording…");
+			report("Uploading the run to watch it back…");
 			call.enqueue(new Callback()
 			{
 				@Override
 				public void onFailure(Call failed, IOException ex)
 				{
 					finishReplay(failed, null, ex instanceof RunUpload.TooLarge ? ex.getMessage()
-						: "The run could not reach the site. Check your connection and try Open past run again.");
+						: "The run could not reach the site. Check your connection and press Watch again.");
 				}
 
 				@Override
@@ -1407,7 +1434,7 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * Copies the whole run that holds the panel's row `id` in one paste, as RunLogWriter writes it. The run is taken on the
-	 * client thread, and its JSON, up to twelve waves of it, written on RuneLite's executor, as Open past run's is on
+	 * client thread, and its JSON, up to twelve waves of it, written on RuneLite's executor, as Watch's is on
 	 * OkHttp's: the past waves' logs never change once kept.
 	 */
 	private void copyRun(int id)
@@ -1486,22 +1513,22 @@ public class SolSurvivorPlugin extends Plugin
 		if (!colosseum)
 		{
 			title = "Not in the Colosseum";
-			state = "";
+			state = "Enter it to open a wave.";
 		}
 		else if (wave == null)
 		{
-			title = "In the Fortis Colosseum";
+			title = "In the Colosseum";
 			state = "Waiting for a wave to start.";
 		}
 		else if (tracker.isWaveStarted())
 		{
 			title = "Wave " + wave;
-			state = "Under way.";
+			state = "Under way";
 		}
 		else
 		{
 			title = "Wave " + wave + " next";
-			state = "Between waves.";
+			state = "Between waves";
 		}
 		String note = config.recordWaveLog()
 			? "Each wave you play shows here, newest first, once the plugin sees it start."
@@ -1524,14 +1551,14 @@ public class SolSurvivorPlugin extends Plugin
 		shownSharing = sharing;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, title, state, waveStart, offers, note, runs);
+			p.showState(colosseum, colosseum ? wave : null, title, state, waveStart, offers, note, runs);
 			p.showSharing(sharing);
 		});
 	}
 
 	/**
 	 * The runs the panel shows, newest first, each its waves newest first. A wave under way says so without its time, so
-	 * that its row stays as it is while it records.
+	 * that its line stays as it is while it records, and the run's time is that of its waves done, for the same reason.
 	 */
 	private List<SolSurvivorPanel.RunGroup> runGroups()
 	{
@@ -1541,16 +1568,22 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			List<WaveLog.Past> run = runs.get(i);
 			List<SolSurvivorPanel.WaveRow> rows = new ArrayList<>();
+			int ticksDone = 0;
 			for (WaveLog.Past wave : run)
 			{
 				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave.getEnd());
-				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.getStartState() != null,
-					wave.getReinforcementState() != null));
+				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.isRecording(),
+					wave.getStartState() != null, wave.getReinforcementState() != null));
+				if (!wave.isRecording())
+				{
+					ticksDone += wave.size();
+				}
 			}
 			int from = run.get(0).getWave();
 			int to = run.get(run.size() - 1).getWave();
-			String title = (i == 0 ? "Latest run: " : "Earlier run: ") + (from == to ? "wave " + from : from + " to " + to);
-			out.add(new SolSurvivorPanel.RunGroup(run.get(0).getId(), title, rows));
+			String waves = from == to ? "Wave " + from : "Waves " + from + "\u2013" + to;
+			String detail = ticksDone > 0 ? waves + " \u00b7 " + duration(ticksDone) : waves;
+			out.add(new SolSurvivorPanel.RunGroup(run.get(0).getId(), i == 0 ? "Latest run" : "Earlier run", detail, rows));
 		}
 		return out;
 	}

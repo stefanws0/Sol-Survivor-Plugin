@@ -6,8 +6,11 @@ import static org.junit.Assert.assertTrue;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.Test;
 
@@ -115,6 +118,33 @@ public class PickPayloadTest
 		{
 			throw new AssertionError(e);
 		}
+	}
+
+	/**
+	 * The reward chest after wave 4 rides in the pick link as the game holds it: wave 5's reward, and the chest so far,
+	 * waves 1 and 2's splinters stacked as the game stacks them. The JSON is compared whole with
+	 * src/test/resources/fixtures/pick-chest.json, which the site's tests read too.
+	 */
+	@Test
+	public void theChestAfterWave4()
+	{
+		ColosseumTracker tracker = new ColosseumTracker();
+		tracker.onGameMessage("Wave 4 completed!", 500);
+		tracker.onModifierOptions(Modifier.DOOM.getId(), Modifier.FRAILTY.getId(), Modifier.MYOPIA.getId(), 0);
+		List<ChestItem> next = Arrays.asList(new ChestItem("Dragon platelegs", 1));
+		List<ChestItem> held = Arrays.asList(new ChestItem("Sunfire splinters", 230), new ChestItem("Death rune", 150), new ChestItem("Rune platebody", 1));
+		String json = PickPayload.toJson(tracker.getWave(), tracker.modifiers(m -> 0), tracker.getOptions(), Collections.emptyList(), next, held);
+		try
+		{
+			assertEquals(fixture("pick-chest.json"), json);
+		}
+		catch (IOException e)
+		{
+			throw new AssertionError(e);
+		}
+		// Without the chest, as before the game sends it, the link has none.
+		assertTrue(PickPayload.toJson(tracker.getWave(), tracker.modifiers(m -> 0), tracker.getOptions(), Collections.emptyList(),
+			Collections.emptyList(), Collections.emptyList()).endsWith("[\"myopia\",1]]}"));
 	}
 
 	/** A wave the plugin did not see start has no ticks and no hits; a new run's wave 1 forgets the last run. */

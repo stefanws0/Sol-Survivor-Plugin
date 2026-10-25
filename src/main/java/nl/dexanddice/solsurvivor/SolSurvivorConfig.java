@@ -65,12 +65,21 @@ public interface SolSurvivorConfig extends Config
 	 */
 	String SHARE_WARNING = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers";
 
+	/** The two settings that send something to the site, together, so that the player sees both are off by default. */
+	@ConfigSection(
+		name = "Sending to the site",
+		description = "Off until you switch them on. With both off, the plugin sends nothing to the Sol Survivor site.",
+		position = 5
+	)
+	String sendingSection = "sending";
+
 	@ConfigItem(
 		keyName = "uploadPastRuns",
 		name = "Upload past runs",
-		description = "Lets Open past run upload the selected run to the Sol Survivor site, which opens it in your browser to play back: tiles, hitpoints, prayers, hits and your gear with Include gear and stats on, with no account name. Anyone with its link can view it for seven days.",
+		description = "Lets a past run's Watch button upload the run to the Sol Survivor site, which opens it in your browser to play back: tiles, hitpoints, prayers, hits and your gear with Include gear and stats on, with no account name. Anyone with its link can view it for seven days.",
 		warning = SHARE_WARNING,
-		position = 5
+		position = 1,
+		section = sendingSection
 	)
 	default boolean uploadPastRuns()
 	{
@@ -82,7 +91,8 @@ public interface SolSurvivorConfig extends Config
 		name = "Share wave logs",
 		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
 		warning = SHARE_WARNING,
-		position = 6
+		position = 2,
+		section = sendingSection
 	)
 	default boolean shareWaveLogs()
 	{
@@ -92,7 +102,8 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 7
+		position = 6,
+		closedByDefault = true
 	)
 	String triangleSection = "triangle";
 
@@ -153,7 +164,8 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 8
+		position = 7,
+		closedByDefault = true
 	)
 	String prayerSection = "prayer";
 
