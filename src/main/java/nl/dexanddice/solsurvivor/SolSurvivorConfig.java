@@ -89,7 +89,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "shareWaveLogs",
 		name = "Share wave logs",
-		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
+		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games, and its Learned ranking trained on how waves start. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
 		warning = SHARE_WARNING,
 		position = 2,
 		section = sendingSection

@@ -92,11 +92,12 @@ prayer you had up when it landed.
 - **Share wave logs is off until you turn it on.** Then each wave's log goes to the site's `/api/wave-logs` as the
   wave ends, so that the planner can be checked against real games: the same tiles, hitpoints, prayer points,
   animations, hits, projectiles and NPC state, the game's own counters for the wave and the run, such as your Doom
-  stacks and glory, and the wave and its modifiers. It holds no account name, world or time of day, and no
-  combat levels or prayer unlocks: your gear only with **Include gear and stats** on, and then without them. A run's
-  waves share a random id that the plugin forgets when you leave the arena, so that nothing joins one of your runs to
-  another. The site keeps the day a log came, not your address, shows the logs to nobody, and deletes each after 90
-  days.
+  stacks and glory, and the wave and its modifiers. From 0.8.3 the site also trains the planner's Learned ranking on
+  where each wave starts, the NPCs' tiles, yours and the modifiers, and on nothing else of the log. It holds no
+  account name, world or time of day, and no combat levels or prayer unlocks: your gear only with **Include gear and
+  stats** on, and then without them. A run's waves share a random id that the plugin forgets when you leave the
+  arena, so that nothing joins one of your runs to another. The site keeps the day a log came, not your address, shows
+  the logs to nobody, and deletes each after 90 days.
 - **Both are off until you turn them on**, and RuneLite warns as you do that each sends your IP address to a server it
   does not run. With both off, the plugin sends nothing.
 - **Wave logs stay in memory** until RuneLite closes, unless you copy one, watch a run or share them. With

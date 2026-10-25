@@ -11,8 +11,8 @@ import java.util.zip.GZIPOutputStream;
 /**
  * The wave logs the player shares with "Share wave logs", off by default: each wave's log, as WaveLogWriter.toShare
  * writes it, gzipped and sent to the site's /api/wave-logs (its src/edge/waveLogs.ts) once, as the wave ends, so that the
- * planner can be checked against real games (its docs/wave-log-sharing.md). The site keeps it 90 days and shows it to
- * nobody.
+ * planner can be checked against real games, and from 0.8.3 so that its Learned ranking is trained on how waves start
+ * (its docs/wave-log-sharing.md). The site keeps it 90 days and shows it to nobody.
  *
  * A log is sent under a random id for its run, made when wave 1 starts, or a wave that does not follow the last one, and
  * forgotten when the player leaves the arena, so that the site can join a run's waves and drop one sent twice without
