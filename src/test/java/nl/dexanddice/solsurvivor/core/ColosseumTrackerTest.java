@@ -257,7 +257,7 @@ public class ColosseumTrackerTest
 			.stat("magic", 94, 94)
 			.stat("hitpoints", 88, 99)
 			.stat("prayer", 77, 77)
-			.unlocks(1, 0, 1, 0, 8);
+			.unlocks(1, 0, 1, 0, 8, 0);
 	}
 
 	@Test
@@ -323,8 +323,8 @@ public class ColosseumTrackerTest
 	public void thePrayerUnlocksGoAsTheGameHoldsThemOrNotAtAll() throws Exception
 	{
 		arena.add(new SeenNpc(1, NpcKind.SHAMAN_ID, new GridTile(13, 20)));
-		String json = StatePayload.toJson(capture(1, 7, 15), new Equipment().unlocks(0, 1, 0, 1, 3));
-		assertTrue(json, json.contains("\"unlocks\":{\"rigour\":0,\"augury\":1,\"deadeye\":0,\"mysticVigour\":1,\"knightWaves\":3}}"));
+		String json = StatePayload.toJson(capture(1, 7, 15), new Equipment().unlocks(0, 1, 0, 1, 3, 1));
+		assertTrue(json, json.contains("\"unlocks\":{\"rigour\":0,\"augury\":1,\"deadeye\":0,\"mysticVigour\":1,\"knightWaves\":3,\"zeal\":1}}"));
 		// Not read, they are left out, and the site takes the strongest prayers the levels allow.
 		String none = StatePayload.toJson(capture(1, 7, 15), new Equipment());
 		assertTrue(none, !none.contains("unlocks"));

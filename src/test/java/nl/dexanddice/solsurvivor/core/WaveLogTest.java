@@ -31,6 +31,9 @@ public class WaveLogTest
 	/** Gear worn, slot by slot in WaveLog.WORN_SLOTS' order: a bow, then a fang in its place. */
 	private static final int[] BOW = {1001, 1002, -1, 1004, 1005, -1, 1007, -1, -1, -1, 1011};
 	private static final int[] FANG = {1001, 1002, -1, 2004, 1005, -1, 1007, -1, -1, -1, 1011};
+	/** The game's counters, one for each ColosseumCounter in its order: Doom's stacks, the glory, the times and the damage. */
+	private static final int[] COUNTERS = {0, 1200, 51000, 0, 150, 120, 900};
+	private static final int[] COUNTERS_HIT = {0, 1200, 51000, 13, 150, 120, 900};
 
 	private WaveLog log;
 
@@ -96,7 +99,7 @@ public class WaveLogTest
 			npc(13, FREM_RANGER_ID, 7, 14, -1, -1, -1, WaveLog.TARGET_NONE),
 			npc(20, NpcKind.SOLARFLARE_ORB_ID, 4, 4, -1, -1, -1, WaveLog.TARGET_NONE),
 			// Off the grid: left out.
-			npc(21, MINIMUS_ID, 40, 4, -1, -1, -1, WaveLog.TARGET_NONE)));
+			npc(21, MINIMUS_ID, 40, 4, -1, -1, -1, WaveLog.TARGET_NONE)), COUNTERS);
 
 		log.onPlayerHit(13, 16);
 		log.onPlayerHit(0, 17);
@@ -108,12 +111,17 @@ public class WaveLogTest
 		// A graphic on a tile of the grid is kept, one off it is not.
 		log.onTileGraphic(new GridTile(9, 12), 4001);
 		log.onTileGraphic(new GridTile(40, 4), 4002);
+		// The Manticore's orb at the player; a special aimed at a tile, seen a tick late; and one with nothing on the grid at
+		// either end, which is left out. The damage taken counts up, and only it is listed.
+		log.onProjectile(new WaveLog.Projectile(5001, 12, null, WaveLog.TARGET_PLAYER, null, 0, 51));
+		log.onProjectile(new WaveLog.Projectile(5002, 11, new GridTile(1, 1), WaveLog.TARGET_NONE, new GridTile(9, 12), -12, 48));
+		log.onProjectile(new WaveLog.Projectile(5003, WaveLog.TARGET_NONE, new GridTile(40, 4), WaveLog.TARGET_NONE, null, 0, 30));
 		log.record(101, new WaveLog.PlayerTick(new GridTile(7, 14), 86, 75, Arrays.asList("ranged", "rigour"), 7552, 11, FANG), Arrays.asList(
 			npc(11, NpcKind.SHAMAN_ID, 13, 19, 7579, 20, 30, WaveLog.TARGET_PLAYER),
 			new WaveLog.NpcTick(12, NpcKind.MANTICORE_ID, new GridTile(16, 23), -1, 30, 30, WaveLog.TARGET_PLAYER, new int[] {3001}),
 			npc(13, FREM_RANGER_ID, 7, 13, 426, -1, -1, 12),
 			npc(20, NpcKind.SOLARFLARE_ORB_ID, 5, 4, -1, -1, -1, WaveLog.TARGET_NONE),
-			npc(21, MINIMUS_ID, 20, 4, -1, -1, -1, WaveLog.TARGET_NONE)));
+			npc(21, MINIMUS_ID, 20, 4, -1, -1, -1, WaveLog.TARGET_NONE)), COUNTERS_HIT);
 
 		// A tick the plugin missed leaves a gap in `t`; a hit on an NPC that has gone is a stray hit.
 		log.onNpcHit(11, 5, 12);
@@ -165,6 +173,54 @@ public class WaveLogTest
 		assertTrue(json, json.contains("{\"t\":0,\"player\":[7,15,99,77,[],-1,null],\"hits\":[],\"npcs\":[],\"orbs\":[]}"));
 		assertTrue(json, json.contains("\"orbs\":[],\"anims\":[[11,10859],[12,10892]]}"));
 		assertTrue(json, json.contains("{\"t\":2,\"player\":[7,15,99,77,[],-1,null],\"hits\":[],\"npcs\":[],\"orbs\":[],\"anims\":[[11,10859]]}"));
+	}
+
+	@Test
+	public void theCountersAreListedOnTheFirstTickAndWhenTheyChange()
+	{
+		startWave4(100);
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS);
+		log.record(101, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS);
+		log.record(102, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
+		// Counters that could not be read list nothing and leave the last ones standing.
+		log.record(103, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), null);
+		log.record(104, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
+		String[] ticks = WaveLogWriter.toJson(log).split("\n");
+		assertTrue(ticks[1], ticks[1].endsWith(",\"counters\":{\"doomStacks\":0,\"currentGlory\":1200,\"waveStartTime\":51000,"
+			+ "\"waveDamageTaken\":0,\"lastModifierGlory\":150,\"lastWaveDuration\":120,\"totalDuration\":900}},"));
+		assertFalse(ticks[2], ticks[2].contains("counters"));
+		assertTrue(ticks[3], ticks[3].endsWith(",\"counters\":{\"waveDamageTaken\":13}},"));
+		assertFalse(ticks[4], ticks[4].contains("counters"));
+		assertFalse(ticks[5], ticks[5].contains("counters"));
+
+		// The next wave lists them all on its first tick again.
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		log.record(200, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
+		assertTrue(WaveLogWriter.toJson(log).contains("\"counters\":{\"doomStacks\":0,"));
+	}
+
+	@Test
+	public void theProjectilesGoInTheNextTickRecordedOnly()
+	{
+		startWave4(100);
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.onProjectile(new WaveLog.Projectile(5001, WaveLog.TARGET_PLAYER, null, 12, null, 0, 56));
+		// The tile of an end with an actor is not kept.
+		log.onProjectile(new WaveLog.Projectile(5004, 12, new GridTile(16, 23), 11, new GridTile(13, 19), 10, 40));
+		log.record(101, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.record(102, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		String[] ticks = WaveLogWriter.toJson(log).split("\n");
+		assertFalse(ticks[1], ticks[1].contains("projectiles"));
+		assertTrue(ticks[2], ticks[2].endsWith(",\"projectiles\":[[5001,\"player\",12,0,56],[5004,12,11,10,40]]},"));
+		assertFalse(ticks[3], ticks[3].contains("projectiles"));
+
+		// After the wave, those seen on a tick not recorded are dropped with its hitsplats, and do not wait for the next wave.
+		log.finish(WaveLog.End.COMPLETED);
+		log.onProjectile(new WaveLog.Projectile(5001, WaveLog.TARGET_PLAYER, null, 12, null, 0, 56));
+		log.record(105, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		log.record(200, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		assertFalse(WaveLogWriter.toJson(log).contains("projectiles"));
 	}
 
 	@Test

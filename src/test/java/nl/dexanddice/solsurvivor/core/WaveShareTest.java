@@ -108,7 +108,7 @@ public class WaveShareTest
 			.weapon(5, 3, 1)
 			.prayer(9, 77)
 			.stat("ranged", 112, 99)
-			.unlocks(1, 0, 1, 0, 8);
+			.unlocks(1, 0, 1, 0, 8, 0);
 		Equipment shared = gear.withoutLevels();
 		assertTrue(shared.getStats().isEmpty());
 		assertNull(shared.getUnlocks());

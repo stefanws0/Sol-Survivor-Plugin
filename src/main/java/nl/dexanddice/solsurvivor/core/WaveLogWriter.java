@@ -16,7 +16,8 @@ import java.util.Map;
  * {"t":0,"player":[7,15,99,77,["magic","piety"],-1,null],"hits":[],
  *  "npcs":[[11,12811,13,20,-1,-1,-1,"player",[]],[12,12818,16,24,7590,30,30,"player",[[0,12]]]],"orbs":[],
  *  "worn":[26382,21295,-1,20997,26384,-1,26386,-1,-1,-1,-1]},
- * {"t":1,...,"anims":[[11,10859]],"playerAnims":[426],"spots":[[12,2681]]},
+ * {"t":1,...,"anims":[[11,10859]],"playerAnims":[426],"spots":[[12,2681]],"projectiles":[[2678,12,"player",0,51]],
+ *  "counters":{"waveDamageTaken":13}},
  * ...
  * ]}
  * </pre>
@@ -57,6 +58,15 @@ import java.util.Map;
  * the item id in each slot of WaveLog.WORN_SLOTS, in its order, -1 for an empty one.</li>
  * <li>`tileGraphics`, only when there are any: the graphics the game put on the grid's tiles since the tick before,
  * [x, y, graphic id] each, in the order they came, unfiltered, such as where a Javelin Colossus's special lands.</li>
+ * <li>`projectiles`, only when there are any (from 0.8.0): the projectiles first seen since the tick before, [graphic id,
+ * from, to, start, end] each, in the order they were seen, unfiltered. From and to are each an NPC's index, "player",
+ * or, at an end with no actor, such as a Javelin Colossus's special aimed at a tile, that tile as [x, y], null off the
+ * grid. Start and end are the client cycles (20 ms, 30 to a tick) from this tick to when it sets off and when it lands,
+ * below 0 for one that set off before this tick, as one first seen a tick late may have; end less start is its flight.
+ * The Venator bow's bounces are each one from the NPC it bounces off to the next.</li>
+ * <li>`counters`, on the wave's first tick and on each tick one changed (from 0.8.0): the game's own counters for the
+ * wave and the run (ColosseumCounter), by key, such as Doom's stacks ("doomStacks") and the game's current glory
+ * ("currentGlory"); those that did not change since the tick before are left out.</li>
  * </ul>
  * </li>
  * </ul>
@@ -262,6 +272,33 @@ public final class WaveLogWriter
 			}
 			b.append(']');
 		}
+		if (!tick.projectiles.isEmpty())
+		{
+			b.append(",\"projectiles\":[");
+			for (int i = 0; i < tick.projectiles.size(); i++)
+			{
+				WaveLog.Projectile shot = tick.projectiles.get(i);
+				b.append(i == 0 ? "" : ",").append('[').append(shot.getId()).append(',');
+				end(b, shot.getFrom(), shot.getFromTile());
+				b.append(',');
+				end(b, shot.getTo(), shot.getToTile());
+				b.append(',').append(shot.getStart()).append(',').append(shot.getEnd()).append(']');
+			}
+			b.append(']');
+		}
+		if (!tick.counters.isEmpty())
+		{
+			b.append(",\"counters\":{");
+			boolean firstCounter = true;
+			for (Map.Entry<ColosseumCounter, Integer> e : tick.counters.entrySet())
+			{
+				b.append(firstCounter ? "" : ",");
+				firstCounter = false;
+				StatePayload.string(b, e.getKey().getKey());
+				b.append(':').append(e.getValue());
+			}
+			b.append('}');
+		}
 		b.append('}');
 	}
 
@@ -287,6 +324,23 @@ public final class WaveLogWriter
 		else
 		{
 			b.append(t.getX()).append(',').append(t.getY());
+		}
+	}
+
+	/** A projectile's end: its actor as a target is written, or with none the tile as [x, y], null off the grid. */
+	private static void end(StringBuilder b, int actor, GridTile tile)
+	{
+		if (actor != WaveLog.TARGET_NONE)
+		{
+			target(b, actor);
+		}
+		else if (tile == null || !ArenaGeometry.onGrid(tile))
+		{
+			b.append("null");
+		}
+		else
+		{
+			b.append('[').append(tile.getX()).append(',').append(tile.getY()).append(']');
 		}
 	}
 

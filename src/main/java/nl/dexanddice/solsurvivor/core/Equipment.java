@@ -84,7 +84,7 @@ public final class Equipment
 	public static final int MAX_SWITCHES = 28;
 
 	/** The names of the prayer unlock flags (unlocks), in the order they are given and written. */
-	public static final String[] UNLOCK_FLAGS = {"rigour", "augury", "deadeye", "mysticVigour", "knightWaves"};
+	public static final String[] UNLOCK_FLAGS = {"rigour", "augury", "deadeye", "mysticVigour", "knightWaves", "zeal"};
 
 	private final Map<String, Item> items = new LinkedHashMap<>();
 	private final List<Switch> switches = new ArrayList<>();
@@ -191,13 +191,14 @@ public final class Equipment
 
 	/**
 	 * The flags of the offensive prayers that need more than levels, as the game's varbits hold them: Rigour's, Augury's,
-	 * Deadeye's and Mystic Vigour's unlocks, none of them 0 once the prayer is unlocked, and the state of the Knight Waves
-	 * Training Grounds, which Piety and Chivalry need finished. The site works out from them, with the Prayer and Defence
-	 * levels, which prayers the kill times take (its src/viewer/offensivePrayers.ts).
+	 * Deadeye's and Mystic Vigour's unlocks, the state of the Knight Waves Training Grounds, which Piety and Chivalry need
+	 * finished, and Zeal's unlock, from the Horn of Bran; none of the unlocks is 0 once the prayer is unlocked. The site
+	 * works out from them, with the Prayer, Defence, Attack and Strength levels, which prayers the kill times take (its
+	 * src/viewer/offensivePrayers.ts).
 	 */
-	public Equipment unlocks(int rigour, int augury, int deadeye, int mysticVigour, int knightWaves)
+	public Equipment unlocks(int rigour, int augury, int deadeye, int mysticVigour, int knightWaves, int zeal)
 	{
-		this.unlocks = new int[]{rigour, augury, deadeye, mysticVigour, knightWaves};
+		this.unlocks = new int[]{rigour, augury, deadeye, mysticVigour, knightWaves, zeal};
 		return this;
 	}
 

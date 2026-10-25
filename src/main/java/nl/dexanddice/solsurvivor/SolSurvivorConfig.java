@@ -50,7 +50,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
+		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, projectiles, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
 		position = 4
 	)
 	default boolean recordWaveLog()
@@ -148,5 +148,38 @@ public interface SolSurvivorConfig extends Config
 	default int triangleEasy()
 	{
 		return 33;
+	}
+
+	@ConfigSection(
+		name = "Prayer reliability",
+		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
+		position = 8
+	)
+	String prayerSection = "prayer";
+
+	@ConfigItem(
+		keyName = "countFlicks",
+		name = "Count my flicks",
+		description = "Counts each wave's protection prayers against the attacks, on time or late, and puts the newest 60 waves' totals in the links, so that the site's Prayer reliability opens on Mine: as reliable as your flicks show, kept on the safe side. Needs Record wave log. Off, it forgets the waves counted.",
+		position = 1,
+		section = prayerSection
+	)
+	default boolean countFlicks()
+	{
+		return false;
+	}
+
+	/** The waves "Count my flicks" counted (core.PrayerRecord.toText), kept here between sessions; not shown. */
+	String PRAYER_RECORD = "prayerRecord";
+
+	@ConfigItem(
+		keyName = PRAYER_RECORD,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String prayerRecord()
+	{
+		return "";
 	}
 }

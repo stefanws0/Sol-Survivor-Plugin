@@ -83,19 +83,22 @@ prayer you had up when it landed.
 
 - **A wave link keeps the arena after its `#`**, the part of a link that browsers do not send to the site's server.
 - **Open past run uploads only once you turn on Upload past runs, and only when you press it.** It sends the selected
-  run's recording to the Sol Survivor site's `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits and NPC state, plus your gear and stats when
+  run's recording to the Sol Survivor site's `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits, projectiles and NPC state, plus your gear and stats when
   **Include gear and stats** is on. It holds no account name. The site keeps the recording for seven days, and anyone
   with its link can view it.
 - **Share wave logs is off until you turn it on.** Then each wave's log goes to the site's `/api/wave-logs` as the
   wave ends, so that the planner can be checked against real games: the same tiles, hitpoints, prayer points,
-  animations, hits and NPC state, the wave and its modifiers. It holds no account name, world or time of day, and no
+  animations, hits, projectiles and NPC state, the game's own counters for the wave and the run, such as your Doom
+  stacks and glory, and the wave and its modifiers. It holds no account name, world or time of day, and no
   combat levels or prayer unlocks: your gear only with **Include gear and stats** on, and then without them. A run's
   waves share a random id that the plugin forgets when you leave the arena, so that nothing joins one of your runs to
   another. The site keeps the day a log came, not your address, shows the logs to nobody, and deletes each after 90
   days.
 - **Both are off until you turn them on**, and RuneLite warns as you do that each sends your IP address to a server it
   does not run. With both off, the plugin sends nothing.
-- **Wave logs stay in memory** until RuneLite closes, unless you copy one, open a past run or share them.
+- **Wave logs stay in memory** until RuneLite closes, unless you copy one, open a past run or share them. With
+  **Count my flicks** on, RuneLite's settings keep how many attacks you prayed against on time or late in your
+  newest 60 waves, and the wave links carry those totals after their `#` too.
 
 **What a wave link holds:** the NPCs and their tiles, your tile, the wave and the tick within it, the modifiers you
 took, each Manticore's orb order once it has shown it, and when each NPC last attacked. Mid-wave it also holds the fight
@@ -119,6 +122,10 @@ each NPC.
   Safe / Fast / Easy triangle where you set it, and so with the plan it suggests, instead of where you last left it.
   Copy the three numbers from the site's readout under the triangle, such as Safe 10% · Fast 0% · Easy 90%; they need
   not add up to 100. Off by default.
+- **Prayer reliability**: with **Count my flicks** on, the plugin counts your protection prayers in each wave, on time
+  or late, and every wave you open from it starts with the site's Prayer reliability on Mine: as reliable as your
+  newest 60 waves show you to be, kept on the safe side, so that a few lucky waves never make the plans harder. It
+  needs **Record wave log**. Switch it off to forget the waves counted. Off by default.
 
 ## Credits
 

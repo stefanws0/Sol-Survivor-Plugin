@@ -14,8 +14,9 @@ import java.util.function.Supplier;
  * A tick-by-tick record of one wave as the player played it, for the site's wave reviewer to replay; WaveLogWriter turns
  * it into JSON. Like the rest of the plugin it only reads and exports: nothing here is drawn in the game.
  *
- * The RuneLite layer starts it on the first tick of a wave the tracker saw start, feeds it every hitsplat as it comes and
- * one snapshot of the player and the arena's NPCs each game tick, and finishes it when the wave is completed or the player
+ * The RuneLite layer starts it on the first tick of a wave the tracker saw start, feeds it every hitsplat as it comes, each
+ * projectile as it first sees it, and one snapshot of the player, the arena's NPCs and the game's Colosseum counters
+ * (ColosseumCounter) each game tick, and finishes it when the wave is completed or the player
  * leaves. The log is kept after that, so that the player can copy it once the wave is over. When the next wave starts,
  * the finished log is kept among the past ones as its JSON, so that any wave since the plugin started can still be
  * copied and reviewed, up to MAX_PAST of them. It holds at most MAX_TICKS ticks, so that a wave left running cannot
@@ -229,6 +230,85 @@ public final class WaveLog
 	}
 
 	/**
+	 * A projectile the game showed, as the RuneLite layer first saw it: its graphic's id, where it flies from and to, and
+	 * when it sets off and lands. Each end is an actor, an NPC by its index or TARGET_PLAYER, or, where the projectile has
+	 * no actor at that end, such as a Javelin Colossus's special aimed at a tile, TARGET_NONE with the tile it flies from
+	 * or to (null off the grid). Like the animations, the ids are logged as the game gives them, unfiltered.
+	 */
+	public static final class Projectile
+	{
+		private final int id;
+		private final int from;
+		private final GridTile fromTile;
+		private final int to;
+		private final GridTile toTile;
+		private final int start;
+		private final int end;
+
+		/**
+		 * `start` and `end` are the client cycles (20 ms, 30 to a game tick) from the tick it is logged on to when it sets
+		 * off and when it lands: below 0 for one that set off before that tick, as one first seen a tick late may have.
+		 * A tile is only kept for an end with no actor.
+		 */
+		public Projectile(int id, int from, GridTile fromTile, int to, GridTile toTile, int start, int end)
+		{
+			this.id = id;
+			this.from = from;
+			this.fromTile = from == TARGET_NONE ? fromTile : null;
+			this.to = to;
+			this.toTile = to == TARGET_NONE ? toTile : null;
+			this.start = start;
+			this.end = end;
+		}
+
+		public int getId()
+		{
+			return id;
+		}
+
+		/** The actor it flies from: an NPC's index, TARGET_PLAYER, or TARGET_NONE when it has none. */
+		public int getFrom()
+		{
+			return from;
+		}
+
+		/** The tile it flies from when it has no actor there, or null. */
+		public GridTile getFromTile()
+		{
+			return fromTile;
+		}
+
+		/** The actor it flies to: an NPC's index, TARGET_PLAYER, or TARGET_NONE when it has none. */
+		public int getTo()
+		{
+			return to;
+		}
+
+		/** The tile it flies to when it has no actor there, or null. */
+		public GridTile getToTile()
+		{
+			return toTile;
+		}
+
+		public int getStart()
+		{
+			return start;
+		}
+
+		public int getEnd()
+		{
+			return end;
+		}
+
+		/** Whether either end says where it is: an actor, or a tile on the grid. */
+		boolean isPlaced()
+		{
+			return from != TARGET_NONE || to != TARGET_NONE || (fromTile != null && ArenaGeometry.onGrid(fromTile))
+				|| (toTile != null && ArenaGeometry.onGrid(toTile));
+		}
+	}
+
+	/**
 	 * A past wave's log, kept as its JSON once the next wave started, with the state links' payloads on its first tick and
 	 * on the tick its reinforcements came. getRun and getRuns give the wave under way or the last one the same way, its
 	 * JSON written when it is asked for, so that the panel can list the waves every tick without writing any.
@@ -304,7 +384,10 @@ public final class WaveLog
 		}
 	}
 
-	/** One tick of the wave: the player, the NPCs, the hitsplats that came with it and Solarflare's orbs. */
+	/**
+	 * One tick of the wave: the player, the NPCs, the hitsplats that came with it, Solarflare's orbs, and the rest that
+	 * came since the tick before.
+	 */
 	static final class Tick
 	{
 		final int t;
@@ -326,9 +409,22 @@ public final class WaveLog
 		final int[] worn;
 		/** The graphics the game put on the grid's tiles since the last tick, [x, y, graphic id] each, in the order they came. */
 		final List<int[]> tileGraphics;
+		/** The projectiles first seen since the last tick, in the order they were seen. */
+		final List<Projectile> projectiles;
+		/** The game's counters (ColosseumCounter) that changed since the last tick, every one on the wave's first tick. */
+		final Map<ColosseumCounter, Integer> counters;
 
+		/** A tick with no projectiles and no counters, as a test builds one. */
 		Tick(int t, PlayerTick player, List<Hit> playerHits, List<NpcTick> npcs, Map<Integer, List<Hit>> npcHits, List<GridTile> orbs,
 			List<int[]> animations, List<Integer> playerAnimations, int[] worn, List<int[]> tileGraphics)
+		{
+			this(t, player, playerHits, npcs, npcHits, orbs, animations, playerAnimations, worn, tileGraphics, Collections.<Projectile>emptyList(),
+				Collections.<ColosseumCounter, Integer>emptyMap());
+		}
+
+		Tick(int t, PlayerTick player, List<Hit> playerHits, List<NpcTick> npcs, Map<Integer, List<Hit>> npcHits, List<GridTile> orbs,
+			List<int[]> animations, List<Integer> playerAnimations, int[] worn, List<int[]> tileGraphics, List<Projectile> projectiles,
+			Map<ColosseumCounter, Integer> counters)
 		{
 			this.t = t;
 			this.player = player;
@@ -340,6 +436,8 @@ public final class WaveLog
 			this.playerAnimations = playerAnimations;
 			this.worn = worn;
 			this.tileGraphics = tileGraphics;
+			this.projectiles = projectiles;
+			this.counters = counters;
 		}
 	}
 
@@ -372,6 +470,8 @@ public final class WaveLog
 	private final List<Past> past = new ArrayList<>();
 	/** The gear worn on the last tick recorded, so that a tick lists it only when it changed. */
 	private int[] lastWorn;
+	/** The game's counters on the last tick recorded, so that a tick lists only those that changed; null before the first. */
+	private int[] lastCounters;
 
 	/** The hitsplats since the last tick was recorded, which go in the next one. */
 	private final List<Hit> pendingPlayerHits = new ArrayList<>();
@@ -382,6 +482,8 @@ public final class WaveLog
 	private final List<Integer> pendingPlayerAnimations = new ArrayList<>();
 	/** The graphics put on tiles since the last tick was recorded. */
 	private final List<int[]> pendingTileGraphics = new ArrayList<>();
+	/** The projectiles first seen since the last tick was recorded. */
+	private final List<Projectile> pendingProjectiles = new ArrayList<>();
 
 	/**
 	 * A wave starts on game tick `gameTick`: the last wave's log goes among the past ones, and the log records this one.
@@ -424,6 +526,7 @@ public final class WaveLog
 		recording = true;
 		id = ++lastId;
 		lastWorn = null;
+		lastCounters = null;
 	}
 
 	/** A hitsplat on the player, as it comes; it goes in the next tick recorded. */
@@ -463,12 +566,34 @@ public final class WaveLog
 	}
 
 	/**
+	 * A projectile the RuneLite layer saw for the first time, as it comes; it goes in the next tick recorded. One with
+	 * neither an actor nor a tile on the grid at either end is left out.
+	 */
+	public void onProjectile(Projectile projectile)
+	{
+		if (projectile.isPlaced())
+		{
+			pendingProjectiles.add(projectile);
+		}
+	}
+
+	/**
 	 * Game tick `gameTick` of the wave: the player and every NPC the game shows. NPCs off the grid are left out, and the
 	 * tiles of Solarflare's orbs are taken from the orb NPCs. The player's gear is kept for the tick only when it changed
 	 * since the tick before. A tick already recorded, or one past MAX_TICKS, is passed over; either way the hitsplats since
 	 * the last tick are used up.
 	 */
 	public void record(int gameTick, PlayerTick player, List<NpcTick> npcs)
+	{
+		record(gameTick, player, npcs, null);
+	}
+
+	/**
+	 * Game tick `gameTick` of the wave, as record above, with `counters` the game's counters on it, one for each
+	 * ColosseumCounter in its order, or null when they could not be read. The tick keeps those that changed since the tick
+	 * before, and every one on the wave's first tick.
+	 */
+	public void record(int gameTick, PlayerTick player, List<NpcTick> npcs, int[] counters)
 	{
 		if (!recording)
 		{
@@ -512,13 +637,30 @@ public final class WaveLog
 		{
 			lastWorn = worn;
 		}
+		Map<ColosseumCounter, Integer> changedCounters = new EnumMap<>(ColosseumCounter.class);
+		if (counters != null && counters.length == ColosseumCounter.values().length)
+		{
+			for (ColosseumCounter c : ColosseumCounter.values())
+			{
+				int value = counters[c.ordinal()];
+				if (lastCounters == null || lastCounters[c.ordinal()] != value)
+				{
+					changedCounters.put(c, value);
+				}
+			}
+			lastCounters = counters.clone();
+		}
 		ticks.add(new Tick(t, player, Collections.unmodifiableList(new ArrayList<>(pendingPlayerHits)), Collections.unmodifiableList(onGrid),
 			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations)),
-			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed, Collections.unmodifiableList(new ArrayList<>(pendingTileGraphics))));
+			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed, Collections.unmodifiableList(new ArrayList<>(pendingTileGraphics)),
+			Collections.unmodifiableList(new ArrayList<>(pendingProjectiles)), Collections.unmodifiableMap(changedCounters)));
 		discardPending();
 	}
 
-	/** Forget the hitsplats since the last tick: the RuneLite layer calls this on each tick it does not record. */
+	/**
+	 * Forget the hitsplats and the rest since the last tick: the RuneLite layer calls this on each tick it does not
+	 * record.
+	 */
 	public void discardPending()
 	{
 		pendingPlayerHits.clear();
@@ -526,6 +668,7 @@ public final class WaveLog
 		pendingAnimations.clear();
 		pendingPlayerAnimations.clear();
 		pendingTileGraphics.clear();
+		pendingProjectiles.clear();
 	}
 
 	/** The wave ended: the log stops recording and is kept until the next wave starts. */
@@ -555,6 +698,7 @@ public final class WaveLog
 		reinforcementState = null;
 		id = 0;
 		lastWorn = null;
+		lastCounters = null;
 		past.clear();
 		discardPending();
 	}

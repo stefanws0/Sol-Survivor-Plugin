@@ -16,7 +16,9 @@ import java.util.zip.Deflater;
  * the site still reads. The plugin writes the `setup`, the arena as the game shows it (mid-wave with the fight so far:
  * the NPCs' health bars, Doom's stacks; and the molten sand on the floor), and with the player's gear the `prayer`
  * values and the `equipment`; with the player's setting for it, the place of the dot on the site's Safe / Fast / Easy
- * triangle (`triangle`, withTriangle). The site keeps its own kill table and solver settings.
+ * triangle (`triangle`, withTriangle); and with theirs for that, their prayer over the waves the plugin counted, which
+ * sets the site's Prayer reliability (`prayerRecord`, withPrayerRecord). The site keeps its own kill table and solver
+ * settings.
  *
  * The JSON is written by hand, ASCII only and in a fixed order, so that a state always gives the same link and the
  * tests can compare links whole.
@@ -480,7 +482,17 @@ public final class StatePayload
 	 */
 	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle)
 	{
-		return linkOfJson(siteUrl, toJson(state, equipment), triangle);
+		return link(siteUrl, state, equipment, triangle, null);
+	}
+
+	/**
+	 * The whole link, with the player's gear when `equipment` is not null, the place they set for the site's triangle when
+	 * `triangle` is not null (withTriangle), and their prayer over the waves counted when `prayer` is not null
+	 * (withPrayerRecord).
+	 */
+	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle, PrayerRecord prayer)
+	{
+		return linkOfJson(siteUrl, toJson(state, equipment), triangle, prayer);
 	}
 
 	/**
@@ -501,6 +513,22 @@ public final class StatePayload
 		return b.toString();
 	}
 
+	/**
+	 * A payload's JSON with the player's prayer over the waves the plugin counted, `prayer`, after the rest: its totals,
+	 * [waves, flicks, held, late, unprayed] (PrayerRecord.toJson). The site sets its Prayer reliability from them, its
+	 * Mine, for the page the link opens. The JSON as it was when `prayer` is null or holds no wave. Only the links take it,
+	 * as they take the triangle (withTriangle).
+	 */
+	public static String withPrayerRecord(String json, PrayerRecord prayer)
+	{
+		if (prayer == null || prayer.getWaves() == 0)
+		{
+			return json;
+		}
+		// toJson's JSON is one object, so its last character closes it.
+		return json.substring(0, json.lastIndexOf('}')) + ",\"prayerRecord\":" + prayer.toJson() + "}";
+	}
+
 	/** The whole link of a payload toJson wrote earlier, such as a past wave's start the wave log kept. */
 	public static String linkOfJson(String siteUrl, String json)
 	{
@@ -513,6 +541,16 @@ public final class StatePayload
 	 */
 	public static String linkOfJson(String siteUrl, String json, TriangleDot triangle)
 	{
+		return linkOfJson(siteUrl, json, triangle, null);
+	}
+
+	/**
+	 * The whole link of a payload toJson wrote earlier, with the place the player set for the site's triangle when
+	 * `triangle` is not null (withTriangle), and their prayer over the waves counted when `prayer` is not null
+	 * (withPrayerRecord).
+	 */
+	public static String linkOfJson(String siteUrl, String json, TriangleDot triangle, PrayerRecord prayer)
+	{
 		String base = siteUrl.trim();
 		int hash = base.indexOf('#');
 		if (hash >= 0)
@@ -523,6 +561,6 @@ public final class StatePayload
 		{
 			base += "/";
 		}
-		return base + STATE_HASH + pack(withTriangle(json, triangle));
+		return base + STATE_HASH + pack(withPrayerRecord(withTriangle(json, triangle), prayer));
 	}
 }

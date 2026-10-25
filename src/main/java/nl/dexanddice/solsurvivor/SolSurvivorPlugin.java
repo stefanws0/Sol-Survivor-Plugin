@@ -5,8 +5,11 @@ import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Actor;
@@ -23,6 +26,7 @@ import net.runelite.api.NPC;
 import net.runelite.api.ParamID;
 import net.runelite.api.Player;
 import net.runelite.api.Prayer;
+import net.runelite.api.Projectile;
 import net.runelite.api.Skill;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
@@ -63,6 +67,7 @@ import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.LinkBrowser;
 import nl.dexanddice.solsurvivor.core.ArenaGeometry;
 import nl.dexanddice.solsurvivor.core.ArenaState;
+import nl.dexanddice.solsurvivor.core.ColosseumCounter;
 import nl.dexanddice.solsurvivor.core.ColosseumTracker;
 import nl.dexanddice.solsurvivor.core.Equipment;
 import nl.dexanddice.solsurvivor.core.ExportException;
@@ -71,6 +76,8 @@ import nl.dexanddice.solsurvivor.core.Modifier;
 import nl.dexanddice.solsurvivor.core.OrbStyle;
 import nl.dexanddice.solsurvivor.core.PickPayload;
 import nl.dexanddice.solsurvivor.core.PluginVersion;
+import nl.dexanddice.solsurvivor.core.PrayerFlicks;
+import nl.dexanddice.solsurvivor.core.PrayerRecord;
 import nl.dexanddice.solsurvivor.core.RunLogWriter;
 import nl.dexanddice.solsurvivor.core.SeenNpc;
 import nl.dexanddice.solsurvivor.core.StatePayload;
@@ -104,7 +111,9 @@ import okhttp3.Response;
  *
  * Open past run, with "Upload past runs" on (off by default), uploads only the selected run to the site, then opens its
  * recording in the browser. With "Share wave logs" on, off by default too, each wave's log goes to the site as the wave
- * ends, without the levels (core.WaveShare). Nothing else goes to the site.
+ * ends, without the levels (core.WaveShare). Nothing else goes to the site. With "Count my flicks" on, off by default
+ * too, each wave's protection prayers are counted as it ends (core.PrayerFlicks), and the links carry the totals for the
+ * site's Prayer reliability (core.PrayerRecord), in the hash with the rest.
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
@@ -148,6 +157,9 @@ public class SolSurvivorPlugin extends Plugin
 	private SolSurvivorConfig config;
 
 	@Inject
+	private ConfigManager configManager;
+
+	@Inject
 	private OkHttpClient httpClient;
 
 	/** Only one upload at a time. Cleared and cancelled on shutdown; late callbacks cannot open the browser. */
@@ -169,6 +181,18 @@ public class SolSurvivorPlugin extends Plugin
 	private String waveShareState;
 	/** The log of the wave under way, or of the last one until the next starts, and the past ones; on the client thread only. */
 	private final WaveLog waveLog = new WaveLog();
+	/**
+	 * The projectiles in flight that the wave log has been given, by identity, so that each goes in once: the game keeps
+	 * the same object for a projectile from the tick it comes to the tick it lands.
+	 */
+	private final Set<Projectile> seenProjectiles = Collections.newSetFromMap(new IdentityHashMap<>());
+	/**
+	 * The player's prayer over the waves "Count my flicks" counted, which RuneLite's settings keep between sessions; on the
+	 * client thread only.
+	 */
+	private PrayerRecord prayerRecord = PrayerRecord.empty();
+	/** The id of the last wave log whose turn to be counted came, so that each is counted once (countFlicks). */
+	private int flicksCounted;
 
 	private SolSurvivorPanel panel;
 	private NavigationButton navButton;
@@ -258,6 +282,7 @@ public class SolSurvivorPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 		keyManager.registerKeyListener(hotkeyListener);
+		prayerRecord = PrayerRecord.of(config.prayerRecord());
 	}
 
 	@Override
@@ -279,7 +304,9 @@ public class SolSurvivorPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		tracker.reset();
 		waveLog.clear();
+		seenProjectiles.clear();
 		waveShare.onLeave();
+		prayerRecord = PrayerRecord.empty();
 		inColosseum = false;
 		waveStartState = null;
 		waveShareState = null;
@@ -312,12 +339,28 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * "Record wave log" switched off drops the log at once, and the panel shows the settings as they are, in or out of the
-	 * arena: the log's, and whether the waves are shared.
+	 * arena: the log's, and whether the waves are shared. "Count my flicks" switched off forgets the waves counted.
 	 */
 	@Subscribe
 	public void onConfigChanged(ConfigChanged e)
 	{
-		if (!SolSurvivorConfig.GROUP.equals(e.getGroup()) || !("recordWaveLog".equals(e.getKey()) || "shareWaveLogs".equals(e.getKey())))
+		if (!SolSurvivorConfig.GROUP.equals(e.getGroup()))
+		{
+			return;
+		}
+		if ("countFlicks".equals(e.getKey()))
+		{
+			clientThread.invokeLater(() ->
+			{
+				if (!config.countFlicks())
+				{
+					prayerRecord = PrayerRecord.empty();
+					configManager.unsetConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PRAYER_RECORD);
+				}
+			});
+			return;
+		}
+		if (!("recordWaveLog".equals(e.getKey()) || "shareWaveLogs".equals(e.getKey())))
 		{
 			return;
 		}
@@ -577,6 +620,7 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			// The last wave's log, when its end was never seen, has its turn before the next wave's starts.
 			shareLog();
+			countFlicks();
 			waveShare.onWaveStart(tracker.getWave());
 			waveLog.start(tracker.getWave(), tick, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), tracker.isModifiersComplete(),
 				PluginVersion.VERSION, waveStartState, waveShareState);
@@ -584,9 +628,11 @@ public class SolSurvivorPlugin extends Plugin
 		if (!waveLog.isRecording())
 		{
 			waveLog.discardPending();
+			seenProjectiles.clear();
 			return;
 		}
-		waveLog.record(tick, playerTick(), npcTicks());
+		projectiles();
+		waveLog.record(tick, playerTick(), npcTicks(), counters());
 		if (tracker.isReinforcementsArrived() && !waveLog.hasReinforcementState())
 		{
 			// The tick the reinforcements came, which the panel opens on the site for a wave gone by.
@@ -603,6 +649,31 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			waveLog.finish(WaveLog.End.COMPLETED);
 			shareLog();
+			countFlicks();
+		}
+	}
+
+	/**
+	 * The wave log under way or the last one has its turn to be counted, as its wave ends: with "Count my flicks" on, its
+	 * protection prayers against the attacks go into the player's record (core.PrayerFlicks), which RuneLite's settings
+	 * keep for the next session. Each log has one turn, so that a wave that ended with the setting off is never counted.
+	 */
+	private void countFlicks()
+	{
+		if (!waveLog.hasLog() || waveLog.size() == 0 || waveLog.getId() == flicksCounted)
+		{
+			return;
+		}
+		flicksCounted = waveLog.getId();
+		if (!config.countFlicks())
+		{
+			return;
+		}
+		PrayerRecord next = prayerRecord.with(PrayerFlicks.count(waveLog));
+		if (next != prayerRecord)
+		{
+			prayerRecord = next;
+			configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PRAYER_RECORD, next.toText());
 		}
 	}
 
@@ -645,6 +716,57 @@ public class SolSurvivorPlugin extends Plugin
 				response.close();
 			}
 		});
+	}
+
+	/**
+	 * The projectiles the game shows that the wave log has not been given yet go to it, each once, with its ends and the
+	 * client cycles from now to when it sets off and lands: a projectile that came after the last tick's look is taken on
+	 * this one, a little after it set off. A projectile the game cannot describe costs the log its projectiles for the
+	 * tick, not the tick. On the client thread only.
+	 */
+	private void projectiles()
+	{
+		try
+		{
+			int cycle = client.getGameCycle();
+			Set<Projectile> live = Collections.newSetFromMap(new IdentityHashMap<>());
+			for (Projectile p : client.getProjectiles())
+			{
+				live.add(p);
+				if (seenProjectiles.contains(p))
+				{
+					continue;
+				}
+				Actor from = p.getSourceActor();
+				Actor to = p.getTargetActor();
+				waveLog.onProjectile(new WaveLog.Projectile(p.getId(), targetOf(from), endTile(from, p.getSourcePoint()), targetOf(to),
+					endTile(to, p.getTargetPoint()), p.getStartCycle() - cycle, p.getEndCycle() - cycle));
+			}
+			seenProjectiles.clear();
+			seenProjectiles.addAll(live);
+		}
+		catch (RuntimeException ex)
+		{
+			log.debug("Could not read the projectiles", ex);
+		}
+	}
+
+	/** A projectile's end on the grid when it has no actor there, or null: one with an actor is logged by the actor. */
+	private GridTile endTile(Actor actor, WorldPoint point)
+	{
+		return actor != null || point == null ? null : gridTileOf(point);
+	}
+
+	/** The game's Colosseum counters on this tick, one for each ColosseumCounter in its order, for the wave log. */
+	private int[] counters()
+	{
+		ColosseumCounter[] all = ColosseumCounter.values();
+		int[] values = new int[all.length];
+		for (int i = 0; i < all.length; i++)
+		{
+			values[i] = all[i].isVarbit() ? readLevel(all[i].getId()) : client.getVarpValue(all[i].getId());
+		}
+		return values;
 	}
 
 	/** The player on this tick, for the wave log, with their gear when "Include gear and stats" is on; on the client thread only. */
@@ -723,20 +845,22 @@ public class SolSurvivorPlugin extends Plugin
 	}
 
 	/**
-	 * The prayers on, by their names in the wave log. Eagle Eye and Deadeye, and Mystic Might and Mystic Vigour, share a
-	 * slot in the prayer book, which Client.isPrayerActive does not tell apart; RuneLite's own prayer plugin settles which
-	 * one is meant by whether the newer prayer is unlocked, and so does this.
+	 * The prayers on, by their names in the wave log. Eagle Eye and Deadeye, Mystic Might and Mystic Vigour, and Piety and
+	 * Zeal share a slot in the prayer book, which Client.isPrayerActive does not tell apart; RuneLite's own prayer plugin
+	 * settles which one is meant by whether the newer prayer is unlocked, and so does this.
 	 */
 	@SuppressWarnings("deprecation")
 	private List<String> activePrayers()
 	{
 		boolean deadeye = readLevel(VarbitID.PRAYER_DEADEYE_UNLOCKED) != 0;
 		boolean vigour = readLevel(VarbitID.PRAYER_MYSTIC_VIGOUR_UNLOCKED) != 0;
+		boolean zeal = readLevel(VarbitID.PRAYER_ZEAL_UNLOCKED) != 0;
 		List<String> out = new ArrayList<>();
 		for (Prayer prayer : Prayer.values())
 		{
 			if ((prayer == Prayer.EAGLE_EYE && deadeye) || (prayer == Prayer.DEADEYE && !deadeye)
-				|| (prayer == Prayer.MYSTIC_MIGHT && vigour) || (prayer == Prayer.MYSTIC_VIGOUR && !vigour))
+				|| (prayer == Prayer.MYSTIC_MIGHT && vigour) || (prayer == Prayer.MYSTIC_VIGOUR && !vigour)
+				|| (prayer == Prayer.PIETY && zeal) || (prayer == Prayer.ZEAL && !zeal))
 			{
 				continue;
 			}
@@ -753,6 +877,8 @@ public class SolSurvivorPlugin extends Plugin
 		// The log of a wave the player died in or ran from is kept, so that it can be copied after, and shared as it ends.
 		waveLog.finish(WaveLog.End.LEFT);
 		shareLog();
+		countFlicks();
+		seenProjectiles.clear();
 		waveShare.onLeave();
 		tracker.reset();
 		inColosseum = false;
@@ -857,6 +983,15 @@ public class SolSurvivorPlugin extends Plugin
 	}
 
 	/**
+	 * The player's prayer over the waves counted, which the state links give the site's Prayer reliability; null when
+	 * "Count my flicks" is off, and the site keeps its own.
+	 */
+	private PrayerRecord prayer()
+	{
+		return config.countFlicks() ? prayerRecord : null;
+	}
+
+	/**
 	 * The player's gear and stats now, or null when the player has switched them off. The items' names and stats come
 	 * from RuneLite's item data; the weapon's category and style are the game's own numbers. On the client thread only.
 	 */
@@ -904,7 +1039,7 @@ public class SolSurvivorPlugin extends Plugin
 		// Which offensive prayers need more than levels and are unlocked, for the site to pick the strongest the player has.
 		gear.unlocks(readLevel(VarbitID.PRAYER_RIGOUR_UNLOCKED), readLevel(VarbitID.PRAYER_AUGURY_UNLOCKED),
 			readLevel(VarbitID.PRAYER_DEADEYE_UNLOCKED), readLevel(VarbitID.PRAYER_MYSTIC_VIGOUR_UNLOCKED),
-			readLevel(VarbitID.KR_KNIGHTWAVES_STATE));
+			readLevel(VarbitID.KR_KNIGHTWAVES_STATE), readLevel(VarbitID.PRAYER_ZEAL_UNLOCKED));
 		return gear;
 	}
 
@@ -1025,8 +1160,8 @@ public class SolSurvivorPlugin extends Plugin
 				report("No wave start to open: the plugin takes one on the first tick of each wave it sees start.");
 				return;
 			}
-			// Linked now rather than at the wave's start, so that the triangle's place is the one set now.
-			String link = StatePayload.linkOfJson(SITE, waveStartState, triangle());
+			// Linked now rather than at the wave's start, so that the triangle's place and the flicks counted are those of now.
+			String link = StatePayload.linkOfJson(SITE, waveStartState, triangle(), prayer());
 			LinkBrowser.browse(link);
 			copy(link, "Opened the wave start on the site, and copied its link.", "Opened the wave start on the site.");
 		});
@@ -1047,7 +1182,7 @@ public class SolSurvivorPlugin extends Plugin
 				String note = state.isModifiersComplete()
 					? done
 					: done + " Quartet, Red Flag and Totemic show from your next modifier pick on: set them on the site.";
-				String link = StatePayload.link(SITE, state, gear(), triangle());
+				String link = StatePayload.link(SITE, state, gear(), triangle(), prayer());
 				if (open)
 				{
 					LinkBrowser.browse(link);
@@ -1106,7 +1241,7 @@ public class SolSurvivorPlugin extends Plugin
 					: "The plugin did not see wave " + wave.getWave() + " start.");
 				return;
 			}
-			String link = StatePayload.linkOfJson(SITE, state, triangle());
+			String link = StatePayload.linkOfJson(SITE, state, triangle(), prayer());
 			String what = reinforcements ? "wave " + wave.getWave() + " at its reinforcements" : "wave " + wave.getWave() + "'s start";
 			LinkBrowser.browse(link);
 			copy(link, "Opened " + what + " on the site, and copied its link.", "Opened " + what + " on the site.");
