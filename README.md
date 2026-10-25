@@ -9,9 +9,10 @@ link in your browser.
 
 ## How it works
 
-1. In the Colosseum, press **Wave start** in the Sol Survivor panel, or **Arena now** at any point in a wave.
+1. In the Colosseum, press **Arena now** in the Sol Survivor panel at any point in a wave, or the play button on the
+   wave's line under **Past waves** to open it as it was on its first tick.
 2. The planner opens in your browser with the wave as it is in game: the NPCs on their tiles, you on yours, and the
-   modifiers you took. With **Include gear and stats** on, it also knows how quickly your gear kills each NPC.
+   modifiers you took. Each link the plugin opens closes the tab it opened before, so one tab keeps up with you. With **Include gear and stats** on, it also knows how quickly your gear kills each NPC.
 3. Press **Solve wave**. Your own computer does the searching, so it gets busy for a while
    ([more on that below](#your-computer-does-the-solving)); the best plans found so far show as it goes.
 4. Pick a plan on the Safe · Fast · Easy triangle and play it through tick by tick: where to run, what to click, and
@@ -38,17 +39,15 @@ work. Expect your computer to notice.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's row with Wave start and Arena now, the Modifier pick, and past waves grouped by run">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's row with Arena now, the Modifier pick, and past waves grouped by run">
 
-Open it from the sun in RuneLite's sidebar. It wears the Sol Survivor site's stone look. The row at the top is for the
-wave you are in, with its number:
+It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
+Survivor site's stone look. The row at the top is for the wave you are in, with its number. Its **Arena now** opens the
+wave as it is right now, with the fight so far, and a line under it says what the last button did. To open the wave as
+it was on its first tick, press the play button on its line under Past waves.
 
-- **Wave start** opens the wave as it was on its first tick.
-- **Arena now** opens it as it is right now, with the fight so far.
-
-Under them, a line says what the last button did. The **Modifier pick** row lights up while Minimus offers his three
-modifiers: its **Open** button opens the site's modifier pick with his offers, the modifiers you hold and the next wave
-filled in.
+The **Modifier pick** row lights up while Minimus offers his three modifiers: its **Open** button opens the site's
+modifier pick with his offers, the modifiers you hold and the next wave filled in.
 
 Each of these also copies its link, so you can share the wave. A hotkey, unset by default, copies the arena's link
 without leaving the game.
@@ -116,6 +115,8 @@ each NPC.
 - **Copy link hotkey**: copies the arena's link as it is now.
 - **Include gear and stats**: on by default.
 - **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
+- **Open panel on entering**: on by default. Opens the panel as you enter the Colosseum, and RuneLite's sidebar with
+  it if it is shut. Open another panel during the run and it stays open until you next come in.
 - **Record wave log**: on by default. It keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
   closes.
 - **Sending to the site**: the two settings that send something, together.

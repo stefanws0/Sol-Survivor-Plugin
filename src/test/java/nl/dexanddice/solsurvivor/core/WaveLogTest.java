@@ -1,5 +1,6 @@
 package nl.dexanddice.solsurvivor.core;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -179,13 +180,14 @@ public class WaveLogTest
 	@Test
 	public void theCountersAreListedOnTheFirstTickAndWhenTheyChange()
 	{
+		// The prayer points drain a point a tick, so that no tick repeats the one before (aWaitIsWrittenOnce) and each has a line.
 		startWave4(100);
 		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS);
-		log.record(101, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS);
-		log.record(102, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
+		log.record(101, player(7, 15, 99, 76, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS);
+		log.record(102, player(7, 15, 99, 75, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
 		// Counters that could not be read list nothing and leave the last ones standing.
-		log.record(103, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), null);
-		log.record(104, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
+		log.record(103, player(7, 15, 99, 74, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), null);
+		log.record(104, player(7, 15, 99, 73, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
 		String[] ticks = WaveLogWriter.toJson(log).split("\n");
 		assertTrue(ticks[1], ticks[1].endsWith(",\"counters\":{\"doomStacks\":0,\"currentGlory\":1200,\"waveStartTime\":51000,"
 			+ "\"waveDamageTaken\":0,\"lastModifierGlory\":150,\"lastWaveDuration\":120,\"totalDuration\":900}},"));
@@ -200,7 +202,7 @@ public class WaveLogTest
 		assertTrue(shared[1], shared[1].endsWith(",\"counters\":{\"doomStacks\":0,\"currentGlory\":1200,"
 			+ "\"waveDamageTaken\":0,\"lastModifierGlory\":150,\"lastWaveDuration\":120}},"));
 		assertTrue(shared[3], shared[3].endsWith(",\"counters\":{\"waveDamageTaken\":13}},"));
-		log.record(105, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(),
+		log.record(105, player(7, 15, 99, 72, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(),
 			new int[]{0, 1200, 51000, 13, 150, 120, 901});
 		String[] later = WaveLogWriter.toShare(log).split("\n");
 		assertFalse(later[6], later[6].contains("counters"));
@@ -358,7 +360,40 @@ public class WaveLogTest
 		log.finish(WaveLog.End.COMPLETED);
 		String json = WaveLogWriter.toJson(log);
 		assertTrue(json.contains("\"cut\":true,\"end\":\"completed\""));
-		assertTrue(json.endsWith("{\"t\":" + (WaveLog.MAX_TICKS - 1) + ",\"player\":[7,15,99,77,[],-1,null],\"hits\":[],\"npcs\":[],\"orbs\":[]}\n]}"));
+		// Every tick is the same, so the log is its first tick and the count of those that repeat it.
+		assertTrue(json.endsWith("\"ticks\":[\n{\"t\":0,\"player\":[7,15,99,77,[],-1,null],\"hits\":[],\"npcs\":[],\"orbs\":[],\"repeats\":"
+			+ (WaveLog.MAX_TICKS - 1) + "}\n]}"));
+	}
+
+	@Test
+	public void aWaitIsWrittenOnce()
+	{
+		// The player waits on 7, 14 out of the shaman's sight from the wave's tick 1 to 5 and is hit on 3; then steps to
+		// 7, 13 and waits again; a tick the plugin missed (9) ends the second wait, though 10 shows the same.
+		startWave4(100);
+		List<WaveLog.NpcTick> shaman = Collections.singletonList(npc(11, NpcKind.SHAMAN_ID, 13, 20, -1, -1, -1, WaveLog.TARGET_PLAYER));
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), shaman);
+		for (int tick = 101; tick <= 108; tick++)
+		{
+			if (tick == 103)
+			{
+				log.onPlayerHit(0, 12);
+			}
+			log.record(tick, player(7, tick < 106 ? 14 : 13, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), shaman);
+		}
+		log.record(110, player(7, 13, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), shaman);
+		String[] ticks = WaveLogWriter.toJson(log).split("\n");
+		String rest = ",\"hits\":[],\"npcs\":[[11,12811,13,20,-1,-1,-1,\"player\",[]]],\"orbs\":[]";
+		assertArrayEquals(new String[] {
+			"{\"t\":0,\"player\":[7,15,99,77,[],-1,null]" + rest + "},",
+			"{\"t\":1,\"player\":[7,14,99,77,[],-1,null]" + rest + ",\"repeats\":1},",
+			"{\"t\":3,\"player\":[7,14,99,77,[],-1,null],\"hits\":[[0,12]]" + rest.substring(",\"hits\":[]".length()) + "},",
+			"{\"t\":4,\"player\":[7,14,99,77,[],-1,null]" + rest + ",\"repeats\":1},",
+			"{\"t\":6,\"player\":[7,13,99,77,[],-1,null]" + rest + ",\"repeats\":2},",
+			"{\"t\":10,\"player\":[7,13,99,77,[],-1,null]" + rest + "}",
+		}, Arrays.copyOfRange(ticks, 1, ticks.length - 1));
+		// The log itself keeps every tick.
+		assertEquals(10, log.size());
 	}
 
 	@Test

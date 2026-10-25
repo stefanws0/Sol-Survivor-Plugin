@@ -9,7 +9,6 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics2D;
-import java.awt.GridLayout;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -33,8 +32,9 @@ import net.runelite.client.ui.PluginPanel;
 /**
  * The side panel, in the Sol Survivor site's stone look (design 1, "Stone rows", of the plugin panel designs of
  * 2026-10-25, which the user picked): the site's Setup tab in the sidebar. A raised row for the wave under way, its
- * number in a slot, with the two buttons that open its start or the arena as it is now on the site, and under them a
- * well with what the last button did. A row for Minimus's pick, which lights up while he offers his three. Under Past
+ * number in a slot, with the button that opens the arena as it is now on the site, and under it a well with what the
+ * last button did. The wave's start is not on that row: the wave's line under Past waves opens it, from the tick the
+ * wave starts (the user's choice, 2026-10-25). A row for Minimus's pick, which lights up while he offers his three. Under Past
  * waves, each run a row that folds open and shut like the loot tracker's, onto its waves in a well: a line per wave
  * with small buttons that open it on the site at its start or on the tick its reinforcements came, and copy its log,
  * and on the run's head a button that copies the whole run and one that uploads it to watch it back. The help is in
@@ -55,8 +55,6 @@ class SolSurvivorPanel extends PluginPanel
 	/** What the panel's buttons do, which the plugin carries out on the client thread. */
 	interface Actions
 	{
-		void openWaveStart();
-
 		void openNow();
 
 		void openRecommender();
@@ -157,17 +155,17 @@ class SolSurvivorPanel extends PluginPanel
 	}
 
 	/** The help, in the tooltip of the question mark beside the panel's title. */
-	private static final String HELP = "Wave start and Arena now open the wave on the Sol Survivor site, at its first tick or as "
-		+ "it is now, and copy its link. Modifier pick opens Minimus's three offers there while he makes them. Under Past waves, "
-		+ "a wave's buttons open it at its start or on the tick its reinforcements came, and copy its log to paste into the site. "
+	private static final String HELP = "Arena now opens the wave on the Sol Survivor site as it is now, and copies its link. "
+		+ "Modifier pick opens Minimus's three offers there while he makes them. Under Past waves, a wave's buttons open it at "
+		+ "its start, the wave under way too, or on the tick its reinforcements came, and copy its log to paste into the site. "
 		+ "With Upload past runs on in the settings, Watch uploads that run's tiles, hitpoints, prayers, hits and recorded gear "
 		+ "to the site, where anyone with its link can view it for seven days. With Share wave logs on, each wave's log goes to "
 		+ "the site, without your levels, as the wave ends. Both are off until you turn them on. This plugin draws nothing in "
 		+ "the game.";
 
 	private static final ImageIcon SUN = Stone.sun(24);
-	private static final ImageIcon PLAY = Stone.play(10, Stone.YELLOW);
-	private static final ImageIcon ARENA = Stone.arena(12, Stone.ORANGE);
+	/** Yellow, as the text of the primary button it sits on. */
+	private static final ImageIcon ARENA = Stone.arena(12, Stone.YELLOW);
 	private static final ImageIcon CARDS_ON = Stone.cards(24, Stone.GOLD);
 	private static final ImageIcon CARDS_OFF = Stone.cards(24, Stone.DIM);
 	private static final ImageIcon START_ICON = Stone.play(10, Stone.ORANGE);
@@ -182,8 +180,7 @@ class SolSurvivorPanel extends PluginPanel
 	private final Stone.Slot waveSlot = new Stone.Slot(34, SUN);
 	private final JLabel waveTitle = new Stone.Shadowed("", bold(), Stone.ORANGE);
 	private final JLabel waveState = label("", small(), Stone.TEXT);
-	private final Stone.Button openWaveStart = new Stone.Button("Wave start", PLAY, true, small(), 7, 6);
-	private final Stone.Button openNow = new Stone.Button("Arena now", ARENA, false, small(), 7, 6);
+	private final Stone.Button openNow = new Stone.Button("Arena now", ARENA, true, small(), 7, 6);
 	private final Stone.Well resultWell = new Stone.Well(new BorderLayout(), 4, 5, 4, 5);
 	private final JLabel result = label("", small(), Stone.TEXT);
 	private final Stone.Row pickRow = new Stone.Row(new BorderLayout(8, 0), 5, 5, 5, 6);
@@ -220,7 +217,7 @@ class SolSurvivorPanel extends PluginPanel
 		add(foot);
 
 		showSharing(false);
-		showState(false, null, "Not in the Colosseum", "Enter it to open a wave.", false, false, "", new ArrayList<>());
+		showState(false, null, "Not in the Colosseum", "Enter it to open a wave.", false, "", new ArrayList<>());
 	}
 
 	private static Font bold()
@@ -261,7 +258,7 @@ class SolSurvivorPanel extends PluginPanel
 		return h;
 	}
 
-	/** The row for the wave under way: its number in a slot, its title and state, its two buttons and the last result. */
+	/** The row for the wave under way: its number in a slot, its title and state, Arena now and the last result. */
 	private JPanel waveRow()
 	{
 		waveSlot.setFont(bold());
@@ -272,20 +269,15 @@ class SolSurvivorPanel extends PluginPanel
 		top.add(waveSlot, BorderLayout.WEST);
 		top.add(text, BorderLayout.CENTER);
 
-		openWaveStart.setToolTipText("Opens the arena on the wave's first tick on the site, and copies its link.");
 		openNow.setToolTipText("Opens the arena as it is now on the site, and copies its link.");
-		openWaveStart.addActionListener(e -> actions.openWaveStart());
 		openNow.addActionListener(e -> actions.openNow());
-		JPanel buttons = clear(new GridLayout(1, 2, 5, 0));
-		buttons.add(openWaveStart);
-		buttons.add(openNow);
 
 		resultWell.add(result);
 		resultWell.setVisible(false);
 
 		Stone.Row row = new Stone.Row(new BorderLayout(0, 6), 5, 5, 6, 6);
 		row.add(top, BorderLayout.NORTH);
-		row.add(buttons, BorderLayout.CENTER);
+		row.add(openNow, BorderLayout.CENTER);
 		row.add(resultWell, BorderLayout.SOUTH);
 		return row;
 	}
@@ -321,11 +313,11 @@ class SolSurvivorPanel extends PluginPanel
 
 	/**
 	 * What the panel shows, on the Swing thread: whether the player is in the Colosseum, the wave for the slot (null for
-	 * none), the wave row's title and state, whether the wave start was taken and Minimus is offering modifiers, a note
+	 * none), the wave row's title and state, whether Minimus is offering modifiers, a note
 	 * in place of the runs when there are none, and the runs, newest first. The runs' rows are built again only when
 	 * they changed, so that a line under the mouse stays as it is.
 	 */
-	void showState(boolean inColosseum, Integer wave, String title, String state, boolean waveStart, boolean offers, String note,
+	void showState(boolean inColosseum, Integer wave, String title, String state, boolean offers, String note,
 		List<RunGroup> runs)
 	{
 		if (!Objects.equals(wave, shownWave) || shownRuns == null)
@@ -335,7 +327,6 @@ class SolSurvivorPanel extends PluginPanel
 		}
 		waveTitle.setText(title);
 		waveState.setText(state);
-		openWaveStart.setEnabled(waveStart);
 		openNow.setEnabled(inColosseum);
 		if (offers != shownOffers || shownRuns == null)
 		{

@@ -186,7 +186,7 @@ public class SolSurvivorPlugin extends Plugin
 	private boolean inColosseum;
 	/**
 	 * The payload of the current wave's first tick, taken as it happens, since the player cannot press a key that fast:
-	 * Wave start links it, and the wave's log starts with it.
+	 * the wave's log starts with it, and the wave's line under Past waves links it.
 	 */
 	private String waveStartState;
 	/** The same payload with the gear's levels left out, for the log the player shares (Equipment.withoutLevels). */
@@ -210,7 +210,6 @@ public class SolSurvivorPlugin extends Plugin
 	private NavigationButton navButton;
 	/** What the panel last showed, so that it is redrawn only when that changes rather than every tick. */
 	private boolean shownInColosseum;
-	private boolean shownWaveStart;
 	private String shownTitle;
 	private String shownState;
 	private String shownNote;
@@ -238,12 +237,6 @@ public class SolSurvivorPlugin extends Plugin
 	{
 		panel = new SolSurvivorPanel(new SolSurvivorPanel.Actions()
 		{
-			@Override
-			public void openWaveStart()
-			{
-				SolSurvivorPlugin.this.openWaveStart();
-			}
-
 			@Override
 			public void openNow()
 			{
@@ -328,7 +321,6 @@ public class SolSurvivorPlugin extends Plugin
 			waveStartState = null;
 			waveShareState = null;
 			shownInColosseum = false;
-			shownWaveStart = false;
 			shownTitle = null;
 			shownState = null;
 			shownNote = null;
@@ -566,6 +558,10 @@ public class SolSurvivorPlugin extends Plugin
 		if (inColosseum && !now)
 		{
 			leave();
+		}
+		else if (!inColosseum && now)
+		{
+			openOnEntering();
 		}
 		inColosseum = now;
 		if (!inColosseum)
@@ -909,6 +905,22 @@ public class SolSurvivorPlugin extends Plugin
 		updatePanel();
 	}
 
+	/**
+	 * With "Open panel on entering" on, opens the side panel as the player comes into the arena, and RuneLite's sidebar
+	 * with it, as Hunllef Helper opens its own on entering the Gauntlet. It opens once each time the player comes in, at
+	 * a login or a hop into the arena too, so that a player who switches to another panel mid-run keeps it. Leaving puts
+	 * nothing back: the run just played is in the panel's Past waves, to copy or watch. ClientToolbar.openPanel must run
+	 * on Swing's thread, and does nothing once shutDown has taken the button away.
+	 */
+	private void openOnEntering()
+	{
+		NavigationButton button = navButton;
+		if (button != null && config.openOnEntering())
+		{
+			SwingUtilities.invokeLater(() -> clientToolbar.openPanel(button));
+		}
+	}
+
 	private boolean isInColosseum()
 	{
 		Player player = client.getLocalPlayer();
@@ -1170,23 +1182,6 @@ public class SolSurvivorPlugin extends Plugin
 			log.debug("Could not read varbit {}", varbit, ex);
 			return 0;
 		}
-	}
-
-	/** Opens the wave start's link on the site, and copies it too, for sharing. */
-	private void openWaveStart()
-	{
-		clientThread.invokeLater(() ->
-		{
-			if (waveStartState == null)
-			{
-				report("No wave start to open: the plugin takes one on the first tick of each wave it sees start.");
-				return;
-			}
-			// Linked now rather than at the wave's start, so that the triangle's place and the flicks counted are those of now.
-			String link = StatePayload.linkOfJson(SITE, waveStartState, triangle(), prayer());
-			LinkBrowser.browse(link);
-			copy(link, "Opened the wave start on the site, and copied its link.", "Opened the wave start on the site.");
-		});
 	}
 
 	/**
@@ -1506,7 +1501,6 @@ public class SolSurvivorPlugin extends Plugin
 			return;
 		}
 		boolean colosseum = inColosseum;
-		boolean waveStart = waveStartState != null;
 		Integer wave = tracker.getWave();
 		String title;
 		String state;
@@ -1536,13 +1530,12 @@ public class SolSurvivorPlugin extends Plugin
 		List<SolSurvivorPanel.RunGroup> runs = runGroups();
 		boolean offers = !tracker.getOptions().isEmpty();
 		boolean sharing = config.shareWaveLogs() && config.recordWaveLog();
-		if (colosseum == shownInColosseum && waveStart == shownWaveStart && title.equals(shownTitle) && state.equals(shownState)
+		if (colosseum == shownInColosseum && title.equals(shownTitle) && state.equals(shownState)
 			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers && sharing == shownSharing)
 		{
 			return;
 		}
 		shownInColosseum = colosseum;
-		shownWaveStart = waveStart;
 		shownTitle = title;
 		shownState = state;
 		shownNote = note;
@@ -1551,7 +1544,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownSharing = sharing;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, colosseum ? wave : null, title, state, waveStart, offers, note, runs);
+			p.showState(colosseum, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
 		});
 	}

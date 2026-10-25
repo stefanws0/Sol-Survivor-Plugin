@@ -1,5 +1,6 @@
 package nl.dexanddice.solsurvivor.core;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ import java.util.Map;
  * <li>`start`: the state link's payload on the wave's first tick (StatePayload, the site's src/link/statePayload.ts),
  * with the gear and stats when "Include gear and stats" is on, so that the site can plan the wave from where it began
  * and put the plan beside what the player did; null when it could not be taken.</li>
- * <li>`ticks`: one object a game tick, from the wave's first tick on:
+ * <li>`ticks`: one object a game tick, from the wave's first tick on, but for the repeats a tick's `repeats` stands for:
  * <ul>
  * <li>`t`: the tick within the wave, 0 on the tick of the game's "Wave: N" message;</li>
  * <li>`player`: [x, y, hitpoints, prayer points, [prayers on], animation id, target], with x and y the grid tile (null
@@ -67,6 +68,9 @@ import java.util.Map;
  * <li>`counters`, on the wave's first tick and on each tick one changed (from 0.8.0): the game's own counters for the
  * wave and the run (ColosseumCounter), by key, such as Doom's stacks ("doomStacks") and the game's current glory
  * ("currentGlory"); those that did not change since the tick before are left out.</li>
+ * <li>`repeats`, only when there are any (from 0.8.4): how many ticks after this one were the same as it in all but their
+ * `t`, which are left out. A reader puts each back as a copy of this tick, `t` aside. A wait where nothing changes, as
+ * while the player plans the next move on the site, is then one line rather than hundreds.</li>
  * </ul>
  * </li>
  * </ul>
@@ -134,20 +138,39 @@ public final class WaveLogWriter
 		}
 		b.append(",\"start\":").append(start == null ? "null" : start);
 		b.append(",\"ticks\":[");
-		first = true;
-		for (WaveLog.Tick tick : log.getTicks())
+		// A tick the same as the one before it, its t aside, is left out, and the tick before says how many repeat it.
+		List<WaveLog.Tick> ticks = log.getTicks();
+		List<String> bodies = new ArrayList<>(ticks.size());
+		for (WaveLog.Tick tick : ticks)
 		{
-			b.append(first ? "\n" : ",\n");
-			first = false;
-			tick(b, tick, shared);
+			StringBuilder body = new StringBuilder();
+			tick(body, tick, shared);
+			bodies.add(body.toString());
 		}
-		b.append(first ? "]}" : "\n]}");
+		for (int i = 0; i < ticks.size(); )
+		{
+			int repeats = 0;
+			while (i + repeats + 1 < ticks.size() && ticks.get(i + repeats + 1).t == ticks.get(i).t + repeats + 1
+				&& bodies.get(i + repeats + 1).equals(bodies.get(i)))
+			{
+				repeats++;
+			}
+			b.append(i == 0 ? "\n" : ",\n").append("{\"t\":").append(ticks.get(i).t).append(bodies.get(i));
+			if (repeats > 0)
+			{
+				b.append(",\"repeats\":").append(repeats);
+			}
+			b.append('}');
+			i += repeats + 1;
+		}
+		b.append(ticks.isEmpty() ? "]}" : "\n]}");
 		return b.toString();
 	}
 
+	/** A tick's JSON after its `t`, up to its closing brace: the same text for two ticks that showed the same. */
 	private static void tick(StringBuilder b, WaveLog.Tick tick, boolean shared)
 	{
-		b.append("{\"t\":").append(tick.t).append(",\"player\":");
+		b.append(",\"player\":");
 		WaveLog.PlayerTick p = tick.player;
 		if (p == null)
 		{
@@ -303,7 +326,6 @@ public final class WaveLogWriter
 		{
 			b.append('}');
 		}
-		b.append('}');
 	}
 
 	private static boolean listed(List<WaveLog.NpcTick> npcs, int index)

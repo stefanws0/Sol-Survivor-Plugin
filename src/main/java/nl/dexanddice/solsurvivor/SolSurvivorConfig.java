@@ -48,10 +48,21 @@ public interface SolSurvivorConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "openOnEntering",
+		name = "Open panel on entering",
+		description = "Opens this panel as you enter the Fortis Colosseum, and RuneLite's sidebar with it if it is shut. Off, the panel opens only from its sun in the sidebar.",
+		position = 4
+	)
+	default boolean openOnEntering()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
 		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, projectiles, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
-		position = 4
+		position = 5
 	)
 	default boolean recordWaveLog()
 	{
@@ -69,7 +80,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Sending to the site",
 		description = "Off until you switch them on. With both off, the plugin sends nothing to the Sol Survivor site.",
-		position = 5
+		position = 6
 	)
 	String sendingSection = "sending";
 
@@ -102,7 +113,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 6,
+		position = 7,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
@@ -164,7 +175,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 7,
+		position = 8,
 		closedByDefault = true
 	)
 	String prayerSection = "prayer";
