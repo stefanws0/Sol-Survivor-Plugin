@@ -1,0 +1,1 @@
+{"v":1,"kind":"solSurvivorPick","wave":3,"modifiers":{"blasphemy":1},"offers":[["doom",1],["blasphemy",2],["frailty",1]],"run":[{"wave":1,"ticks":101,"hit":false,"damage":0,"modifiers":{},"glory":598},{"wave":2,"ticks":121,"hit":true,"damage":7,"modifiers":{"blasphemy":1},"glory":1656}]}

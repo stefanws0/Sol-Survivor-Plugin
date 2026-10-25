@@ -18,8 +18,10 @@ import java.util.function.Supplier;
  * projectile as it first sees it, and one snapshot of the player, the arena's NPCs and the game's Colosseum counters
  * (ColosseumCounter) each game tick, and finishes it when the wave is completed or the player
  * leaves. The log is kept after that, so that the player can copy it once the wave is over. When the next wave starts,
- * the finished log is kept among the past ones as its JSON, so that any wave since the plugin started can still be
- * copied and reviewed, up to MAX_PAST of them. It holds at most MAX_TICKS ticks, so that a wave left running cannot
+ * the finished log is kept among the past ones, its JSON written the first time it is asked for (snapshot), so that any
+ * wave since the plugin started can still be copied and reviewed, up to MAX_PAST of them. Nothing is written on the
+ * wave's first tick, the one tick a player least wants a hitch on, and a log that is written may be written on another
+ * thread than the client's, as a snapshot never changes. It holds at most MAX_TICKS ticks, so that a wave left running cannot
  * fill the memory; past that it says it was cut.
  *
  * The animation ids are logged as the game gives them, unfiltered: they are how each NPC's attack animation will be
@@ -504,8 +506,8 @@ public final class WaveLog
 	{
 		if (this.wave != null)
 		{
-			String json = WaveLogWriter.toJson(this);
-			past.add(0, new Past(id, this.wave, ticks.size(), end, false, () -> json, this.startState, reinforcementState));
+			WaveLog done = snapshot();
+			past.add(0, new Past(id, this.wave, ticks.size(), end, false, once(() -> WaveLogWriter.toJson(done)), this.startState, reinforcementState));
 			while (past.size() > MAX_PAST)
 			{
 				past.remove(past.size() - 1);
@@ -764,8 +766,8 @@ public final class WaveLog
 	/**
 	 * Every run logged, newest first, each its logs oldest first: the newest is getRun's, and each run before it is
 	 * parted from the next the same way, where a log's wave is not the one before the wave of the log after it. The
-	 * wave under way or the last one comes as it is now, its JSON written when it is asked for. Empty when there is no
-	 * log.
+	 * wave under way or the last one comes as it is now (snapshot), its JSON written when it is asked for. Empty when
+	 * there is no log.
 	 */
 	public List<List<Past>> getRuns()
 	{
@@ -775,7 +777,8 @@ public final class WaveLog
 			return runs;
 		}
 		List<Past> run = new ArrayList<>();
-		run.add(new Past(id, wave, ticks.size(), end, recording, () -> WaveLogWriter.toJson(this), startState, reinforcementState));
+		WaveLog now = snapshot();
+		run.add(new Past(id, wave, ticks.size(), end, recording, once(() -> WaveLogWriter.toJson(now)), startState, reinforcementState));
 		int next = wave;
 		for (Past p : past)
 		{
@@ -789,6 +792,55 @@ public final class WaveLog
 		}
 		runs.add(Collections.unmodifiableList(run));
 		return Collections.unmodifiableList(runs);
+	}
+
+	/**
+	 * The log as it is now, which records nothing more: what WaveLogWriter writes of it, copied, so that its JSON can be
+	 * written later, on any thread, while this log goes on. The ticks themselves never change once recorded, so only
+	 * their list is copied.
+	 */
+	public WaveLog snapshot()
+	{
+		WaveLog copy = new WaveLog();
+		copy.wave = wave;
+		copy.startTick = startTick;
+		copy.modifiers = new EnumMap<>(Modifier.class);
+		copy.modifiers.putAll(modifiers);
+		copy.modifiersComplete = modifiersComplete;
+		copy.version = version;
+		copy.startState = startState;
+		copy.shareState = shareState;
+		copy.reinforcementState = reinforcementState;
+		copy.ticks.addAll(ticks);
+		copy.cut = cut;
+		copy.end = end;
+		copy.id = id;
+		copy.lastId = lastId;
+		return copy;
+	}
+
+	/**
+	 * `make`'s text, made the first time it is asked for and kept: a log's JSON, which may be asked for on the client
+	 * thread or on OkHttp's, hence the lock. Once made, `make` is let go, and with it the snapshot it writes.
+	 */
+	static Supplier<String> once(Supplier<String> make)
+	{
+		return new Supplier<String>()
+		{
+			private Supplier<String> maker = make;
+			private String text;
+
+			@Override
+			public synchronized String get()
+			{
+				if (text == null)
+				{
+					text = maker.get();
+					maker = null;
+				}
+				return text;
+			}
+		};
 	}
 
 	/** The wave logged, or null when there is none. */

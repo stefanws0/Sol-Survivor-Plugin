@@ -1,5 +1,6 @@
 package nl.dexanddice.solsurvivor;
 
+import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
@@ -10,6 +11,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ScheduledExecutorService;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Actor;
@@ -79,6 +81,7 @@ import nl.dexanddice.solsurvivor.core.PluginVersion;
 import nl.dexanddice.solsurvivor.core.PrayerFlicks;
 import nl.dexanddice.solsurvivor.core.PrayerRecord;
 import nl.dexanddice.solsurvivor.core.RunLogWriter;
+import nl.dexanddice.solsurvivor.core.RunUpload;
 import nl.dexanddice.solsurvivor.core.SeenNpc;
 import nl.dexanddice.solsurvivor.core.StatePayload;
 import nl.dexanddice.solsurvivor.core.TriangleDot;
@@ -89,10 +92,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.Call;
 import okhttp3.Callback;
-import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
@@ -117,7 +118,7 @@ import okhttp3.Response;
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
-	description = "Copies the Fortis Colosseum's state as a Sol Survivor link. Draws nothing in the game.",
+	description = "Opens the Fortis Colosseum's arena in Sol Survivor. Open past run, once Upload past runs is on, uploads the selected recording to the Sol Survivor site and opens it in your browser. Share wave logs, off by default too, sends each wave's log to the site. Draws nothing in the game.",
 	tags = {"fortis", "colosseum", "sol", "planner", "export"}
 )
 public class SolSurvivorPlugin extends Plugin
@@ -126,9 +127,11 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * The Sol Survivor site, which every link opens and Open past run uploads to. It is not a setting, as the user asked
-	 * (2026-10-20): there is one site, now that the preview a setting could point at has been retired.
+	 * (2026-10-20): there is one site, now that the preview a setting could point at has been retired. The site moved
+	 * here from sol.dexanddice.nl on 2026-10-25; that host still answers the releases before this one, and sends their
+	 * links on here.
 	 */
-	static final String SITE = "https://sol.dexanddice.nl/";
+	static final String SITE = "https://solsurvivor.app/";
 
 	/** The script that fills the modifier selector, with the three on offer and the mask of those taken. */
 	private static final int SCRIPT_MODIFIER_SELECT_INIT = 4931;
@@ -161,6 +164,14 @@ public class SolSurvivorPlugin extends Plugin
 
 	@Inject
 	private OkHttpClient httpClient;
+
+	/** RuneLite's own, for the site's answers, as its plugin guide asks. */
+	@Inject
+	private Gson gson;
+
+	/** RuneLite's executor, for work too long for the client thread: Copy whole run's JSON. */
+	@Inject
+	private ScheduledExecutorService executor;
 
 	/** Only one upload at a time. Cleared and cancelled on shutdown; late callbacks cannot open the browser. */
 	private volatile Call replayCall;
@@ -302,23 +313,28 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		keyManager.unregisterKeyListener(hotkeyListener);
 		clientToolbar.removeNavigation(navButton);
-		tracker.reset();
-		waveLog.clear();
-		seenProjectiles.clear();
-		waveShare.onLeave();
 		prayerRecord = PrayerRecord.empty();
-		inColosseum = false;
-		waveStartState = null;
-		waveShareState = null;
-		shownInColosseum = false;
-		shownWaveStart = false;
-		shownTitle = null;
-		shownState = null;
-		shownNote = null;
-		shownRuns = new ArrayList<>();
-		shownOffers = false;
-		shownSharing = false;
 		panel = null;
+		// shutDown runs on Swing's thread, and the client thread writes the tracker, the wave log and the rest on each
+		// tick, so they are cleared there, never under a tick in flight.
+		clientThread.invoke(() ->
+		{
+			tracker.reset();
+			waveLog.clear();
+			seenProjectiles.clear();
+			waveShare.onLeave();
+			inColosseum = false;
+			waveStartState = null;
+			waveShareState = null;
+			shownInColosseum = false;
+			shownWaveStart = false;
+			shownTitle = null;
+			shownState = null;
+			shownNote = null;
+			shownRuns = new ArrayList<>();
+			shownOffers = false;
+			shownSharing = false;
+		});
 	}
 
 	@Subscribe
@@ -597,6 +613,9 @@ public class SolSurvivorPlugin extends Plugin
 			waveShareState = null;
 		}
 		recordWaveLog(tick);
+		// The run's waves finished, for the pick link, with the game's glory and wave damage counters beside them.
+		tracker.onRunTick(m -> readLevel(m.getLevelVarbit()), client.getVarpValue(ColosseumCounter.CURRENT_GLORY.getId()),
+			client.getVarpValue(ColosseumCounter.WAVE_DAMAGE_TAKEN.getId()));
 		updatePanel();
 	}
 
@@ -680,8 +699,9 @@ public class SolSurvivorPlugin extends Plugin
 	/**
 	 * The wave log under way or the last one has its turn to be shared, as its wave ends: with "Share wave logs" on it goes
 	 * to the site as WaveLogWriter.toShare writes it, gzipped, under the run's id (WaveShare). Each log has one turn, so
-	 * that a wave that ended with the setting off is never sent. On the client thread, which the log is read on; the
-	 * upload goes on OkHttp's threads, and a log the site refuses or cannot reach is dropped without a word to the player.
+	 * that a wave that ended with the setting off is never sent. On the client thread, which the log is read on, as far as
+	 * a snapshot of it: its JSON, the gzip and the upload go on OkHttp's threads, and a log the site refuses or cannot
+	 * reach is dropped without a word to the player.
 	 */
 	private void shareLog()
 	{
@@ -694,8 +714,9 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			return;
 		}
+		WaveLog done = waveLog.snapshot();
 		Request request = new Request.Builder().url(WaveShare.endpoint(SITE)).header(WaveShare.RUN_HEADER, run)
-			.post(RequestBody.create(MediaType.parse(WaveShare.TYPE), WaveShare.gzip(WaveLogWriter.toShare(waveLog)))).build();
+			.post(new LazyBody(WaveShare.TYPE, () -> WaveShare.gzip(WaveLogWriter.toShare(done)))).build();
 		Call call = httpClient.newCall(request);
 		shareCall = call;
 		call.enqueue(new Callback()
@@ -890,7 +911,7 @@ public class SolSurvivorPlugin extends Plugin
 	private boolean isInColosseum()
 	{
 		Player player = client.getLocalPlayer();
-		if (player == null || !client.isInInstancedRegion())
+		if (player == null || !client.getTopLevelWorldView().isInstance())
 		{
 			return false;
 		}
@@ -1198,7 +1219,8 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * Opens the site's modifier pick in the browser with the three modifiers Minimus offers filled in, while his selector
-	 * is open: the link holds them, the modifiers held and the next wave, and nothing else.
+	 * is open: the link holds them, the modifiers held, the next wave and the run's waves finished so far, and nothing
+	 * else.
 	 */
 	private void openRecommender()
 	{
@@ -1211,7 +1233,7 @@ public class SolSurvivorPlugin extends Plugin
 				return;
 			}
 			Integer wave = tracker.getWave();
-			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers);
+			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers, tracker.getRun());
 			LinkBrowser.browse(link);
 			report(wave == null
 				? "Opened the recommender with Minimus's offers. The plugin has not seen a wave yet: set the wave on the site."
@@ -1330,39 +1352,34 @@ public class SolSurvivorPlugin extends Plugin
 				report("No ticks have been recorded yet. Wait for a game tick and try Open past run again.");
 				return;
 			}
-			try
+			// The past waves' logs never change once kept, so the run's JSON is written, and gzipped, on OkHttp's thread.
+			List<WaveLog.Past> chosen = run;
+			Call call = httpClient.newCall(ReplayUpload.request(SITE, () -> RunLogWriter.toJson(chosen, PluginVersion.VERSION)));
+			replayCall = call;
+			SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(true); });
+			report("Opening past run: uploading the selected recording…");
+			call.enqueue(new Callback()
 			{
-				Call call = httpClient.newCall(ReplayUpload.request(SITE, RunLogWriter.toJson(run, PluginVersion.VERSION)));
-				replayCall = call;
-				SwingUtilities.invokeLater(() -> { if (panel != null) panel.showReplayBusy(true); });
-				report("Opening past run: uploading the selected recording…");
-				call.enqueue(new Callback()
+				@Override
+				public void onFailure(Call failed, IOException ex)
 				{
-					@Override
-					public void onFailure(Call failed, IOException ex)
-					{
-						finishReplay(failed, null, "The run could not reach the site. Check your connection and try Open past run again.");
-					}
+					finishReplay(failed, null, ex instanceof RunUpload.TooLarge ? ex.getMessage()
+						: "The run could not reach the site. Check your connection and try Open past run again.");
+				}
 
-					@Override
-					public void onResponse(Call completed, Response response)
+				@Override
+				public void onResponse(Call completed, Response response)
+				{
+					try (Response closed = response)
 					{
-						try (Response closed = response)
-						{
-							finishReplay(completed, ReplayUpload.browserUrl(SITE, closed), null);
-						}
-						catch (IOException ex)
-						{
-							finishReplay(completed, null, ex.getMessage());
-						}
+						finishReplay(completed, ReplayUpload.browserUrl(gson, SITE, closed), null);
 					}
-				});
-			}
-			catch (IllegalArgumentException ex)
-			{
-				replayCall = null;
-				report(ex.getMessage());
-			}
+					catch (IOException ex)
+					{
+						finishReplay(completed, null, ex.getMessage());
+					}
+				}
+			});
 		});
 	}
 
@@ -1388,7 +1405,11 @@ public class SolSurvivorPlugin extends Plugin
 		});
 	}
 
-	/** Copies the whole run that holds the panel's row `id` in one paste, as RunLogWriter writes it. */
+	/**
+	 * Copies the whole run that holds the panel's row `id` in one paste, as RunLogWriter writes it. The run is taken on the
+	 * client thread, and its JSON, up to twelve waves of it, written on RuneLite's executor, as Open past run's is on
+	 * OkHttp's: the past waves' logs never change once kept.
+	 */
 	private void copyRun(int id)
 	{
 		clientThread.invokeLater(() ->
@@ -1409,7 +1430,7 @@ public class SolSurvivorPlugin extends Plugin
 			String waves = from == to ? "wave " + from : "waves " + from + " to " + to;
 			String note = "Copied the whole run, " + waves + ", " + ticks + (ticks == 1 ? " tick" : " ticks") + "."
 				+ (from == 1 ? "" : " The plugin logged it from wave " + from + " on.");
-			copy(RunLogWriter.toJson(run, PluginVersion.VERSION), note, null);
+			executor.execute(() -> copy(RunLogWriter.toJson(run, PluginVersion.VERSION), note, null));
 		});
 	}
 

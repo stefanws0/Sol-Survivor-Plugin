@@ -48,11 +48,13 @@ if (coreOnly) {
 }
 
 group = 'nl.dexanddice.solsurvivor'
-version = '0.8.0'
+version = '0.8.1'
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
 	options.release.set(11)
+	// RuneLite's API retires what it deprecates: each use is named as the build runs, so that it is moved off in time.
+	options.compilerArgs << '-Xlint:deprecation'
 }
 
 test {

@@ -95,11 +95,11 @@ public class StatePayloadTest
 		String start = fixture("wave4-start.json");
 		TriangleDot dot = TriangleDot.of(10, 0, 90);
 		assertEquals(fixture("wave4-triangle.json"), StatePayload.withTriangle(start, dot));
-		String link = StatePayload.linkOfJson("https://sol.dexanddice.nl/", start, dot);
+		String link = StatePayload.linkOfJson("https://solsurvivor.app/", start, dot);
 		assertEquals(fixture("wave4-triangle.json"), unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
 		// Without one, the link is as it was.
 		assertEquals(start, StatePayload.withTriangle(start, null));
-		assertEquals(StatePayload.linkOfJson("https://sol.dexanddice.nl/", start), StatePayload.linkOfJson("https://sol.dexanddice.nl/", start, null));
+		assertEquals(StatePayload.linkOfJson("https://solsurvivor.app/", start), StatePayload.linkOfJson("https://solsurvivor.app/", start, null));
 	}
 
 	@Test

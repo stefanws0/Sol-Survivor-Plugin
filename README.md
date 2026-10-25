@@ -1,5 +1,5 @@
 **Plan your Fortis Colosseum waves tick by tick.** Press a button in RuneLite and the wave you are in opens on
-[Sol Survivor](https://sol.dexanddice.nl/), a planner in your browser that works out where to stand, what to attack and
+[Sol Survivor](https://solsurvivor.app/), a planner in your browser that works out where to stand, what to attack and
 which prayer to have up on every tick, down to the last kill.
 
 The plugin draws nothing in the game and never plays for you. It reads the arena, turns it into a link, and opens that

@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -193,6 +194,18 @@ public class WaveLogTest
 		assertFalse(ticks[4], ticks[4].contains("counters"));
 		assertFalse(ticks[5], ticks[5].contains("counters"));
 
+		// A shared log leaves out the wave's start time and the run's total duration, and a tick that changed only those
+		// lists no counters.
+		String[] shared = WaveLogWriter.toShare(log).split("\n");
+		assertTrue(shared[1], shared[1].endsWith(",\"counters\":{\"doomStacks\":0,\"currentGlory\":1200,"
+			+ "\"waveDamageTaken\":0,\"lastModifierGlory\":150,\"lastWaveDuration\":120}},"));
+		assertTrue(shared[3], shared[3].endsWith(",\"counters\":{\"waveDamageTaken\":13}},"));
+		log.record(105, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(),
+			new int[]{0, 1200, 51000, 13, 150, 120, 901});
+		String[] later = WaveLogWriter.toShare(log).split("\n");
+		assertFalse(later[6], later[6].contains("counters"));
+		assertTrue(WaveLogWriter.toJson(log).split("\n")[6].endsWith(",\"counters\":{\"totalDuration\":901}}"));
+
 		// The next wave lists them all on its first tick again.
 		log.start(5, 200, Collections.emptyMap(), true, "test", null);
 		log.record(200, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), COUNTERS_HIT);
@@ -258,6 +271,36 @@ public class WaveLogTest
 		log.clear();
 		assertTrue(log.getPast().isEmpty());
 		assertEquals(0, log.getId());
+	}
+
+	@Test
+	public void aSnapshotWritesTheLogAsItWasWhileTheLogGoesOn()
+	{
+		startWave4(100);
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		String then = WaveLogWriter.toJson(log);
+		WaveLog snapshot = log.snapshot();
+		log.record(101, player(7, 14, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.finish(WaveLog.End.COMPLETED);
+		assertEquals(then, WaveLogWriter.toJson(snapshot));
+		assertEquals(1, snapshot.size());
+		assertFalse(snapshot.isRecording());
+		// The wave under way in getRuns is as it was when asked for, not as it is when its JSON is written.
+		WaveLog.Past now = log.getRun().get(0);
+		String written = WaveLogWriter.toJson(log);
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		assertEquals(written, now.getJson());
+	}
+
+	@Test
+	public void aPastWavesJsonIsWrittenOnceWhenFirstAskedFor()
+	{
+		int[] made = {0};
+		Supplier<String> once = WaveLog.once(() -> "log" + (++made[0]));
+		assertEquals(0, made[0]);
+		assertEquals("log1", once.get());
+		assertEquals("log1", once.get());
+		assertEquals(1, made[0]);
 	}
 
 	@Test

@@ -1,37 +1,37 @@
 package nl.dexanddice.solsurvivor;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 import nl.dexanddice.solsurvivor.core.ReplayLink;
-import okhttp3.MediaType;
+import nl.dexanddice.solsurvivor.core.RunUpload;
 import okhttp3.Request;
-import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
-/** A selected recording only, sent by the plugin's injected RuneLite HTTP client on its background dispatcher. */
+/**
+ * A selected recording only, sent by the plugin's injected RuneLite HTTP client on its background dispatcher. The run's
+ * JSON is written and gzipped there too (LazyBody, core.RunUpload), not on the client thread; a run too large for the
+ * site fails the call with RunUpload.TooLarge, whose message the player is shown.
+ */
 final class ReplayUpload
 {
-	static final int MAX_BYTES = 8 * 1024 * 1024;
-
 	private ReplayUpload()
 	{
 	}
 
-	static Request request(String site, String json)
+	/** The upload of the run whose JSON `json` writes, which must be the past waves' logs as they were handed over. */
+	static Request request(String site, Supplier<String> json)
 	{
-		byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
-		if (bytes.length > MAX_BYTES)
-		{
-			throw new IllegalArgumentException("This run is too large to open (8 MiB maximum). You can still copy its wave logs.");
-		}
-		return new Request.Builder().url(ReplayLink.endpoint(site))
-			.post(RequestBody.create(MediaType.parse("application/json; charset=utf-8"), bytes)).build();
+		return new Request.Builder().url(ReplayLink.endpoint(site)).post(new LazyBody(RunUpload.TYPE, () -> RunUpload.pack(json.get()))).build();
 	}
 
-	static String browserUrl(String site, Response response) throws IOException
+	/**
+	 * The page that opens the stored run, from the site's answer read with RuneLite's Gson: only an ID the site gave, on
+	 * the site's own address, so that an answer cannot send the browser elsewhere.
+	 */
+	static String browserUrl(Gson gson, String site, Response response) throws IOException
 	{
 		if (!response.isSuccessful())
 		{
@@ -42,13 +42,13 @@ final class ReplayUpload
 			throw new IOException(error);
 		}
 		ResponseBody body = response.body();
-		if (body == null || body.source().request(4097) || body.source().buffer().size() > 4096)
+		if (body == null || body.source().request(4097) || body.source().getBuffer().size() > 4096)
 		{
 			throw new IOException("The site returned an invalid recording link. Try again.");
 		}
 		try
 		{
-			JsonObject data = new JsonParser().parse(body.source().readUtf8()).getAsJsonObject();
+			JsonObject data = gson.fromJson(body.source().readUtf8(), JsonObject.class);
 			return ReplayLink.browser(site, data.get("id").getAsString());
 		}
 		catch (RuntimeException ex)

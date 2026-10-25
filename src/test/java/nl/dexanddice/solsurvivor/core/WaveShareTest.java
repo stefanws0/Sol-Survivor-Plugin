@@ -76,7 +76,7 @@ public class WaveShareTest
 	@Test
 	public void itPostsToTheSitesOwnEndpoint()
 	{
-		assertEquals("https://sol.dexanddice.nl/api/wave-logs", WaveShare.endpoint("https://sol.dexanddice.nl/"));
+		assertEquals("https://solsurvivor.app/api/wave-logs", WaveShare.endpoint("https://solsurvivor.app/"));
 	}
 
 	@Test

@@ -76,6 +76,13 @@ public final class ColosseumTracker
 	private final Map<Integer, int[]> healthBars = new HashMap<>();
 	/** The hitsplats on the player that dealt damage since the wave the plugin saw start: Doom's stacks. */
 	private int damageTaken;
+	/**
+	 * The most the game's wave damage counter read in the wave under way or the one just finished (RunWave's `damage`),
+	 * from the tick after the wave's first: on that first tick the counter may still hold the last wave's.
+	 */
+	private int waveDamage;
+	/** Whether the next run tick is the first of the wave, whose damage counter is not read (waveDamage). */
+	private boolean freshWave;
 	/** The sand the Javelins' landings laid this wave below Reentry II, which goes when the wave does. */
 	private final Set<GridTile> waveSand = new LinkedHashSet<>();
 	/** The sand they laid at Reentry II or III, which lasts the run. */
@@ -86,6 +93,16 @@ public final class ColosseumTracker
 	private final Set<Modifier> taken = EnumSet.noneOf(Modifier.class);
 	private boolean modifiersComplete;
 	private final List<Modifier> options = new ArrayList<>(3);
+
+	/** The waves of the run finished so far, oldest first, for the pick link (RunWave). */
+	private final List<RunWave> run = new ArrayList<>();
+	/**
+	 * A wave the game just said was completed, until the next tick (onRunTick) adds it to the run with the modifiers held:
+	 * its number, its ticks and whether it hurt the player, the last two null when the plugin did not see it start.
+	 */
+	private Integer doneWave;
+	private Integer doneTicks;
+	private Boolean doneHit;
 
 	/** Forget the run: the player left the Colosseum, hopped or logged out. */
 	public void reset()
@@ -101,6 +118,10 @@ public final class ColosseumTracker
 		healthBars.clear();
 		lastingSand.clear();
 		sandObjects.clear();
+		run.clear();
+		doneWave = null;
+		waveDamage = 0;
+		freshWave = false;
 		resetWave();
 	}
 
@@ -132,7 +153,12 @@ public final class ColosseumTracker
 		}
 		else if ((m = WAVE_DONE.matcher(text)).find())
 		{
-			wave = Integer.parseInt(m.group(1)) + 1;
+			int done = Integer.parseInt(m.group(1));
+			boolean seen = waveStarted && wave != null && wave == done;
+			doneWave = done;
+			doneTicks = seen ? Integer.valueOf(tick - waveStartTick + 1) : null;
+			doneHit = seen ? Boolean.valueOf(damageTaken > 0) : null;
+			wave = done + 1;
 			waveStarted = false;
 			resetWave();
 		}
@@ -140,9 +166,16 @@ public final class ColosseumTracker
 
 	private void startWave(int number, int tick)
 	{
+		// Wave 1, or a wave the run has already finished, starts a new run.
+		if (number == 1 || (!run.isEmpty() && number <= run.get(run.size() - 1).getWave()))
+		{
+			run.clear();
+		}
 		wave = number;
 		waveStarted = true;
 		waveStartTick = tick;
+		waveDamage = 0;
+		freshWave = true;
 		resetWave();
 	}
 
@@ -168,6 +201,41 @@ public final class ColosseumTracker
 	public Integer getWave()
 	{
 		return wave;
+	}
+
+	/**
+	 * Each tick in the Colosseum, with the modifiers' varbits and the game's current glory and wave damage counters: a
+	 * wave the game has just said was completed joins the run with the modifiers held through it, and until the next wave
+	 * starts the last wave finished takes the glory counter as it reads and the most the damage counter has read, since
+	 * when the game updates and clears them is not known.
+	 */
+	public void onRunTick(ModifierLevels levels, int glory, int damage)
+	{
+		if (waveStarted && freshWave)
+		{
+			freshWave = false;
+		}
+		else if (waveStarted)
+		{
+			waveDamage = Math.max(waveDamage, damage);
+		}
+		if (doneWave != null)
+		{
+			int done = doneWave;
+			run.removeIf(w -> w.getWave() >= done);
+			run.add(new RunWave(done, doneTicks, doneHit, doneTicks == null ? null : Math.max(waveDamage, damage), modifiers(levels), glory));
+			doneWave = null;
+		}
+		else if (!waveStarted && !run.isEmpty())
+		{
+			run.set(run.size() - 1, run.get(run.size() - 1).withCounters(glory, damage));
+		}
+	}
+
+	/** The waves of the run finished so far, oldest first: none before the first, or after leaving the Colosseum. */
+	public List<RunWave> getRun()
+	{
+		return Collections.unmodifiableList(new ArrayList<>(run));
 	}
 
 	/** Whether the modifiers taken are all known: see ArenaState.isModifiersComplete. */

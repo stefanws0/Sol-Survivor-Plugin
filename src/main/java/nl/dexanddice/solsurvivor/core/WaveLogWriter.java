@@ -87,19 +87,20 @@ public final class WaveLogWriter
 	/** The log's JSON; an empty log, with no wave, has a null wave and no ticks. */
 	public static String toJson(WaveLog log)
 	{
-		return toJson(log, log.getStartState());
+		return toJson(log, log.getStartState(), false);
 	}
 
 	/**
 	 * The log as the player shares it with "Share wave logs" (WaveShare): the same JSON, but with its `start` written
-	 * without the gear's levels and prayer unlocks (Equipment.withoutLevels), which the site refuses in a shared log.
+	 * without the gear's levels and prayer unlocks (Equipment.withoutLevels), which the site refuses in a shared log, and
+	 * its ticks' counters without those that are not shared (ColosseumCounter.isShared).
 	 */
 	public static String toShare(WaveLog log)
 	{
-		return toJson(log, log.getShareState());
+		return toJson(log, log.getShareState(), true);
 	}
 
-	private static String toJson(WaveLog log, String start)
+	private static String toJson(WaveLog log, String start, boolean shared)
 	{
 		StringBuilder b = new StringBuilder();
 		b.append("{\"v\":").append(VERSION).append(",\"kind\":");
@@ -138,13 +139,13 @@ public final class WaveLogWriter
 		{
 			b.append(first ? "\n" : ",\n");
 			first = false;
-			tick(b, tick);
+			tick(b, tick, shared);
 		}
 		b.append(first ? "]}" : "\n]}");
 		return b.toString();
 	}
 
-	private static void tick(StringBuilder b, WaveLog.Tick tick)
+	private static void tick(StringBuilder b, WaveLog.Tick tick, boolean shared)
 	{
 		b.append("{\"t\":").append(tick.t).append(",\"player\":");
 		WaveLog.PlayerTick p = tick.player;
@@ -286,17 +287,20 @@ public final class WaveLogWriter
 			}
 			b.append(']');
 		}
-		if (!tick.counters.isEmpty())
+		boolean firstCounter = true;
+		for (Map.Entry<ColosseumCounter, Integer> e : tick.counters.entrySet())
 		{
-			b.append(",\"counters\":{");
-			boolean firstCounter = true;
-			for (Map.Entry<ColosseumCounter, Integer> e : tick.counters.entrySet())
+			if (shared && !e.getKey().isShared())
 			{
-				b.append(firstCounter ? "" : ",");
-				firstCounter = false;
-				StatePayload.string(b, e.getKey().getKey());
-				b.append(':').append(e.getValue());
+				continue;
 			}
+			b.append(firstCounter ? ",\"counters\":{" : ",");
+			firstCounter = false;
+			StatePayload.string(b, e.getKey().getKey());
+			b.append(':').append(e.getValue());
+		}
+		if (!firstCounter)
+		{
 			b.append('}');
 		}
 		b.append('}');

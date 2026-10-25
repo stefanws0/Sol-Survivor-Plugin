@@ -554,9 +554,9 @@ public class ColosseumTrackerTest
 	{
 		startWave4();
 		ArenaState state = capture(100, 7, 15);
-		String expected = "https://sol.dexanddice.nl/#s=" + StatePayload.encode(state);
-		assertEquals(expected, StatePayload.link("https://sol.dexanddice.nl", state));
-		assertEquals(expected, StatePayload.link(" https://sol.dexanddice.nl/#s=old ", state));
+		String expected = "https://solsurvivor.app/#s=" + StatePayload.encode(state);
+		assertEquals(expected, StatePayload.link("https://solsurvivor.app", state));
+		assertEquals(expected, StatePayload.link(" https://solsurvivor.app/#s=old ", state));
 	}
 
 	private interface Capture

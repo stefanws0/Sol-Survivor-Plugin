@@ -205,7 +205,7 @@ public class PrayerFlicksTest
 		String start = StatePayloadTest.fixture("wave4-start.json");
 		PrayerRecord record = PrayerRecord.empty().with(new PrayerFlicks(4, 4, 4, 1)).with(new PrayerFlicks(20, 40, 1, 0));
 		assertEquals(StatePayloadTest.fixture("wave4-prayer.json"), StatePayload.withPrayerRecord(start, record));
-		String link = StatePayload.linkOfJson("https://sol.dexanddice.nl/", start, null, record);
+		String link = StatePayload.linkOfJson("https://solsurvivor.app/", start, null, record);
 		assertEquals(StatePayloadTest.fixture("wave4-prayer.json"), StatePayloadTest.unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
 		// With the triangle too, the record comes last; with no wave counted, the link is as it was.
 		assertTrue(StatePayload.withPrayerRecord(StatePayload.withTriangle(start, TriangleDot.of(10, 0, 90)), record).endsWith(",\"triangle\":[10,0,90],\"prayerRecord\":[2,24,44,5,1]}"));
