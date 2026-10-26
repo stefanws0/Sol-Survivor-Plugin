@@ -312,8 +312,9 @@ public final class WaveLog
 
 	/**
 	 * A past wave's log, kept as its JSON once the next wave started, with the state links' payloads on its first tick and
-	 * on the tick its reinforcements came. getRun and getRuns give the wave under way or the last one the same way, its
-	 * JSON written when it is asked for, so that the panel can list the waves every tick without writing any.
+	 * on the tick its reinforcements came, and the glory it earned. getRun and getRuns give the wave under way or the last
+	 * one the same way, its JSON written when it is asked for, so that the panel can list the waves every tick without
+	 * writing any. A wave saved in an earlier session (WaveStore) comes back as one too, its JSON read with it.
 	 */
 	public static final class Past
 	{
@@ -325,8 +326,10 @@ public final class WaveLog
 		private final Supplier<String> json;
 		private final String startState;
 		private final String reinforcementState;
+		private final Integer glory;
 
-		Past(int id, int wave, int size, End end, boolean recording, Supplier<String> json, String startState, String reinforcementState)
+		Past(int id, int wave, int size, End end, boolean recording, Supplier<String> json, String startState, String reinforcementState,
+			Integer glory)
 		{
 			this.id = id;
 			this.wave = wave;
@@ -336,6 +339,13 @@ public final class WaveLog
 			this.json = json;
 			this.startState = startState;
 			this.reinforcementState = reinforcementState;
+			this.glory = glory;
+		}
+
+		/** The same wave under the id `newId`, as WaveLog.restore gives a saved one. */
+		Past withId(int newId)
+		{
+			return new Past(newId, wave, size, end, recording, json, startState, reinforcementState, glory);
 		}
 
 		/** The log's id, as getId gave it while it was the one under way. */
@@ -383,6 +393,12 @@ public final class WaveLog
 		public String getReinforcementState()
 		{
 			return reinforcementState;
+		}
+
+		/** The glory the wave earned, by the game's own counter (WaveLog.getGlory), or null when that is not known. */
+		public Integer getGlory()
+		{
+			return glory;
 		}
 	}
 
@@ -474,6 +490,9 @@ public final class WaveLog
 	private int[] lastWorn;
 	/** The game's counters on the last tick recorded, so that a tick lists only those that changed; null before the first. */
 	private int[] lastCounters;
+	/** The game's glory counter on the first tick recorded that read it, null before then, and on the last. */
+	private Integer firstGlory;
+	private int lastGlory;
 
 	/** The hitsplats since the last tick was recorded, which go in the next one. */
 	private final List<Hit> pendingPlayerHits = new ArrayList<>();
@@ -507,7 +526,8 @@ public final class WaveLog
 		if (this.wave != null)
 		{
 			WaveLog done = snapshot();
-			past.add(0, new Past(id, this.wave, ticks.size(), end, false, once(() -> WaveLogWriter.toJson(done)), this.startState, reinforcementState));
+			past.add(0, new Past(id, this.wave, ticks.size(), end, false, once(() -> WaveLogWriter.toJson(done)), this.startState, reinforcementState,
+				getGlory()));
 			while (past.size() > MAX_PAST)
 			{
 				past.remove(past.size() - 1);
@@ -529,6 +549,8 @@ public final class WaveLog
 		id = ++lastId;
 		lastWorn = null;
 		lastCounters = null;
+		firstGlory = null;
+		lastGlory = 0;
 	}
 
 	/** A hitsplat on the player, as it comes; it goes in the next tick recorded. */
@@ -651,6 +673,12 @@ public final class WaveLog
 				}
 			}
 			lastCounters = counters.clone();
+			int glory = counters[ColosseumCounter.CURRENT_GLORY.ordinal()];
+			if (firstGlory == null)
+			{
+				firstGlory = glory;
+			}
+			lastGlory = glory;
 		}
 		ticks.add(new Tick(t, player, Collections.unmodifiableList(new ArrayList<>(pendingPlayerHits)), Collections.unmodifiableList(onGrid),
 			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations)),
@@ -701,6 +729,8 @@ public final class WaveLog
 		id = 0;
 		lastWorn = null;
 		lastCounters = null;
+		firstGlory = null;
+		lastGlory = 0;
 		past.clear();
 		discardPending();
 	}
@@ -766,32 +796,78 @@ public final class WaveLog
 	/**
 	 * Every run logged, newest first, each its logs oldest first: the newest is getRun's, and each run before it is
 	 * parted from the next the same way, where a log's wave is not the one before the wave of the log after it. The
-	 * wave under way or the last one comes as it is now (snapshot), its JSON written when it is asked for. Empty when
-	 * there is no log.
+	 * wave under way or the last one comes as it is now (snapshot), its JSON written when it is asked for, and the waves
+	 * restored from an earlier session after this session's. Empty when there is no log, past or present.
 	 */
 	public List<List<Past>> getRuns()
 	{
-		List<List<Past>> runs = new ArrayList<>();
-		if (wave == null)
+		List<Past> newestFirst = new ArrayList<>();
+		if (wave != null)
 		{
-			return runs;
+			newestFirst.add(current());
 		}
+		newestFirst.addAll(past);
+		List<List<Past>> runs = new ArrayList<>();
 		List<Past> run = new ArrayList<>();
-		WaveLog now = snapshot();
-		run.add(new Past(id, wave, ticks.size(), end, recording, once(() -> WaveLogWriter.toJson(now)), startState, reinforcementState));
-		int next = wave;
-		for (Past p : past)
+		for (Past p : newestFirst)
 		{
-			if (p.getWave() != next - 1)
+			if (!run.isEmpty() && p.getWave() != run.get(0).getWave() - 1)
 			{
 				runs.add(Collections.unmodifiableList(run));
 				run = new ArrayList<>();
 			}
 			run.add(0, p);
-			next = p.getWave();
 		}
-		runs.add(Collections.unmodifiableList(run));
+		if (!run.isEmpty())
+		{
+			runs.add(Collections.unmodifiableList(run));
+		}
 		return Collections.unmodifiableList(runs);
+	}
+
+	/**
+	 * The wave under way or the last one as a Past, as it is now (snapshot), its JSON written when it is asked for, on
+	 * any thread: what getRuns lists first, and what the plugin saves as the wave ends (WaveStore). Null when there is no
+	 * log.
+	 */
+	public Past current()
+	{
+		if (wave == null)
+		{
+			return null;
+		}
+		WaveLog now = snapshot();
+		return new Past(id, wave, ticks.size(), end, recording, once(() -> WaveLogWriter.toJson(now)), startState, reinforcementState,
+			getGlory());
+	}
+
+	/**
+	 * Waves saved in an earlier session (WaveStore), newest first, go behind the past ones, each under a new id, so that
+	 * Past waves lists them as it lists this session's: getRuns parts them into runs the same way. Those past MAX_PAST
+	 * are let go.
+	 */
+	public void restore(List<Past> saved)
+	{
+		for (Past p : saved)
+		{
+			if (past.size() >= MAX_PAST)
+			{
+				break;
+			}
+			past.add(p.withId(++lastId));
+		}
+	}
+
+	/**
+	 * The glory the wave earned by the game's own counter, COLOSSEUM_CURRENT_GLORY: what it read on the last tick
+	 * recorded less what it read on the first, which matched the site's sums by the game's rules on every wave finished
+	 * in the user's shared runs of 25 and 26 October (the site's test/viewer/runGlory.test.ts). Only for a wave completed:
+	 * a wave the player died in or left earns none, and one under way has not earned its yet. Null too when the counter
+	 * could not be read.
+	 */
+	public Integer getGlory()
+	{
+		return end == End.COMPLETED && firstGlory != null ? lastGlory - firstGlory : null;
 	}
 
 	/**
@@ -816,6 +892,8 @@ public final class WaveLog
 		copy.end = end;
 		copy.id = id;
 		copy.lastId = lastId;
+		copy.firstGlory = firstGlory;
+		copy.lastGlory = lastGlory;
 		return copy;
 	}
 

@@ -1,6 +1,5 @@
 package nl.dexanddice.solsurvivor;
 
-import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -8,8 +7,6 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -23,9 +20,9 @@ import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 
@@ -37,7 +34,8 @@ import net.runelite.client.ui.PluginPanel;
  * wave starts (the user's choice, 2026-10-25). A row for Minimus's pick, which lights up while he offers his three. Under Past
  * waves, each run a row that folds open and shut like the loot tracker's, onto its waves in a well: a line per wave
  * with small buttons that open it on the site at its start or on the tick its reinforcements came, and copy its log,
- * and on the run's head a button that copies the whole run and one that uploads it to watch it back. The help is in
+ * and on the run's head a button that copies the whole run and one that uploads it to watch it back. With Leaderboard
+ * on, a row for the site's leaderboard: the name, its page outside a wave, and Remove my times. The help is in
  * the tooltip of the question mark at the top. Like the rest of the plugin it shows nothing about how to play the
  * wave; the plans are the site's.
  */
@@ -72,6 +70,12 @@ class SolSurvivorPanel extends PluginPanel
 
 		/** Upload the selected run and open its recording directly in the browser. */
 		void openPastRun(int id);
+
+		/** Open the site's leaderboard in the browser. */
+		void openLeaderboard();
+
+		/** Take every time of the player's off the leaderboard, once they confirmed it. */
+		void removeTimes();
 	}
 
 	/** A logged wave, as its line shows it. */
@@ -119,20 +123,24 @@ class SolSurvivorPanel extends PluginPanel
 
 	/**
 	 * A run's row: its key, the id of its first wave's log, which stays as the run grows; its name, such as "Latest run";
-	 * the line under it, such as "Waves 1–5 · 5:11"; and its waves, newest first.
+	 * the line under it, such as "Waves 1–5 · 5:11"; the glory its waves completed earned, such as "5,526 glory", on a
+	 * line of its own so that the run's line keeps clear of its buttons, or null when none is known; and its waves,
+	 * newest first.
 	 */
 	static final class RunGroup
 	{
 		private final int key;
 		private final String name;
 		private final String detail;
+		private final String glory;
 		private final List<WaveRow> waves;
 
-		RunGroup(int key, String name, String detail, List<WaveRow> waves)
+		RunGroup(int key, String name, String detail, String glory, List<WaveRow> waves)
 		{
 			this.key = key;
 			this.name = name;
 			this.detail = detail;
+			this.glory = glory;
 			this.waves = waves;
 		}
 
@@ -144,13 +152,14 @@ class SolSurvivorPanel extends PluginPanel
 				return false;
 			}
 			RunGroup r = (RunGroup) o;
-			return r.key == key && r.name.equals(name) && r.detail.equals(detail) && r.waves.equals(waves);
+			return r.key == key && r.name.equals(name) && r.detail.equals(detail) && Objects.equals(r.glory, glory)
+				&& r.waves.equals(waves);
 		}
 
 		@Override
 		public int hashCode()
 		{
-			return Objects.hash(key, name, detail, waves);
+			return Objects.hash(key, name, detail, glory, waves);
 		}
 	}
 
@@ -160,8 +169,8 @@ class SolSurvivorPanel extends PluginPanel
 		+ "its start, the wave under way too, or on the tick its reinforcements came, and copy its log to paste into the site. "
 		+ "With Upload past runs on in the settings, Watch uploads that run's tiles, hitpoints, prayers, hits and recorded gear "
 		+ "to the site, where anyone with its link can view it for seven days. With Share wave logs on, each wave's log goes to "
-		+ "the site, without your levels, as the wave ends. Both are off until you turn them on. This plugin draws nothing in "
-		+ "the game.";
+		+ "the site, without your levels, as the wave ends, and with Leaderboard on too, each wave you finish goes on "
+		+ "the site's leaderboard under your RuneScape name or the name you set. All are off until you turn them on. This plugin draws nothing in the game.";
 
 	private static final ImageIcon SUN = Stone.sun(24);
 	/** Yellow, as the text of the primary button it sits on. */
@@ -187,6 +196,11 @@ class SolSurvivorPanel extends PluginPanel
 	private final Stone.Slot pickSlot = new Stone.Slot(34, CARDS_OFF);
 	private final JLabel pickState = label("", small(), Stone.MUTED);
 	private final Stone.Button openRecommender = new Stone.Button("Open", null, true, small(), 7, 6);
+	/** The leaderboard's row, while Leaderboard is on or the player has times to remove (showBoard). */
+	private final Stone.Row boardRow = new Stone.Row(new BorderLayout(0, 5), 5, 6, 6, 6);
+	private final JLabel boardState = label("", small(), Stone.TEXT);
+	private final Stone.Button openBoard = new Stone.Button("Open", null, false, small(), 7, 6);
+	private final Stone.Button removeTimes = new Stone.Button("Remove my times", null, false, small(), 7, 6);
 	/** Beside Past waves, while "Share wave logs" is on: each wave's log goes to the site as it ends. */
 	private final JLabel sharing = label("Sharing logs", small(), Stone.GOOD);
 	private final JPanel runsBox = new JPanel();
@@ -209,6 +223,7 @@ class SolSurvivorPanel extends PluginPanel
 		add(header());
 		add(waveRow());
 		add(pickRow());
+		add(boardRow());
 		add(pastHeading());
 		runsBox.setLayout(new BoxLayout(runsBox, BoxLayout.Y_AXIS));
 		runsBox.setOpaque(false);
@@ -217,6 +232,7 @@ class SolSurvivorPanel extends PluginPanel
 		add(foot);
 
 		showSharing(false);
+		showBoard(null, false, true);
 		showState(false, null, "Not in the Colosseum", "Enter it to open a wave.", false, "", new ArrayList<>());
 	}
 
@@ -297,6 +313,55 @@ class SolSurvivorPanel extends PluginPanel
 		pickRow.add(text, BorderLayout.CENTER);
 		pickRow.add(east, BorderLayout.EAST);
 		return pickRow;
+	}
+
+	/** The leaderboard's row: its name and what goes up, the page's Open, and Remove my times under them. */
+	private JPanel boardRow()
+	{
+		JPanel text = clear(new BorderLayout(0, 1));
+		text.add(new Stone.Shadowed("Leaderboard", bold(), Stone.ORANGE), BorderLayout.NORTH);
+		text.add(boardState, BorderLayout.CENTER);
+		openBoard.setToolTipText("Opens the Sol Survivor site's leaderboard in your browser, outside a wave.");
+		openBoard.addActionListener(e -> actions.openLeaderboard());
+		JPanel east = clear(new BorderLayout());
+		east.add(openBoard, BorderLayout.NORTH);
+		removeTimes.setToolTipText("Takes your name and every time of yours off the leaderboard, and switches Leaderboard off.");
+		removeTimes.addActionListener(e ->
+		{
+			int answer = JOptionPane.showConfirmDialog(this,
+				"Take your name and every time of yours off the Sol Survivor leaderboard? Leaderboard is switched off too, so that no more go up.",
+				"Remove my times", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+			if (answer == JOptionPane.OK_OPTION)
+			{
+				actions.removeTimes();
+			}
+		});
+		JPanel top = clear(new BorderLayout(8, 0));
+		top.add(text, BorderLayout.CENTER);
+		top.add(east, BorderLayout.EAST);
+		JPanel foot = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		foot.add(removeTimes);
+		boardRow.add(top, BorderLayout.NORTH);
+		boardRow.add(foot, BorderLayout.CENTER);
+		return boardRow;
+	}
+
+	/**
+	 * The leaderboard's row, on the Swing thread: hidden for `name` null; for "", Leaderboard is off but the player has
+	 * times to remove; else the name their waves go up under, while "Share wave logs" is on (`sharing`). The page opens only
+	 * while `open`, outside a wave.
+	 */
+	void showBoard(String name, boolean sharing, boolean open)
+	{
+		boardRow.setVisible(name != null);
+		if (name == null)
+		{
+			return;
+		}
+		boardState.setText(wrap(name.isEmpty() ? "Leaderboard is off: your times stay up until you remove them."
+			: sharing ? "Your waves go up as " + name + "." : "Turn on Share wave logs for your waves to go up as " + name + ".", 140));
+		openBoard.setEnabled(open);
+		revalidate();
 	}
 
 	private JPanel pastHeading()
@@ -394,6 +459,10 @@ class SolSurvivorPanel extends PluginPanel
 		JPanel text = clear(new BorderLayout());
 		text.add(new Stone.Shadowed(run.name, bold(), Stone.ORANGE), BorderLayout.NORTH);
 		text.add(label(run.detail, small(), Stone.TEXT), BorderLayout.CENTER);
+		if (run.glory != null)
+		{
+			text.add(label(run.glory, small(), Stone.GOLD), BorderLayout.SOUTH);
+		}
 
 		WaveRow newest = run.waves.get(0);
 		Stone.Button copyRun = new Stone.Button(COPY_RUN_ICON, 24);
@@ -512,22 +581,50 @@ class SolSurvivorPanel extends PluginPanel
 		return "<html><body style='width: " + Math.round(width / 1.3f) + "px'>" + html + "</body></html>";
 	}
 
-	/** The toolbar icon, a small sun, drawn here so that the plugin carries no image file. */
+	/**
+	 * The toolbar's sun, set out pixel by pixel so that the plugin carries no image file and every ray falls on whole
+	 * pixels. A letter is a pixel in the colour SUN_COLOURS gives it and a dot is clear. The layout was made for 16
+	 * pixels; the disc's pale yellow glowing to amber at its rim is from the sun Stefan made in Higgsfield on
+	 * 2026-10-26, whose own thin rays fell between pixels at this size and broke up.
+	 */
+	private static final String[] TOOLBAR_SUN = {
+		".......KK.......",
+		"..K...KRRK...K..",
+		".KRK..KOOK..KRK.",
+		"..KOKKKOOKKKOK..",
+		"...KOOAAAAOOK...",
+		"...KOAYYYYAOK...",
+		".KKKAYYYYYYAKKK.",
+		"KROOAYYWWYYAOORK",
+		"KROOAYYWWYYAOORK",
+		".KKKAYYYYYYAKKK.",
+		"...KOAYYYYAOK...",
+		"...KOOAAAAOOK...",
+		"..KOKKKOOKKKOK..",
+		".KRK..KOOK..KRK.",
+		"..K...KRRK...K..",
+		".......KK.......",
+	};
+
+	/** The sun's letters, black, red, orange, amber, yellow and white, and their colours. */
+	private static final String SUN_LETTERS = "KROAYW";
+	private static final int[] SUN_COLOURS = {0xff000000, 0xfff93402, 0xfffe680c, 0xfffeb002, 0xffffe535, 0xfffffffd};
+
+	/** The toolbar icon, the sun above at 16 by 16. */
 	static BufferedImage icon()
 	{
 		BufferedImage image = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
-		Graphics2D g = image.createGraphics();
-		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		g.setColor(ColorScheme.BRAND_ORANGE);
-		g.fillOval(4, 4, 8, 8);
-		g.setStroke(new BasicStroke(1.5f));
-		for (int i = 0; i < 8; i++)
+		for (int y = 0; y < 16; y++)
 		{
-			double a = Math.PI * i / 4;
-			g.drawLine((int) Math.round(8 + 5.5 * Math.cos(a)), (int) Math.round(8 + 5.5 * Math.sin(a)),
-				(int) Math.round(8 + 7.5 * Math.cos(a)), (int) Math.round(8 + 7.5 * Math.sin(a)));
+			for (int x = 0; x < 16; x++)
+			{
+				int letter = SUN_LETTERS.indexOf(TOOLBAR_SUN[y].charAt(x));
+				if (letter >= 0)
+				{
+					image.setRGB(x, y, SUN_COLOURS[letter]);
+				}
+			}
 		}
-		g.dispose();
 		return image;
 	}
 }

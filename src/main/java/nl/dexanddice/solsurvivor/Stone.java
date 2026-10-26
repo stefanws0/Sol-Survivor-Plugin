@@ -99,16 +99,16 @@ final class Stone
 		g.setPaint(new GradientPaint(0, 0, f.top, 0, bh, f.bottom));
 		g.fillRect(1, 1, w - 2, bh - 2);
 		g.setColor(OUTLINE);
-		g.drawLine(1, 0, w - 2, 0);
-		g.drawLine(1, bh - 1, w - 2, bh - 1);
-		g.drawLine(0, 1, 0, bh - 2);
-		g.drawLine(w - 1, 1, w - 1, bh - 2);
+		line(g, 1, 0, w - 2, 0);
+		line(g, 1, bh - 1, w - 2, bh - 1);
+		line(g, 0, 1, 0, bh - 2);
+		line(g, w - 1, 1, w - 1, bh - 2);
 		g.setColor(f.light);
-		g.drawLine(1, 1, w - 2, 1);
-		g.drawLine(1, 1, 1, bh - 2);
+		line(g, 1, 1, w - 2, 1);
+		line(g, 1, 1, 1, bh - 2);
 		g.setColor(f.dark);
-		g.drawLine(2, bh - 2, w - 2, bh - 2);
-		g.drawLine(w - 2, 2, w - 2, bh - 2);
+		line(g, 2, bh - 2, w - 2, bh - 2);
+		line(g, w - 2, 2, w - 2, bh - 2);
 	}
 
 	/** An inset well over `w` by `h`, as the game's item slots are: dark at its top and left edges, lit at the others. */
@@ -117,16 +117,36 @@ final class Stone
 		g.setColor(WELL);
 		g.fillRect(1, 1, w - 2, h - 2);
 		g.setColor(OUTLINE);
-		g.drawLine(1, 0, w - 2, 0);
-		g.drawLine(1, h - 1, w - 2, h - 1);
-		g.drawLine(0, 1, 0, h - 2);
-		g.drawLine(w - 1, 1, w - 1, h - 2);
+		line(g, 1, 0, w - 2, 0);
+		line(g, 1, h - 1, w - 2, h - 1);
+		line(g, 0, 1, 0, h - 2);
+		line(g, w - 1, 1, w - 1, h - 2);
 		g.setColor(Color.BLACK);
-		g.drawLine(1, 1, w - 2, 1);
-		g.drawLine(1, 1, 1, h - 2);
+		line(g, 1, 1, w - 2, 1);
+		line(g, 1, 1, 1, h - 2);
 		g.setColor(BEVEL_LIGHT);
-		g.drawLine(2, h - 2, w - 2, h - 2);
-		g.drawLine(w - 2, 2, w - 2, h - 2);
+		line(g, 2, h - 2, w - 2, h - 2);
+		line(g, w - 2, 2, w - 2, h - 2);
+	}
+
+	/**
+	 * A line a pixel wide from (x0, y0) to (x1, y1), across or down, both ends in: the pixels drawLine sets at 100%, but
+	 * filled as a rectangle, so that under a display's scaling (150% on many Windows laptops) it covers the same share of
+	 * the screen as the fills beside it. drawLine keeps its line a whole screen pixel there, which left a well's right and
+	 * bottom edges short and the sun in the wave's slot visibly off its centre.
+	 */
+	private static void line(Graphics2D g, int x0, int y0, int x1, int y1)
+	{
+		g.fillRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0) + 1, Math.abs(y1 - y0) + 1);
+	}
+
+	/** The outline drawRect draws round (x, y) to (x + w, y + h), drawn as line does, each pixel once. */
+	private static void ring(Graphics2D g, int x, int y, int w, int h)
+	{
+		line(g, x, y, x + w, y);
+		line(g, x, y + h, x + w, y + h);
+		line(g, x, y + 1, x, y + h - 1);
+		line(g, x + w, y + 1, x + w, y + h - 1);
 	}
 
 	/** A panel on a raised row, with a shadow under it; `glow` rings it, as a row that wants the player's eye. */
@@ -159,9 +179,9 @@ final class Stone
 			{
 				int bh = getHeight() - 2;
 				g2.setColor(glow);
-				g2.drawRect(0, 0, getWidth() - 1, bh - 1);
+				ring(g2, 0, 0, getWidth() - 1, bh - 1);
 				g2.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 90));
-				g2.drawRect(1, 1, getWidth() - 3, bh - 3);
+				ring(g2, 1, 1, getWidth() - 3, bh - 3);
 			}
 			g2.dispose();
 		}

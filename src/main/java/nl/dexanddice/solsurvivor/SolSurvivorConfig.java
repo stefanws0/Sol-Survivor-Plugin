@@ -58,13 +58,39 @@ public interface SolSurvivorConfig extends Config
 		return true;
 	}
 
+	String ONLY_AT_COLOSSEUM = "onlyAtColosseum";
+
+	@ConfigItem(
+		keyName = ONLY_AT_COLOSSEUM,
+		name = "Show only at the Colosseum",
+		description = "Shows the plugin's sun in RuneLite's sidebar only in the Fortis Colosseum and its lobby. Past waves are then at hand only there.",
+		position = 5
+	)
+	default boolean onlyAtColosseum()
+	{
+		return false;
+	}
+
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Keeps the last 25 waves in memory until RuneLite closes: tiles, hitpoints, prayers, attacks, projectiles, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
-		position = 5
+		description = "Keeps the last 25 waves for Past waves: tiles, hitpoints, prayers, attacks, projectiles, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
+		position = 6
 	)
 	default boolean recordWaveLog()
+	{
+		return true;
+	}
+
+	String KEEP_RUNS = "keepRuns";
+
+	@ConfigItem(
+		keyName = KEEP_RUNS,
+		name = "Keep runs between sessions",
+		description = "Saves the waves Record wave log keeps on this computer, in RuneLite's folder for this plugin, each account's apart, so that Past waves still lists them after RuneLite closes. Nothing is sent anywhere. Off, they last until RuneLite closes, and those saved are deleted.",
+		position = 7
+	)
+	default boolean keepRuns()
 	{
 		return true;
 	}
@@ -76,11 +102,11 @@ public interface SolSurvivorConfig extends Config
 	 */
 	String SHARE_WARNING = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers";
 
-	/** The two settings that send something to the site, together, so that the player sees both are off by default. */
+	/** The settings that send something to the site, together, so that the player sees they are off by default. */
 	@ConfigSection(
 		name = "Sending to the site",
-		description = "Off until you switch them on. With both off, the plugin sends nothing to the Sol Survivor site.",
-		position = 6
+		description = "Off until you switch them on. With Upload past runs and Share wave logs off, the plugin sends nothing to the Sol Survivor site.",
+		position = 8
 	)
 	String sendingSection = "sending";
 
@@ -100,7 +126,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "shareWaveLogs",
 		name = "Share wave logs",
-		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games, and its Learned ranking trained on how waves start. No account name or combat levels; your gear only with Include gear and stats on. Never shown on the site, and deleted after 90 days. Needs Record wave log.",
+		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games, and its Learned ranking trained on how waves start. No account name or combat levels; your gear only with Include gear and stats on. Shown on the site only on its leaderboard, with Leaderboard on, and deleted after 90 days but for the leaderboard's records. Needs Record wave log.",
 		warning = SHARE_WARNING,
 		position = 2,
 		section = sendingSection
@@ -110,10 +136,64 @@ public interface SolSurvivorConfig extends Config
 		return false;
 	}
 
+	/** Whether the player's waves go on the site's leaderboard (core.BoardEntry); off by default. */
+	String LEADERBOARD = "leaderboard";
+
+	/**
+	 * The warning RuneLite shows as the player switches the leaderboard on: like SHARE_WARNING, and saying that the name
+	 * goes up in public, their RuneScape name unless they typed another (the user's choice, 2026-10-26).
+	 */
+	String LEADERBOARD_WARNING = "This puts your wave times on the Sol Survivor site's public leaderboard under your RuneScape name, or the Leaderboard name you type, on a 3rd-party server not controlled or verified by RuneLite developers";
+
+	@ConfigItem(
+		keyName = LEADERBOARD,
+		name = "Leaderboard",
+		description = "Puts each wave you finish on the Sol Survivor site's leaderboard, timed by the game's own wave clock, where anyone can see it and watch the run: under your RuneScape name, or the Leaderboard name below. Needs Share wave logs.",
+		warning = LEADERBOARD_WARNING,
+		position = 3,
+		section = sendingSection
+	)
+	default boolean leaderboard()
+	{
+		return false;
+	}
+
+	/** The name the player's times go up under on the leaderboard; blank, their RuneScape name. */
+	String LEADERBOARD_NAME = "leaderboardName";
+
+	@ConfigItem(
+		keyName = LEADERBOARD_NAME,
+		name = "Leaderboard name",
+		description = "The name your waves go up under with Leaderboard on. Blank, your RuneScape name. Up to 12 letters, digits, spaces, hyphens or underscores.",
+		position = 4,
+		section = sendingSection
+	)
+	default String leaderboardName()
+	{
+		return "";
+	}
+
+	/**
+	 * The player's key on the leaderboard (core.BoardEntry): a random secret made the first time a wave goes up, which keeps
+	 * the name and the times the player's and lets Remove my times find them; not shown.
+	 */
+	String LEADERBOARD_KEY = "leaderboardKey";
+
+	@ConfigItem(
+		keyName = LEADERBOARD_KEY,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default String leaderboardKey()
+	{
+		return "";
+	}
+
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 7,
+		position = 9,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
@@ -175,7 +255,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 8,
+		position = 10,
 		closedByDefault = true
 	)
 	String prayerSection = "prayer";

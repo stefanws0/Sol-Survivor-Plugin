@@ -52,8 +52,9 @@ modifier pick with his offers, the modifiers you hold and the next wave filled i
 Each of these also copies its link, so you can share the wave. A hotkey, unset by default, copies the arena's link
 without leaving the game.
 
-**Past waves** lists every wave since RuneLite started, grouped by run, newest first. Click a run's head to fold it
-open or shut. Each wave's line has three buttons:
+**Past waves** lists your last 25 waves, grouped by run, newest first, and keeps them when RuneLite closes. Each
+wave's line gives its time and the glory it earned, by the game's own counter, and each run adds up its glory under
+its head. Click a run's head to fold it open or shut. Each wave's line has three buttons:
 
 - The play button opens the wave as it was on its first tick.
 - The two-figure button opens it on the tick its reinforcements came.
@@ -62,6 +63,9 @@ open or shut. Each wave's line has three buttons:
 
 **Watch**, on a run's head, opens the whole run on the site to watch back. The copy button beside it copies the whole
 run for the site's log checker. The question mark at the top of the panel sums all this up.
+
+With **Leaderboard** on, a **Leaderboard** row shows the name your waves go up under, with **Open**, which opens
+the site's leaderboard outside a wave, and **Remove my times**.
 
 <br clear="right">
 
@@ -81,6 +85,16 @@ prayer you had up when it landed.
 
 ![A recorded wave 6 on Sol Survivor's run review, at the moment four hits got through and the prayer that was up when they landed](images/run-review.webp)
 
+## The leaderboard
+
+Switch **Leaderboard** on in the settings, with **Share wave logs**, and each wave you finish goes on the
+[Sol Survivor leaderboard](https://solsurvivor.app/leaderboard) under your RuneScape name, or the **Leaderboard name**
+you type instead: the full run, each wave, and the sum of
+your best waves, timed by the game's own wave clock, with the modifiers you held. As a wave ends, the panel and the
+chat say its time and place. Anyone can watch a run on the boards, wave by wave, in the site's run review. A time the
+game's clock does not back is not counted, and one that looks too good to be true is held for a look before it shows.
+**Remove my times** takes your name and every time of yours off, and switches Leaderboard off.
+
 ## Privacy
 
 - **A wave link keeps the arena after its `#`**, the part of a link that browsers do not send to the site's server.
@@ -96,10 +110,18 @@ prayer you had up when it landed.
   account name, world or time of day, and no combat levels or prayer unlocks: your gear only with **Include gear and
   stats** on, and then without them. A run's waves share a random id that the plugin forgets when you leave the
   arena, so that nothing joins one of your runs to another. The site keeps the day a log came, not your address, shows
-  the logs to nobody, and deletes each after 90 days.
+  the logs to nobody but on the leaderboard, and deletes each after 90 days.
+- **The leaderboard is off until you switch it on**, and RuneLite warns as you do that your name goes up in public.
+  Then, as the site takes each wave's log, the plugin asks for the wave to go on the leaderboard (`/api/board/waves`)
+  under your RuneScape name, or the Leaderboard name you typed, with the run's random id and a random key of yours that
+  the plugin makes once and keeps in RuneLite's settings, so that the name and the times stay yours. Anyone can see the names, times and modifiers on the boards and
+  watch their runs from the shared logs; the logs of a run in the first 20 places of a board are kept past their 90
+  days while it stays there. **Remove my times** (`/api/board/remove`) deletes your name and every time of yours.
 - **Both are off until you turn them on**, and RuneLite warns as you do that each sends your IP address to a server it
-  does not run. With both off, the plugin sends nothing.
-- **Wave logs stay in memory** until RuneLite closes, unless you copy one, watch a run or share them. With
+  does not run. With both off, the plugin sends nothing, Leaderboard on or not.
+- **Wave logs stay on your computer**, unless you copy one, watch a run or share them. With **Keep runs between
+  sessions** on, they are saved in RuneLite's folder for this plugin, each account's apart, and only the last 25 are
+  kept. With
   **Count my flicks** on, RuneLite's settings keep how many attacks you prayed against on time or late in your
   newest 60 waves, and the wave links carry those totals after their `#` too.
 
@@ -117,13 +139,21 @@ each NPC.
 - **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
 - **Open panel on entering**: on by default. Opens the panel as you enter the Colosseum, and RuneLite's sidebar with
   it if it is shut. Open another panel during the run and it stays open until you next come in.
-- **Record wave log**: on by default. It keeps the last 25 waves in memory, up to 1,500 ticks each, until RuneLite
-  closes.
-- **Sending to the site**: the two settings that send something, together.
+- **Show only at the Colosseum**: off by default. Shows the plugin's sun in RuneLite's sidebar only in the Colosseum
+  and its lobby, so Past waves is at hand only there.
+- **Record wave log**: on by default. It keeps the last 25 waves for Past waves, up to 1,500 ticks each.
+- **Keep runs between sessions**: on by default. Saves those waves on your computer, each account's apart, so that
+  Past waves still lists them after RuneLite closes. Switch it off to delete the saved waves; Past waves then lasts
+  until RuneLite closes.
+- **Sending to the site**: the settings that send something, together.
   - **Upload past runs**: off by default. Lets a run's Watch button upload that run to the site (see Privacy); until
     it is on, pressing Watch says so.
   - **Share wave logs**: off by default. Sends each wave's log to the site as the wave ends (see Privacy). It
     needs **Record wave log**, and the panel says so under Past waves while it is on.
+  - **Leaderboard**: off by default. Puts each wave you finish on the site's leaderboard (see The leaderboard), under
+    your RuneScape name or the name below. It needs **Share wave logs**.
+  - **Leaderboard name**: blank by default, for your RuneScape name. Another name for the leaderboard: 1 to 12 letters,
+    digits, spaces, hyphens or underscores.
 - **Safe / Fast / Easy**: with **Set the triangle** on, every wave you open from the plugin starts with the site's
   Safe / Fast / Easy triangle where you set it, and so with the plan it suggests, instead of where you last left it.
   Copy the three numbers from the site's readout under the triangle, such as Safe 10% · Fast 0% · Easy 90%; they need

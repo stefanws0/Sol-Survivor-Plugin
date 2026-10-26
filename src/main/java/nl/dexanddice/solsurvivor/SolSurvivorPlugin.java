@@ -5,13 +5,18 @@ import com.google.inject.Provides;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import net.runelite.api.Actor;
@@ -65,10 +70,12 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.Filepath;
 import net.runelite.client.util.HotkeyListener;
 import net.runelite.client.util.LinkBrowser;
 import nl.dexanddice.solsurvivor.core.ArenaGeometry;
 import nl.dexanddice.solsurvivor.core.ArenaState;
+import nl.dexanddice.solsurvivor.core.BoardEntry;
 import nl.dexanddice.solsurvivor.core.ChestItem;
 import nl.dexanddice.solsurvivor.core.ColosseumCounter;
 import nl.dexanddice.solsurvivor.core.ColosseumTracker;
@@ -89,6 +96,7 @@ import nl.dexanddice.solsurvivor.core.TriangleDot;
 import nl.dexanddice.solsurvivor.core.WaveLog;
 import nl.dexanddice.solsurvivor.core.WaveLogWriter;
 import nl.dexanddice.solsurvivor.core.WaveShare;
+import nl.dexanddice.solsurvivor.core.WaveStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import okhttp3.Call;
@@ -109,18 +117,23 @@ import okhttp3.Response;
  * reads the arena on the client thread when a link is asked for. With "Record wave log" on it also records each wave it
  * saw start, a tick at a time, in a WaveLog that keeps the waves since the plugin started and that the panel copies as
  * JSON for the site's wave reviewer, any of them picked from a list, or every wave of the newest run in one paste
- * (RunLogWriter).
+ * (RunLogWriter). With "Keep runs between sessions" on, as it is by default, each wave's log is saved as it ends in the
+ * plugin's own folder of RuneLite's, each account's apart (core.WaveStore), and the account gets them back in Past waves
+ * as it logs in, so that a run can still be copied or watched after RuneLite closes.
  *
  * A run's Watch, with "Upload past runs" on (off by default), uploads only the selected run to the site, then opens its
  * recording in the browser. With "Share wave logs" on, off by default too, each wave's log goes to the site as the wave
- * ends, without the levels (core.WaveShare). Nothing else goes to the site. With "Count my flicks" on, off by default
+ * ends, without the levels (core.WaveShare), and with "Leaderboard" on too, the wave then goes on the site's
+ * leaderboard under the player's RuneScape name or the Leaderboard name they typed (core.BoardEntry). Nothing else goes to the site. With "Count my flicks" on, off by default
  * too, each wave's protection prayers are counted as it ends (core.PrayerFlicks), and the links carry the totals for the
  * site's Prayer reliability (core.PrayerRecord), in the hash with the rest.
  */
 @PluginDescriptor(
 	name = "Sol Survivor",
-	description = "Opens the Fortis Colosseum's arena in Sol Survivor. Draws nothing in the game. Off by default: Upload past runs lets a past run's Watch button upload it to the Sol Survivor site and open it in your browser, and Share wave logs sends each wave's log to the site.",
-	tags = {"fortis", "colosseum", "sol", "planner", "export"}
+	// The name the Plugin Hub knows it by (its plugins/sol-survivor), which names its folder for the saved runs.
+	internalName = "sol-survivor",
+	description = "Opens the Fortis Colosseum's arena in Sol Survivor, a planner and solver in your browser for the waves between you and Dizana's quiver. Draws nothing in the game. Off by default: Upload past runs lets a past run's Watch button upload it to the Sol Survivor site and open it in your browser; Share wave logs sends each wave's log to the site and, with Leaderboard on, puts your waves on its leaderboard.",
+	tags = {"fortis", "colosseum", "colo", "varlamore", "sol", "planner", "solver", "quiver", "stack", "wave", "los", "export"}
 )
 public class SolSurvivorPlugin extends Plugin
 {
@@ -134,10 +147,11 @@ public class SolSurvivorPlugin extends Plugin
 	 */
 	static final String SITE = "https://solsurvivor.app/";
 
-	/** The script that fills the modifier selector, with the three on offer and the mask of those taken. */
+	/**
+	 * The script that fills the modifier selector, with the three on offer and the mask of those taken. RuneLite's
+	 * gamevals name no scripts, so its id is kept here.
+	 */
 	private static final int SCRIPT_MODIFIER_SELECT_INIT = 4931;
-	/** The option picked in the selector, 1 to 3, read when Minimus leaves. */
-	private static final int VARBIT_MODIFIER_SELECTED = 9788;
 
 	@Inject
 	private Client client;
@@ -179,6 +193,8 @@ public class SolSurvivorPlugin extends Plugin
 
 	/** The last shared wave log on its way to the site, cancelled on shutdown. */
 	private volatile Call shareCall;
+	/** The last request to the leaderboard, a wave going on it or Remove my times, cancelled on shutdown. */
+	private volatile Call boardCall;
 	/** Which run the waves belong to and which log was shared last, for "Share wave logs"; on the client thread only. */
 	private final WaveShare waveShare = new WaveShare();
 
@@ -206,8 +222,23 @@ public class SolSurvivorPlugin extends Plugin
 	/** The id of the last wave log whose turn to be counted came, so that each is counted once (countFlicks). */
 	private int flicksCounted;
 
+	/**
+	 * "Keep runs between sessions": the account whose waves the log holds, by its hash, or -1 before one logged in with
+	 * the setting on; and its folder for them, under the plugin's own, or null until RuneLite's executor has found it. On
+	 * the client thread only.
+	 */
+	private long runsAccount = -1;
+	private Filepath runsFolder;
+	/** The id of the last wave log whose turn to be saved came, so that each is saved once (saveLog). */
+	private int logSaved;
+
 	private SolSurvivorPanel panel;
 	private NavigationButton navButton;
+	/**
+	 * Whether the sidebar holds the plugin's sun, which "Show only at the Colosseum" takes away outside the arena and its
+	 * lobby (updateButton). On the client thread, after startUp.
+	 */
+	private boolean buttonShown;
 	/** What the panel last showed, so that it is redrawn only when that changes rather than every tick. */
 	private boolean shownInColosseum;
 	private String shownTitle;
@@ -216,6 +247,8 @@ public class SolSurvivorPlugin extends Plugin
 	private List<SolSurvivorPanel.RunGroup> shownRuns = new ArrayList<>();
 	private boolean shownOffers;
 	private boolean shownSharing;
+	private String shownBoard;
+	private boolean shownBoardOpen;
 
 	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.copyHotkey())
 	{
@@ -278,6 +311,18 @@ public class SolSurvivorPlugin extends Plugin
 			{
 				SolSurvivorPlugin.this.openPastRun(id);
 			}
+
+			@Override
+			public void openLeaderboard()
+			{
+				LinkBrowser.browse(BoardEntry.page(SITE));
+			}
+
+			@Override
+			public void removeTimes()
+			{
+				SolSurvivorPlugin.this.removeTimes();
+			}
 		});
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
@@ -285,9 +330,22 @@ public class SolSurvivorPlugin extends Plugin
 			.priority(10)
 			.panel(panel)
 			.build();
-		clientToolbar.addNavigation(navButton);
+		// With "Show only at the Colosseum" on, the first tick in the arena or its lobby puts the sun in the sidebar.
+		buttonShown = !config.onlyAtColosseum();
+		if (buttonShown)
+		{
+			clientToolbar.addNavigation(navButton);
+		}
 		keyManager.registerKeyListener(hotkeyListener);
 		prayerRecord = PrayerRecord.of(config.prayerRecord());
+		// Switched on while logged in: the account's saved waves come back now, not at its next login.
+		clientThread.invokeLater(() ->
+		{
+			if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				openRuns();
+			}
+		});
 	}
 
 	@Override
@@ -304,6 +362,12 @@ public class SolSurvivorPlugin extends Plugin
 		if (sharing != null)
 		{
 			sharing.cancel();
+		}
+		Call board = boardCall;
+		boardCall = null;
+		if (board != null)
+		{
+			board.cancel();
 		}
 		keyManager.unregisterKeyListener(hotkeyListener);
 		clientToolbar.removeNavigation(navButton);
@@ -327,6 +391,10 @@ public class SolSurvivorPlugin extends Plugin
 			shownRuns = new ArrayList<>();
 			shownOffers = false;
 			shownSharing = false;
+			shownBoard = null;
+			shownBoardOpen = false;
+			runsAccount = -1;
+			runsFolder = null;
 		});
 	}
 
@@ -338,11 +406,17 @@ public class SolSurvivorPlugin extends Plugin
 		if (state == GameState.LOGIN_SCREEN || state == GameState.LOGGING_IN || state == GameState.HOPPING)
 		{
 			leave();
+			// No ticks come at the login screen, so the sidebar's sun goes now, with "Show only at the Colosseum" on.
+			updateButton();
 		}
 		else if (state == GameState.LOADING)
 		{
 			// The scene loads again and spawns its objects anew, the molten sand among them.
 			tracker.onSceneLoading();
+		}
+		else if (state == GameState.LOGGED_IN)
+		{
+			openRuns();
 		}
 	}
 
@@ -369,6 +443,36 @@ public class SolSurvivorPlugin extends Plugin
 			});
 			return;
 		}
+		if (SolSurvivorConfig.LEADERBOARD.equals(e.getKey()) || SolSurvivorConfig.LEADERBOARD_NAME.equals(e.getKey()))
+		{
+			clientThread.invokeLater(() ->
+			{
+				boardNameNote();
+				updatePanel();
+			});
+			return;
+		}
+		if (SolSurvivorConfig.ONLY_AT_COLOSSEUM.equals(e.getKey()))
+		{
+			clientThread.invokeLater(this::updateButton);
+			return;
+		}
+		if (SolSurvivorConfig.KEEP_RUNS.equals(e.getKey()))
+		{
+			clientThread.invokeLater(() ->
+			{
+				if (config.keepRuns())
+				{
+					// From now on each wave is saved as it ends: those already in Past waves stay in memory alone.
+					openRuns();
+					return;
+				}
+				runsAccount = -1;
+				runsFolder = null;
+				executor.execute(this::deleteRuns);
+			});
+			return;
+		}
 		if (!("recordWaveLog".equals(e.getKey()) || "shareWaveLogs".equals(e.getKey())))
 		{
 			return;
@@ -379,6 +483,13 @@ public class SolSurvivorPlugin extends Plugin
 			{
 				waveLog.clear();
 				waveLog.discardPending();
+				// Switched on again, the account's saved waves come back, as the log was emptied.
+				runsAccount = -1;
+				runsFolder = null;
+			}
+			else if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				openRuns();
 			}
 			updatePanel();
 		});
@@ -432,8 +543,8 @@ public class SolSurvivorPlugin extends Plugin
 		tracker.onNpcDespawned(npc.getIndex());
 		if (inColosseum && npc.getId() == NpcID.COLOSSEUM_MASTER)
 		{
-			// Minimus leaves once a modifier is picked.
-			tracker.onModifierChosen(client.getVarbitValue(VARBIT_MODIFIER_SELECTED));
+			// Minimus leaves once a modifier is picked, which the varbit holds as the option picked, 1 to 3.
+			tracker.onModifierChosen(client.getVarbitValue(VarbitID.COLOSSEUM_SELECTED_MODIFIER));
 		}
 	}
 
@@ -555,15 +666,18 @@ public class SolSurvivorPlugin extends Plugin
 	public void onGameTick(GameTick e)
 	{
 		boolean now = isInColosseum();
+		boolean entered = !inColosseum && now;
 		if (inColosseum && !now)
 		{
 			leave();
 		}
-		else if (!inColosseum && now)
+		inColosseum = now;
+		// The sun first, so that the panel opening on entering has its button in the sidebar.
+		updateButton();
+		if (entered)
 		{
 			openOnEntering();
 		}
-		inColosseum = now;
 		if (!inColosseum)
 		{
 			return;
@@ -636,6 +750,7 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			// The last wave's log, when its end was never seen, has its turn before the next wave's starts.
 			shareLog();
+			saveLog();
 			countFlicks();
 			waveShare.onWaveStart(tracker.getWave());
 			waveLog.start(tracker.getWave(), tick, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), tracker.isModifiersComplete(),
@@ -665,6 +780,7 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			waveLog.finish(WaveLog.End.COMPLETED);
 			shareLog();
+			saveLog();
 			countFlicks();
 		}
 	}
@@ -712,6 +828,9 @@ public class SolSurvivorPlugin extends Plugin
 			return;
 		}
 		WaveLog done = waveLog.snapshot();
+		// With Leaderboard on, the wave goes on the boards once the site has its log, which the boards read it from.
+		String name = boardName();
+		String entry = name == null || done.getWave() == null ? null : BoardEntry.body(run, done.getWave(), name, boardKey());
 		Request request = new Request.Builder().url(WaveShare.endpoint(SITE)).header(WaveShare.RUN_HEADER, run)
 			.post(new LazyBody(WaveShare.TYPE, () -> WaveShare.gzip(WaveLogWriter.toShare(done)))).build();
 		Call call = httpClient.newCall(request);
@@ -727,13 +846,292 @@ public class SolSurvivorPlugin extends Plugin
 			@Override
 			public void onResponse(Call completed, Response response)
 			{
-				if (!response.isSuccessful())
+				boolean taken = response.isSuccessful();
+				if (!taken)
 				{
 					log.debug("The site did not take the shared wave log: {}", response.code());
 				}
 				response.close();
+				if (taken && entry != null)
+				{
+					enterBoard(entry, name);
+				}
 			}
 		});
+	}
+
+	/**
+	 * The player's key on the leaderboard (core.BoardEntry), made and kept in the settings the first time a wave goes up,
+	 * so that the name and the times stay the player's. On the client thread.
+	 */
+	private String boardKey()
+	{
+		String key = config.leaderboardKey();
+		if (!BoardEntry.isKey(key))
+		{
+			key = BoardEntry.newKey(new SecureRandom());
+			configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD_KEY, key);
+		}
+		return key;
+	}
+
+	/**
+	 * Asks for a wave whose log the site has taken to go on the leaderboard, with its body (BoardEntry.body), `name` being
+	 * the name in it, and tells the player what became of it: its time and place, or why it is not on. A request the site
+	 * refuses or cannot reach is dropped without a word, as a shared log is.
+	 */
+	private void enterBoard(String entry, String name)
+	{
+		Call call = httpClient.newCall(BoardUpload.enter(SITE, entry));
+		boardCall = call;
+		call.enqueue(new Callback()
+		{
+			@Override
+			public void onFailure(Call failed, IOException ex)
+			{
+				log.debug("Could not put the wave on the leaderboard", ex);
+			}
+
+			@Override
+			public void onResponse(Call completed, Response response)
+			{
+				String said;
+				try (Response closed = response)
+				{
+					said = BoardUpload.entered(gson, closed, name);
+				}
+				if (said != null)
+				{
+					clientThread.invokeLater(() -> report(said));
+				}
+			}
+		});
+	}
+
+	/**
+	 * The wave log under way or the last one has its turn to be saved, as its wave ends: with "Keep runs between sessions"
+	 * on it goes to the account's folder (core.WaveStore), and the account's waves past the newest WaveStore.MAX_SAVED are
+	 * deleted. Each log has one turn, as shareLog's. On the client thread as far as a snapshot of the log: its JSON, the
+	 * gzip and the files go on RuneLite's executor, as RuneLite's plugin guide keeps disk work off the client thread. A
+	 * wave that cannot be saved stays in Past waves until RuneLite closes, as before the setting.
+	 */
+	private void saveLog()
+	{
+		if (!waveLog.hasLog() || waveLog.size() == 0 || waveLog.getId() == logSaved)
+		{
+			return;
+		}
+		logSaved = waveLog.getId();
+		Filepath folder = runsFolder;
+		if (folder == null || !config.keepRuns())
+		{
+			return;
+		}
+		WaveLog.Past wave = waveLog.current();
+		long savedAt = System.currentTimeMillis();
+		executor.execute(() ->
+		{
+			try
+			{
+				folder.createDirectories();
+				try (OutputStream out = folder.joinSegment(WaveStore.fileName(savedAt, wave.getWave())).openOutputStream())
+				{
+					WaveStore.write(wave, out);
+				}
+				for (String old : WaveStore.beyond(fileNames(folder), WaveStore.MAX_SAVED))
+				{
+					folder.joinSegment(old).deleteIfExists();
+				}
+			}
+			catch (IOException | RuntimeException ex)
+			{
+				log.warn("Could not save the log of wave {}", wave.getWave(), ex);
+			}
+		});
+	}
+
+	/**
+	 * The name the player's waves go up under: the Leaderboard name they typed, or else their RuneScape name (the user's
+	 * choice, 2026-10-26); null with Leaderboard off, before the player is logged in, or for a name the site would refuse.
+	 * On the client thread.
+	 */
+	private String boardName()
+	{
+		if (!config.leaderboard())
+		{
+			return null;
+		}
+		String typed = config.leaderboardName();
+		if (!BoardEntry.isBlank(typed))
+		{
+			return BoardEntry.name(typed);
+		}
+		Player player = client.getLocalPlayer();
+		return player == null ? null : BoardEntry.fromPlayer(player.getName());
+	}
+
+	/** Leaderboard switched on, or a name typed, that the site would refuse or that needs Share wave logs is said so at once. */
+	private void boardNameNote()
+	{
+		if (!config.leaderboard())
+		{
+			return;
+		}
+		String typed = config.leaderboardName();
+		if (!BoardEntry.isBlank(typed) && BoardEntry.name(typed) == null)
+		{
+			report("The Leaderboard name must be 1 to 12 letters, digits, spaces, hyphens or underscores, beginning and ending with a letter or digit.");
+		}
+		else if (!config.shareWaveLogs() || !config.recordWaveLog())
+		{
+			report("The leaderboard needs Share wave logs and Record wave log on too: your waves go on it from their logs.");
+		}
+	}
+
+	/**
+	 * Remove my times, once the player confirmed it on the panel: takes every time of theirs off the leaderboard, with
+	 * their name, and switches Leaderboard off so that no more go up.
+	 */
+	private void removeTimes()
+	{
+		clientThread.invokeLater(() ->
+		{
+			String key = config.leaderboardKey();
+			if (!BoardEntry.isKey(key))
+			{
+				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD, false);
+				report("You have no times on the leaderboard.");
+				return;
+			}
+			Call call = httpClient.newCall(BoardUpload.remove(SITE, key));
+			boardCall = call;
+			report("Removing your times from the leaderboard…");
+			call.enqueue(new Callback()
+			{
+				@Override
+				public void onFailure(Call failed, IOException ex)
+				{
+					clientThread.invokeLater(() -> report("The site could not be reached, so your times are still on the leaderboard. Try again."));
+				}
+
+				@Override
+				public void onResponse(Call completed, Response response)
+				{
+					String said;
+					try (Response closed = response)
+					{
+						int waves = BoardUpload.removed(gson, closed);
+						said = (waves == 1 ? "Your one time is" : waves == 0 ? "You had no times, and nothing is" : "Your " + waves + " times are")
+							+ " off the leaderboard, with your name, and Leaderboard is switched off in the settings.";
+						clientThread.invokeLater(() -> configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD, false));
+					}
+					catch (IOException ex)
+					{
+						said = ex.getMessage();
+					}
+					String message = said;
+					clientThread.invokeLater(() -> report(message));
+				}
+			});
+		});
+	}
+
+	/**
+	 * With "Keep runs between sessions" and "Record wave log" on, the account logged in gets its saved waves back in
+	 * Past waves, behind any of this session's (WaveLog.restore). Another account's waves in the log are let go first, so
+	 * that each account sees its own. The folder is found and the files read on RuneLite's executor; a file that cannot
+	 * be read is passed over. On the client thread.
+	 */
+	private void openRuns()
+	{
+		long account = client.getAccountHash();
+		if (account == -1 || account == runsAccount || !config.keepRuns() || !config.recordWaveLog())
+		{
+			return;
+		}
+		if (runsAccount != -1)
+		{
+			waveLog.clear();
+		}
+		runsAccount = account;
+		runsFolder = null;
+		executor.execute(() ->
+		{
+			Filepath folder = null;
+			List<WaveLog.Past> saved = new ArrayList<>();
+			try
+			{
+				folder = getPluginDirectory().joinSegment(Long.toString(account));
+				for (String name : WaveStore.newestFirst(fileNames(folder)))
+				{
+					if (saved.size() >= WaveLog.MAX_PAST)
+					{
+						break;
+					}
+					try (InputStream in = folder.joinSegment(name).openInputStream())
+					{
+						saved.add(WaveStore.read(in));
+					}
+					catch (IOException ex)
+					{
+						log.debug("Could not read the saved wave {}", name, ex);
+					}
+				}
+			}
+			catch (IOException | RuntimeException ex)
+			{
+				log.warn("Could not read the saved runs", ex);
+			}
+			Filepath found = folder;
+			clientThread.invokeLater(() ->
+			{
+				// Another account may have logged in, or the setting gone off, while the files were read.
+				if (runsAccount != account)
+				{
+					return;
+				}
+				runsFolder = found;
+				waveLog.restore(saved);
+				updatePanel();
+			});
+		});
+	}
+
+	/** "Keep runs between sessions" switched off: every account's saved waves are deleted. On RuneLite's executor. */
+	private void deleteRuns()
+	{
+		try
+		{
+			Filepath root = getPluginDirectory();
+			List<Filepath> waves = new ArrayList<>();
+			try (Stream<Filepath> files = root.walk(2))
+			{
+				files.filter(f -> f.isFile() && f.getFileName().endsWith(WaveStore.SUFFIX)).forEach(waves::add);
+			}
+			for (Filepath wave : waves)
+			{
+				wave.deleteIfExists();
+			}
+		}
+		catch (IOException | RuntimeException ex)
+		{
+			log.warn("Could not delete the saved runs", ex);
+		}
+	}
+
+	/** The names of the files in `folder`, none when it is not there yet. */
+	private static List<String> fileNames(Filepath folder) throws IOException
+	{
+		List<String> names = new ArrayList<>();
+		if (!folder.isDirectory())
+		{
+			return names;
+		}
+		try (Stream<Filepath> files = folder.walk(1))
+		{
+			files.filter(Filepath::isFile).forEach(f -> names.add(f.getFileName()));
+		}
+		return names;
 	}
 
 	/**
@@ -895,6 +1293,7 @@ public class SolSurvivorPlugin extends Plugin
 		// The log of a wave the player died in or ran from is kept, so that it can be copied after, and shared as it ends.
 		waveLog.finish(WaveLog.End.LEFT);
 		shareLog();
+		saveLog();
 		countFlicks();
 		seenProjectiles.clear();
 		waveShare.onLeave();
@@ -919,6 +1318,39 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			SwingUtilities.invokeLater(() -> clientToolbar.openPanel(button));
 		}
+	}
+
+	/**
+	 * With "Show only at the Colosseum" on, the plugin's sun is in RuneLite's sidebar only while the player is in the arena
+	 * or its lobby, as players asked of other minigames' plugins (the ToA and ToB Mistake Trackers' issues 9 and 11); off,
+	 * it always is. ClientToolbar adds and takes it on Swing's thread, in turn with openOnEntering's opening. On the
+	 * client thread.
+	 */
+	private void updateButton()
+	{
+		boolean show = !config.onlyAtColosseum() || inColosseum || isInLobby();
+		NavigationButton button = navButton;
+		if (show == buttonShown || button == null)
+		{
+			return;
+		}
+		buttonShown = show;
+		if (show)
+		{
+			clientToolbar.addNavigation(button);
+		}
+		else
+		{
+			clientToolbar.removeNavigation(button);
+		}
+	}
+
+	/** Whether the player is in the Colosseum's lobby, the region the run is entered from. */
+	private boolean isInLobby()
+	{
+		Player player = client.getLocalPlayer();
+		LocalPoint lp = player == null ? null : player.getLocalLocation();
+		return lp != null && WorldPoint.fromLocalInstance(client, lp).getRegionID() == ArenaGeometry.LOBBY_REGION_ID;
 	}
 
 	private boolean isInColosseum()
@@ -1530,8 +1962,19 @@ public class SolSurvivorPlugin extends Plugin
 		List<SolSurvivorPanel.RunGroup> runs = runGroups();
 		boolean offers = !tracker.getOptions().isEmpty();
 		boolean sharing = config.shareWaveLogs() && config.recordWaveLog();
+		// The leaderboard's row, while Leaderboard is on with a name, or Remove my times has times to take off; its page
+		// opens only outside a wave, as the plugin shows nothing of the boards while one is under way.
+		String board = boardName();
+		if (board == null && config.leaderboard() && BoardEntry.isBlank(config.leaderboardName()))
+		{
+			// Logged out, the RuneScape name is not known yet.
+			board = "your RuneScape name";
+		}
+		String boardRow = board != null ? board : BoardEntry.isKey(config.leaderboardKey()) ? "" : null;
+		boolean boardOpen = !(colosseum && tracker.isWaveStarted());
 		if (colosseum == shownInColosseum && title.equals(shownTitle) && state.equals(shownState)
-			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers && sharing == shownSharing)
+			&& note.equals(shownNote) && runs.equals(shownRuns) && offers == shownOffers && sharing == shownSharing
+			&& Objects.equals(boardRow, shownBoard) && boardOpen == shownBoardOpen)
 		{
 			return;
 		}
@@ -1542,10 +1985,13 @@ public class SolSurvivorPlugin extends Plugin
 		shownRuns = runs;
 		shownOffers = offers;
 		shownSharing = sharing;
+		shownBoard = boardRow;
+		shownBoardOpen = boardOpen;
 		SwingUtilities.invokeLater(() ->
 		{
 			p.showState(colosseum, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
+			p.showBoard(boardRow, sharing, boardOpen);
 		});
 	}
 
@@ -1562,23 +2008,43 @@ public class SolSurvivorPlugin extends Plugin
 			List<WaveLog.Past> run = runs.get(i);
 			List<SolSurvivorPanel.WaveRow> rows = new ArrayList<>();
 			int ticksDone = 0;
+			Integer gloryDone = null;
 			for (WaveLog.Past wave : run)
 			{
-				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave.getEnd());
+				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave.getEnd()) + glory(wave.getGlory());
 				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.isRecording(),
 					wave.getStartState() != null, wave.getReinforcementState() != null));
 				if (!wave.isRecording())
 				{
 					ticksDone += wave.size();
 				}
+				if (wave.getGlory() != null)
+				{
+					gloryDone = (gloryDone == null ? 0 : gloryDone) + wave.getGlory();
+				}
 			}
 			int from = run.get(0).getWave();
 			int to = run.get(run.size() - 1).getWave();
 			String waves = from == to ? "Wave " + from : "Waves " + from + "\u2013" + to;
 			String detail = ticksDone > 0 ? waves + " \u00b7 " + duration(ticksDone) : waves;
-			out.add(new SolSurvivorPanel.RunGroup(run.get(0).getId(), i == 0 ? "Latest run" : "Earlier run", detail, rows));
+			out.add(new SolSurvivorPanel.RunGroup(run.get(0).getId(), i == 0 ? "Latest run" : "Earlier run", detail,
+				gloryDone == null ? null : gloryText(gloryDone), rows));
 		}
 		return out;
+	}
+
+	/**
+	 * A wave's glory after its time, by the game's own counter (WaveLog.getGlory): only a wave completed earned any, and a
+	 * run's is that of its waves completed, as the game counts nothing from a death on.
+	 */
+	private static String glory(Integer glory)
+	{
+		return glory == null ? "" : " \u00b7 " + gloryText(glory);
+	}
+
+	private static String gloryText(int glory)
+	{
+		return String.format(Locale.UK, "%,d glory", glory);
 	}
 
 	/** A wave's length in game time, minutes and seconds, from its ticks of 0.6 seconds. */

@@ -275,6 +275,80 @@ public class WaveLogTest
 		assertEquals(0, log.getId());
 	}
 
+	/** The counters with the glory counter at `glory`, the rest as COUNTERS. */
+	private static int[] glory(int glory)
+	{
+		int[] counters = COUNTERS.clone();
+		counters[ColosseumCounter.CURRENT_GLORY.ordinal()] = glory;
+		return counters;
+	}
+
+	@Test
+	public void aCompletedWaveEarnsTheGloryItsCounterRoseByAndOthersNone()
+	{
+		// Wave 4, completed: the counter read 1,200 on the first tick and 2,180 on the last, so it earned 980.
+		startWave4(100);
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), glory(1200));
+		assertNull(log.getGlory());
+		log.record(101, player(7, 14, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), glory(1200));
+		log.record(102, player(7, 13, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), glory(2180));
+		// Under way it has earned nothing yet, even with the counter risen.
+		assertNull(log.getGlory());
+		assertNull(log.current().getGlory());
+		log.finish(WaveLog.End.COMPLETED);
+		assertEquals(Integer.valueOf(980), log.getGlory());
+		assertEquals(Integer.valueOf(980), log.snapshot().getGlory());
+
+		// The next wave starts: wave 4 keeps its glory among the past ones. Wave 5 the player left, which earns none.
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		assertEquals(Integer.valueOf(980), log.getPast().get(0).getGlory());
+		log.record(200, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), glory(2180));
+		log.record(201, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList(), glory(2500));
+		log.finish(WaveLog.End.LEFT);
+		assertNull(log.getGlory());
+
+		// A wave whose counters could not be read earns none it is known to have.
+		log.start(6, 300, Collections.emptyMap(), true, "test", null);
+		log.record(300, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.finish(WaveLog.End.COMPLETED);
+		assertNull(log.getGlory());
+		assertEquals(Arrays.asList(Integer.valueOf(980), null, null), Arrays.asList(log.getRun().get(0).getGlory(), log.getRun().get(1).getGlory(),
+			log.getRun().get(2).getGlory()));
+	}
+
+	@Test
+	public void wavesSavedInAnEarlierSessionComeBackBehindThisSessionsUnderNewIds()
+	{
+		// The last session's run, waves 1 and 2, as WaveStore reads them back: newest first, each under id 0.
+		WaveLog.Past one = new WaveLog.Past(0, 1, 60, WaveLog.End.COMPLETED, false, () -> "{\"wave\":1}", START_STATE, null, 739);
+		WaveLog.Past two = new WaveLog.Past(0, 2, 140, WaveLog.End.LEFT, false, () -> "{\"wave\":2}", null, null, null);
+		// With no wave this session, Past waves lists them all the same, as one run.
+		log.restore(Arrays.asList(two, one));
+		assertFalse(log.hasLog());
+		List<List<WaveLog.Past>> runs = log.getRuns();
+		assertEquals(1, runs.size());
+		assertEquals(Arrays.asList(1, 2), Arrays.asList(runs.get(0).get(0).getWave(), runs.get(0).get(1).getWave()));
+		assertEquals("{\"wave\":1}", runs.get(0).get(0).getJson());
+		assertEquals(Integer.valueOf(739), runs.get(0).get(0).getGlory());
+		assertEquals(START_STATE, runs.get(0).get(0).getStartState());
+		int firstId = runs.get(0).get(0).getId();
+		int secondId = runs.get(0).get(1).getId();
+		assertTrue(firstId != 0 && secondId != 0 && firstId != secondId);
+
+		// This session's wave 1 is a run of its own, before them, and its id is none of theirs.
+		startWave4(100);
+		log.start(1, 100, Collections.emptyMap(), true, "test", null);
+		log.record(100, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		runs = log.getRuns();
+		assertEquals(Arrays.asList(1, 4, 2), Arrays.asList(runs.get(0).get(0).getWave(), runs.get(1).get(0).getWave(), runs.get(2).get(1).getWave()));
+		assertTrue(log.getId() != firstId && log.getId() != secondId);
+
+		// They count among the past waves kept, so that no more than MAX_PAST are.
+		List<WaveLog.Past> many = Collections.nCopies(WaveLog.MAX_PAST + 3, one);
+		log.restore(many);
+		assertEquals(WaveLog.MAX_PAST, log.getPast().size());
+	}
+
 	@Test
 	public void aSnapshotWritesTheLogAsItWasWhileTheLogGoesOn()
 	{

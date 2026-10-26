@@ -78,7 +78,7 @@ public class PickPayloadTest
 
 	/**
 	 * A run's waves finished go into the pick link: wave 1 clean in 101 ticks, then Blasphemy I taken and wave 2 hit once
-	 * in 121. The game's glory counter is taken as it last read before the next wave started: 598 and 1,656, what the
+	 * in 121. The game's glory counter is taken as it last read before the next wave started: 600 and 1,660, what the
 	 * site's rules make of the two waves, as a made-up check. Its wave damage counter, 7 after wave 2's hit, is kept at
 	 * the most it read, though it reads 0 again before wave 3.
 	 */
@@ -93,19 +93,19 @@ public class PickPayloadTest
 		tracker.onGameMessage("Wave 1 completed!", 200);
 		// The counter may move a tick after the message: the run keeps its last value before the next wave.
 		tracker.onRunTick(levels, 0, 0);
-		tracker.onRunTick(levels, 598, 0);
+		tracker.onRunTick(levels, 600, 0);
 		tracker.onModifierOptions(Modifier.BLASPHEMY.getId(), Modifier.DOOM.getId(), Modifier.FRAILTY.getId(), 0);
 		tracker.onModifierChosen(1);
 		varbits.put(Modifier.BLASPHEMY, 1);
-		tracker.onRunTick(levels, 598, 0);
+		tracker.onRunTick(levels, 600, 0);
 
 		tracker.onGameMessage("Wave: 2", 300);
-		tracker.onRunTick(levels, 598, 0);
+		tracker.onRunTick(levels, 600, 0);
 		tracker.onPlayerHit(7, 16);
-		tracker.onRunTick(levels, 598, 7);
+		tracker.onRunTick(levels, 600, 7);
 		tracker.onGameMessage("Wave 2 completed!", 420);
-		tracker.onRunTick(levels, 1656, 7);
-		tracker.onRunTick(levels, 1656, 0);
+		tracker.onRunTick(levels, 1660, 7);
+		tracker.onRunTick(levels, 1660, 0);
 		tracker.onModifierOptions(Modifier.DOOM.getId(), Modifier.BLASPHEMY.getId(), Modifier.FRAILTY.getId(), 1 << Modifier.BLASPHEMY.getId());
 
 		assertEquals(2, tracker.getRun().size());
