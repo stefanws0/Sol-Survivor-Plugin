@@ -5,7 +5,7 @@ which prayer to have up on every tick, down to the last kill.
 The plugin draws nothing in the game and never plays for you. It reads the arena, turns it into a link, and opens that
 link in your browser.
 
-![Sol Survivor's planner with a wave 7 opened from the plugin: the arena, the plan's steps tick by tick, and the prayer to have up on each tick](images/planner.webp)
+![Sol Survivor's planner with a wave 7 opened from the plugin and solved: the arena, the plans found on the Safe · Fast · Easy triangle, and the chosen plan's tick grid](images/planner.webp)
 
 ## How it works
 
@@ -39,7 +39,7 @@ work. Expect your computer to notice.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's row with Arena now, the Modifier pick, and past waves grouped by run">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's row with Arena now, the Modifier pick, the Leaderboard row, and past waves grouped by run, each wave with its time and glory">
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
 Survivor site's stone look. The row at the top is for the wave you are in, with its number. Its **Arena now** opens the
@@ -72,18 +72,28 @@ the site's leaderboard outside a wave, and **Remove my times**.
 ## Between waves: which modifier to take
 
 When Minimus makes his offers, press **Open** on the panel's Modifier pick. The site fills in his three offers and the
-modifiers you hold, solves the next wave on a few spawn layouts under each offer, and recommends the one that costs you least. Each
-offer also shows the OSRS Wiki's verdict on it, which decides between offers that cost about the same.
+modifiers you hold, solves the next wave on a few spawn layouts under each offer, and recommends the one that costs you
+least. Each offer also shows the OSRS Wiki's verdict on it and what the video guides make of it, which decide between
+offers that cost about the same.
 
-![Sol Survivor's modifier pick with Minimus's three offers for wave 8, filled in from the plugin and priced by what each adds to the next wave](images/modifier-pick.webp)
+The link also carries the run so far and your reward chest, so the pick shows two more things:
+
+- **Your title run**: the glory your run has earned, worked out by the game's rules, and the titles it has reached. Set a
+  title to aim for, and the pick weighs each offer's glory towards it.
+- **Claim the chest or go on**: what your chest holds at Grand Exchange prices against what the next wave adds and how
+  often you clear it, which you set, with a verdict: Go on, or Claim now.
+
+![Sol Survivor's modifier pick for wave 8, filled in from the plugin: Minimus's three offers priced by what each adds to the next wave, with the wiki's and the video guides' verdicts, the run's glory and titles so far, and the chest's verdict](images/modifier-pick.webp)
 
 ## After a run: watch it back
 
-**Watch**, on a run in the panel, uploads that run's recording and opens it on the site: every wave on the arena as it happened, to
-play, step through or scrub to any tick. The review picks out the moments worth a look, such as damage you took and the
-prayer you had up when it landed.
+With **Upload past runs** on, **Watch**, on a run in the panel, uploads that run's recording and opens it on the site:
+every wave on the arena as it happened, to play, step through or scrub to any tick. Or copy the run with the button
+beside it and paste it on the site, which reviews it without uploading anything. The review picks out the moments worth
+a look, such as damage you took and the prayer you had up when it landed, and adds up the run's glory and the title it
+reached.
 
-![A recorded wave 6 on Sol Survivor's run review, at the moment four hits got through and the prayer that was up when they landed](images/run-review.webp)
+![A recorded wave 7 on Sol Survivor's run review: the run's glory and title, its key moments, and the moment two hits got through for 61 damage](images/run-review.webp)
 
 ## The leaderboard
 
@@ -97,7 +107,8 @@ game's clock does not back is not counted, and one that looks too good to be tru
 
 ## Privacy
 
-- **A wave link keeps the arena after its `#`**, the part of a link that browsers do not send to the site's server.
+- **A wave or Modifier pick link keeps what it holds after its `#`**, the part of a link that browsers do not send to
+  the site's server.
 - **Watch uploads only once you turn on Upload past runs, and only when you press it.** It sends the selected
   run's recording to the Sol Survivor site's `/api/replays` over HTTPS: tiles, hitpoints, prayers, animations, hits, projectiles and NPC state, plus your gear and stats when
   **Include gear and stats** is on. It holds no account name. The site keeps the recording for seven days, and anyone
@@ -131,6 +142,10 @@ so far: each NPC's health bar as you last saw it, your Doom stacks this wave, an
 **Include gear and stats** on, it also holds your worn gear, the weapons in your inventory, your combat levels, your
 prayer points and which of the stronger prayers you have unlocked, from which the site works out how quickly you kill
 each NPC.
+
+**What a Modifier pick link holds:** Minimus's three offers, the modifiers you hold and the wave they come before; each
+wave of the run you finished, with its time, whether you took damage, the modifiers you held and the game's glory and
+wave damage counters as it ended; and your reward chest and the next wave's reward, each item by its name and how many.
 
 ## Settings
 
