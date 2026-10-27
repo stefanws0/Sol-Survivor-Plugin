@@ -45,9 +45,9 @@ import net.runelite.client.ui.PluginPanel;
  * page of its own, which takes the panel's place until Back; the death recap after a death; and on each past wave its
  * mistakes. Each row shows only in the moment it is about (the user's ask of 2026-10-26, "Plugin 1.0: what the panel
  * shows when"): the pick's only while Minimus offers, at the top; Arena now only in the arena; the recap only out of it,
- * after a death, over the rest; the leaderboard's only out of the arena; and during a wave the runs fold shut, unless
- * the player opened one. Like the rest of the plugin the panel shows nothing about how to play the wave; the plans are
- * the site's.
+ * after a death, over the rest; the leaderboard's only out of the arena; and in the arena Past waves fold into their
+ * heading until the player opens them (the user's ask of 2026-10-27). Like the rest of the plugin the panel shows nothing
+ * about how to play the wave; the plans are the site's.
  */
 class SolSurvivorPanel extends PluginPanel
 {
@@ -210,7 +210,8 @@ class SolSurvivorPanel extends PluginPanel
 	/** The help, in the tooltip of the question mark beside the panel's title. */
 	private static final String HELP = "Arena now opens the wave on the Sol Survivor site as it is now, and copies its link. "
 		+ "Modifier pick opens Minimus's three offers there while he makes them. Under Past waves, a wave's buttons open it at "
-		+ "its start, the wave under way too, or on the tick its reinforcements came, and copy its log to paste into the site. "
+		+ "its start, the wave under way too, or on the tick its reinforcements came, and copy its log to paste into the site; "
+		+ "in the arena, Past waves folds into its heading until you click it. "
 		+ "With Upload past runs on in the settings, Watch uploads that run's tiles, hitpoints, prayers, hits and recorded gear "
 		+ "to the site, where anyone with its link can view it for seven days. With Share wave logs on, each wave's log goes to "
 		+ "the site, without your levels, as the wave ends, and with Leaderboard on too, each wave you finish goes on "
@@ -269,6 +270,14 @@ class SolSurvivorPanel extends PluginPanel
 	private final Stone.Button removeTimes = new Stone.Button("Remove my times", null, false, small(), 7, 6);
 	/** Beside Past waves, while "Share wave logs" is on: each wave's log goes to the site as it ends. */
 	private final JLabel sharing = label("Sharing logs", small(), Stone.GOOD);
+	/**
+	 * Past waves' heading, which in the arena is the whole section until the player opens it (the user's ask of
+	 * 2026-10-27): its caret, and how many waves it holds while it is shut. Out of the arena it is a plain heading.
+	 */
+	private final JPanel pastHeading = clear(new BorderLayout(5, 0));
+	private final JLabel pastCaret = new JLabel(SHUT_ICON);
+	private final JPanel pastName = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));
+	private final JLabel pastCount = label("", small(), Stone.MUTED);
 	private final JPanel runsBox = new JPanel();
 	/**
 	 * The Getting started card (the onboarding ideas of 2026-10-27, O1), at the top for a player new to the plugin: the
@@ -294,8 +303,10 @@ class SolSurvivorPanel extends PluginPanel
 	private String shownNote;
 	private Integer shownWave;
 	private List<Offer> shownOffers;
-	/** Whether a wave is under way, which folds the runs shut but those the player opened. */
-	private boolean shownUnderWay;
+	/** Whether the player is in the arena, where Past waves fold into their heading. */
+	private boolean shownInColosseum;
+	/** Whether the player opened Past waves in the arena; it shuts again as they leave it, so that each entry starts shut. */
+	private boolean pastOpen;
 	/** The panel's rows, top to bottom; each shows only in its moment, and has no size while it hides. */
 	private final List<JComponent> rows = new ArrayList<>();
 	/** The page that takes the rows' place, the wave report in full, or null while the rows show. */
@@ -341,7 +352,7 @@ class SolSurvivorPanel extends PluginPanel
 		showSharing(false);
 		showSends(false, false, false);
 		showBoard(null, false, true);
-		showState(false, false, null, "Not in the Colosseum", "Enter it to open a wave.", false, new ArrayList<>(), "", new ArrayList<>());
+		showState(false, false, null, "Not in the Colosseum", "Enter it to open a wave.", new ArrayList<>(), "", new ArrayList<>());
 	}
 
 	/** The rows in their order. */
@@ -530,16 +541,41 @@ class SolSurvivorPanel extends PluginPanel
 		revalidate();
 	}
 
+	/**
+	 * Past waves' heading: its name, and beside it while Share wave logs is on, that the logs go to the site. In the arena
+	 * a click on it folds the section open or shut, as on What you share's head.
+	 */
 	private JPanel pastHeading()
 	{
 		sharing.setIcon(Stone.dot(9, Stone.GOOD));
 		sharing.setIconTextGap(2);
 		sharing.setToolTipText("Share wave logs is on: each wave's log goes to the site as the wave ends.");
-		JPanel h = clear(new BorderLayout(4, 0));
-		h.add(new Stone.Shadowed("Past waves", bold(), Stone.ORANGE), BorderLayout.CENTER);
-		h.add(sharing, BorderLayout.EAST);
-		h.setBorder(new EmptyBorder(6, 1, 0, 1));
-		return h;
+		pastName.add(new Stone.Shadowed("Past waves", bold(), Stone.ORANGE));
+		pastName.add(Box.createHorizontalStrut(5));
+		pastName.add(pastCount);
+		pastCaret.setVisible(false);
+		pastHeading.add(pastCaret, BorderLayout.WEST);
+		pastHeading.add(pastName, BorderLayout.CENTER);
+		pastHeading.add(sharing, BorderLayout.EAST);
+		pastHeading.setBorder(new EmptyBorder(6, 1, 0, 1));
+		MouseAdapter fold = new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				if (shownInColosseum)
+				{
+					pastOpen = !pastOpen;
+					buildRuns();
+				}
+			}
+		};
+		pastHeading.addMouseListener(fold);
+		for (Component c : pastHeading.getComponents())
+		{
+			c.addMouseListener(fold);
+		}
+		return pastHeading;
 	}
 
 	/** The Getting started card: its heading and Hide, the three steps, and the sample wave's button and what it opens. */
@@ -690,11 +726,11 @@ class SolSurvivorPanel extends PluginPanel
 
 	/**
 	 * What the panel shows, on the Swing thread: whether the player is in the Colosseum, whether the death recap shows,
-	 * the wave for the slot (null for none), the wave row's title and state, whether a wave is under way, Minimus's offers
-	 * while he makes them, a note in place of the runs when there are none, and the runs, newest first. The runs' rows are
-	 * built again only when they changed, so that a line under the mouse stays as it is.
+	 * the wave for the slot (null for none), the wave row's title and state, Minimus's offers while he makes them, a note
+	 * in place of the runs when there are none, and the runs, newest first. The runs' rows are built again only when they
+	 * changed, so that a line under the mouse stays as it is.
 	 */
-	void showState(boolean inColosseum, boolean recap, Integer wave, String title, String state, boolean underWay, List<Offer> offerList,
+	void showState(boolean inColosseum, boolean recap, Integer wave, String title, String state, List<Offer> offerList,
 		String note, List<RunGroup> runs)
 	{
 		boolean offers = !offerList.isEmpty();
@@ -744,13 +780,17 @@ class SolSurvivorPanel extends PluginPanel
 			revalidate();
 			repaint();
 		}
-		if (runs.equals(shownRuns) && note.equals(shownNote) && underWay == shownUnderWay)
+		if (runs.equals(shownRuns) && note.equals(shownNote) && inColosseum == shownInColosseum)
 		{
 			return;
 		}
+		if (!inColosseum)
+		{
+			pastOpen = false;
+		}
 		shownRuns = new ArrayList<>(runs);
 		shownNote = note;
-		shownUnderWay = underWay;
+		shownInColosseum = inColosseum;
 		buildRuns();
 	}
 
@@ -821,9 +861,34 @@ class SolSurvivorPanel extends PluginPanel
 		revalidate();
 	}
 
+	/**
+	 * Past waves: out of the arena the runs, as the player left each one; in the arena only the heading, with how many
+	 * waves it holds, until the player opens it, to keep the panel clean while they play (the user's ask of 2026-10-27).
+	 */
 	private void buildRuns()
 	{
 		runsBox.removeAll();
+		boolean open = !shownInColosseum || pastOpen;
+		int waves = 0;
+		for (RunGroup run : shownRuns)
+		{
+			waves += run.waves.size();
+		}
+		pastCaret.setIcon(open ? OPEN_ICON : SHUT_ICON);
+		pastCaret.setVisible(shownInColosseum);
+		pastCount.setText(waves == 0 ? "" : WaveCards.plural(waves, "wave"));
+		pastCount.setVisible(!open);
+		pastHeading.setCursor(shownInColosseum ? Cursor.getPredefinedCursor(Cursor.HAND_CURSOR) : null);
+		String tip = open ? null : "Your past waves, folded away in the arena. Click to show them; out of the arena they always show.";
+		pastCaret.setToolTipText(tip);
+		pastName.setToolTipText(tip);
+		runsBox.setVisible(open);
+		if (!open)
+		{
+			runsBox.revalidate();
+			runsBox.repaint();
+			return;
+		}
 		if (shownRuns.isEmpty())
 		{
 			Stone.Well empty = new Stone.Well(new BorderLayout(), 6, 7, 6, 7);
@@ -838,9 +903,9 @@ class SolSurvivorPanel extends PluginPanel
 			{
 				runsBox.add(gap(5));
 			}
-			// The newest run is open but during a wave, when they all fold shut to keep the panel short; a run the player
+			// The newest run is open, in the arena too once the player opened Past waves to see them; a run the player
 			// opened or shut stays as they left it.
-			runsBox.add(runRow(run, folded.getOrDefault(run.key, i == 0 && !shownUnderWay)));
+			runsBox.add(runRow(run, folded.getOrDefault(run.key, i == 0)));
 		}
 		runsBox.revalidate();
 		runsBox.repaint();

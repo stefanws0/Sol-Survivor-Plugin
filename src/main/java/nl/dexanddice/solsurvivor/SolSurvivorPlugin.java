@@ -2622,7 +2622,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownBoardOpen = boardOpen;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, recap != null, colosseum ? wave : null, title, state, during, offers, note, runs);
+			p.showState(colosseum, recap != null, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
 			p.showBoard(boardRow, sharing, boardOpen);
 		});

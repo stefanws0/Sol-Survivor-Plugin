@@ -15,8 +15,8 @@ wave's NPCs, and your attack range.
 
 ## How it works
 
-1. In the Colosseum, press **Arena now** in the Sol Survivor panel at any point in a wave, or the play button on the
-   wave's line under **Past waves** to open it as it was on its first tick.
+1. In the Colosseum, press **Arena now** in the Sol Survivor panel at any point in a wave, or click **Past waves**
+   open and press the play button on the wave's line to open it as it was on its first tick.
 2. The planner opens in your browser with the wave as it is in game: the NPCs on their tiles, you on yours, and the
    modifiers you took. Each link the plugin opens closes the tab it opened before, so one tab keeps up with you. With **Include gear and stats** on, it also knows how quickly your gear kills each NPC.
 3. Press **Solve wave**. Your own computer does the searching, so it gets busy for a while
@@ -59,13 +59,14 @@ work. Expect your computer to notice.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick greyed until Minimus offers; the wave's row with Arena now and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; the wave report to come; and past waves, the latest run folded shut during the wave">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick greyed until Minimus offers; the wave's row with Arena now and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; the wave report to come; and Past waves folded into its heading, as it is in the arena">
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
 Survivor site's stone look, and each part of it shows only when it is about the moment you are in. The row at the top
 is for the wave you are in, with its number. In the arena its **Arena now** opens the wave as it is right now, with the
 fight so far, and a line under it says what the last button did; out of the arena it is greyed. To open the wave as
-it was on its first tick, press the play button on its line under Past waves.
+it was on its first tick, press the play button on its line under Past waves, which in the arena opens with a click
+on its heading.
 
 In the same row, the panel lists the wave by the NPCs' faces: each with how many are left, struck through as they
 die, the reinforcements still to come, and the modifiers you hold by their pictures and tiers, with Doom's stacks as
@@ -81,7 +82,9 @@ without leaving the game.
 
 **Past waves** lists your last 25 waves, grouped by run, newest first, and keeps them when RuneLite closes. Each
 wave's line gives its time and the glory it earned, by the game's own counter, and its mistakes, or "clean", once its
-report is in; each run adds up its glory under its head. Click a run's head to fold it open or shut; during a wave the runs fold shut, but one you opened. Each wave's line has three buttons:
+report is in; each run adds up its glory under its head. In the arena, Past waves folds into its heading, with how
+many waves it holds, to keep the panel clean while you play: click the heading to open it. In the lobby it always
+shows. Click a run's head to fold it open or shut. Each wave's line has three buttons:
 
 - The play button opens the wave as it was on its first tick.
 - The two-figure button opens it on the tick its reinforcements came.
