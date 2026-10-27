@@ -17,7 +17,7 @@ import java.util.Objects;
  * <li>a flick: the right protection prayer went on as the attack was checked, off or another the tick before;</li>
  * <li>held: the right prayer was on since the tick before, so no flick was at stake;</li>
  * <li>late: a flick that missed, the right prayer on a tick after the check, on the tick before and switched off on it,
- * or caught half-way, both prayers showing on the tick and the old one counting;</li>
+ * or caught half-way, both prayers showing on the tick and the wrong one counting;</li>
  * <li>unprayed: no protection prayer on the tick before, the tick or the tick after, with prayer points left.</li>
  * </ul>
  * The rest are left out: a Javelin Colossus's special, which no prayer blocks; an attack met with another prayer and the
@@ -156,7 +156,7 @@ public final class PrayerFlicks
 		int unprayed = 0;
 		for (Attack a : attacks)
 		{
-			String before = protectionOn(byT.get(a.checked - 1), byT.get(a.checked - 2));
+			String before = protectionOn(byT.get(a.checked - 1), byT.get(a.checked - 2), byT.get(a.checked));
 			if (a.style.equals(a.prayer))
 			{
 				if (before == null || before.equals(a.style))
@@ -173,7 +173,7 @@ public final class PrayerFlicks
 			{
 				continue;
 			}
-			String after = protectionOn(byT.get(a.checked + 1), byT.get(a.checked));
+			String after = protectionOn(byT.get(a.checked + 1), byT.get(a.checked), byT.get(a.checked + 2));
 			WaveLog.Tick at = byT.get(a.checked);
 			boolean halfWay = at != null && at.player != null && at.player.getPrayers().contains(a.style);
 			if (halfWay || a.style.equals(after) || a.style.equals(before))
@@ -241,7 +241,7 @@ public final class PrayerFlicks
 				{
 					if (started(tick, npc.getIndex(), FREM_ATTACKS.get(npc.getNpcId())))
 					{
-						out.add(new Attack(FREM_STYLES.get(npc.getNpcId()), tick.t, protectionOn(tick, before)));
+						out.add(new Attack(FREM_STYLES.get(npc.getNpcId()), tick.t, protectionOn(tick, before, byT.get(tick.t + 1))));
 					}
 					continue;
 				}
@@ -253,7 +253,7 @@ public final class PrayerFlicks
 					}
 					for (String style : orbsFired(previous, npc))
 					{
-						out.add(new Attack(style, tick.t, protectionOn(tick, before)));
+						out.add(new Attack(style, tick.t, protectionOn(tick, before, byT.get(tick.t + 1))));
 					}
 					continue;
 				}
@@ -263,7 +263,7 @@ public final class PrayerFlicks
 					continue;
 				}
 				int checked = tick.t + (kind == NpcKind.MINOTAUR ? MINOTAUR_PRAYER_DELAY : 0);
-				String prayer = protectionOn(byT.get(checked), byT.get(checked - 1));
+				String prayer = protectionOn(byT.get(checked), byT.get(checked - 1), byT.get(checked + 1));
 				if (prayer != null)
 				{
 					out.add(new Attack(styleOf(kind), checked, prayer));
@@ -369,10 +369,40 @@ public final class PrayerFlicks
 
 	/**
 	 * The player's protection prayer on a tick, by the style it blocks: NO_PRAYER for none, null where the log does not
-	 * say. Two on at once is a switch the log caught half-way, and the one also on `before`, the tick before, still counts,
-	 * as the site's runReview.ts has it from Stefan's wave 4 log of 2026-10-19.
+	 * say. Two on at once is a switch the log caught half-way, a click the client showed before the game took it: the one
+	 * also on `before`, the tick before, is the game's, and where neither was, the one gone on `after`, the tick after,
+	 * where the late click shows alone. The site's runReview.ts has it, from Stefan's logs of 19, 25 and 26 October.
 	 */
-	static String protectionOn(WaveLog.Tick tick, WaveLog.Tick before)
+	static String protectionOn(WaveLog.Tick tick, WaveLog.Tick before, WaveLog.Tick after)
+	{
+		List<String> on = protectionsOn(tick);
+		if (on == null)
+		{
+			return null;
+		}
+		if (on.size() > 1)
+		{
+			String was = protectionOn(before, null, null);
+			if (was != null && on.contains(was))
+			{
+				return was;
+			}
+			List<String> next = after != null && after.t == tick.t + 1 ? protectionsOn(after) : null;
+			if (next != null && next.size() == 1)
+			{
+				List<String> gone = new ArrayList<>(on);
+				gone.removeAll(next);
+				if (gone.size() == 1)
+				{
+					return gone.get(0);
+				}
+			}
+		}
+		return on.isEmpty() ? NO_PRAYER : on.get(0);
+	}
+
+	/** The protection prayers a tick shows, by the styles they block; null where the log does not say. */
+	private static List<String> protectionsOn(WaveLog.Tick tick)
 	{
 		if (tick == null || tick.player == null)
 		{
@@ -386,15 +416,7 @@ public final class PrayerFlicks
 				on.add(prayer);
 			}
 		}
-		if (on.size() > 1)
-		{
-			String was = protectionOn(before, null);
-			if (was != null && on.contains(was))
-			{
-				return was;
-			}
-		}
-		return on.isEmpty() ? NO_PRAYER : on.get(0);
+		return on;
 	}
 
 	@Override

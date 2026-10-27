@@ -12,7 +12,7 @@ import java.util.function.Supplier;
 
 /**
  * A tick-by-tick record of one wave as the player played it, for the site's wave reviewer to replay; WaveLogWriter turns
- * it into JSON. Like the rest of the plugin it only reads and exports: nothing here is drawn in the game.
+ * it into JSON. It only reads and exports: nothing here is drawn in the game.
  *
  * The RuneLite layer starts it on the first tick of a wave the tracker saw start, feeds it every hitsplat as it comes, each
  * projectile as it first sees it, and one snapshot of the player, the arena's NPCs and the game's Colosseum counters

@@ -48,6 +48,8 @@ final class Stone
 	static final Color YELLOW = new Color(0xffff00);
 	static final Color GOLD = new Color(0xffd24a);
 	static final Color GOOD = new Color(0x3cff3c);
+	/** Damage taken, and Doom on its last stack. */
+	static final Color BAD = new Color(0xff5a3c);
 
 	/** A raised thing's face: its gradient from top to bottom, its bevel's light and dark edges, and its words. */
 	static final class Face
@@ -161,6 +163,16 @@ final class Stone
 			setBorder(new EmptyBorder(top, left, bottom + 2, right));
 		}
 
+		/**
+		 * No size while hidden: RuneLite's sidebar lays out a hidden row as if it showed, and would leave its space empty
+		 * under the rows above, as the leaderboard's did with Leaderboard off.
+		 */
+		@Override
+		public Dimension getPreferredSize()
+		{
+			return isVisible() ? super.getPreferredSize() : new Dimension(0, 0);
+		}
+
 		void setGlow(Color glow)
 		{
 			if (!java.util.Objects.equals(this.glow, glow))
@@ -183,6 +195,116 @@ final class Stone
 				g2.setColor(new Color(glow.getRed(), glow.getGreen(), glow.getBlue(), 90));
 				ring(g2, 1, 1, getWidth() - 3, bh - 3);
 			}
+			g2.dispose();
+		}
+	}
+
+	/** A clear panel that groups rows, with no size while hidden, as Row has none. */
+	static class Group extends JPanel
+	{
+		Group(LayoutManager layout)
+		{
+			super(layout);
+			setOpaque(false);
+		}
+
+		@Override
+		public Dimension getPreferredSize()
+		{
+			return isVisible() ? super.getPreferredSize() : new Dimension(0, 0);
+		}
+	}
+
+	/**
+	 * A count in a rounded pill, as the plugin feature designs mark damage: white on the game's hitsplat red for a hit that
+	 * cost hitpoints, or muted on the well for anything else, an idle stretch's ticks or a hit of nothing.
+	 */
+	static class Pill extends JComponent
+	{
+		/** The hitsplat's red, under the white words. */
+		static final Color HIT = new Color(0xa3120c);
+
+		private final String text;
+		private final boolean hit;
+
+		Pill(String text, boolean hit, Font font)
+		{
+			this.text = text;
+			this.hit = hit;
+			setFont(font);
+			FontMetrics fm = getFontMetrics(font);
+			Dimension d = new Dimension(Math.max(18, fm.stringWidth(text) + 8), fm.getAscent() + 3);
+			setPreferredSize(d);
+			setMinimumSize(d);
+			setMaximumSize(d);
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_GASP);
+			int w = getWidth();
+			int h = getHeight();
+			if (hit)
+			{
+				g2.setColor(HIT);
+				g2.fillRoundRect(0, 0, w, h, h, h);
+			}
+			g2.setFont(getFont());
+			FontMetrics fm = g2.getFontMetrics();
+			int x = (w - fm.stringWidth(text)) / 2;
+			int y = (h - fm.getAscent()) / 2 + fm.getAscent() - 1;
+			if (hit)
+			{
+				g2.setColor(Color.BLACK);
+				g2.drawString(text, x + 1, y + 1);
+			}
+			g2.setColor(hit ? Color.WHITE : MUTED);
+			g2.drawString(text, x, y);
+			g2.dispose();
+		}
+	}
+
+	/**
+	 * Words in a rounded outline, as the plugin feature designs tag a past wave with its mistakes: orange on a dark red
+	 * outline, or the good green on a dark green one for a clean wave.
+	 */
+	static class Tag extends JComponent
+	{
+		private final String text;
+		private final Color color;
+		private final Color outline;
+
+		Tag(String text, Color color, Color outline, Font font)
+		{
+			this.text = text;
+			this.color = color;
+			this.outline = outline;
+			setFont(font);
+			FontMetrics fm = getFontMetrics(font);
+			Dimension d = new Dimension(fm.stringWidth(text) + 10, fm.getAscent() + 4);
+			setPreferredSize(d);
+			setMinimumSize(d);
+			setMaximumSize(d);
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_GASP);
+			int w = getWidth();
+			int h = getHeight();
+			g2.setColor(outline);
+			g2.drawRoundRect(0, 0, w - 1, h - 1, h - 1, h - 1);
+			g2.setFont(getFont());
+			FontMetrics fm = g2.getFontMetrics();
+			int y = (h - fm.getAscent()) / 2 + fm.getAscent() - 1;
+			g2.setColor(color);
+			g2.drawString(text, (w - fm.stringWidth(text)) / 2, y);
 			g2.dispose();
 		}
 	}
@@ -574,12 +696,61 @@ final class Stone
 		});
 	}
 
+	/** A sheet with lines of writing: the wave report. */
+	static ImageIcon report(int size, Color color)
+	{
+		return draw(size, (g, n) ->
+		{
+			int x = n / 5;
+			int w = n - 2 * x;
+			g.setColor(new Color(0x5d503d));
+			g.fillRoundRect(x, 1, w, n - 2, 3, 3);
+			g.setColor(color);
+			int left = x + w / 5;
+			int line = Math.max(1, n / 14);
+			g.fillRect(left, n * 3 / 10, w * 3 / 5, line);
+			g.fillRect(left, n / 2, w * 3 / 5, line);
+			g.fillRect(left, n * 7 / 10, w * 2 / 5, line);
+		});
+	}
+
+	/** A square of a colour, with a dark edge: a legend's key. */
+	static ImageIcon square(int size, Color color)
+	{
+		BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = image.createGraphics();
+		g.setColor(OUTLINE);
+		g.fillRect(0, 0, size, size);
+		g.setColor(color);
+		g.fillRect(1, 1, size - 2, size - 2);
+		g.dispose();
+		return new ImageIcon(image);
+	}
+
 	static ImageIcon dot(int size, Color color)
 	{
 		return draw(size, (g, n) ->
 		{
 			g.setColor(color);
 			g.fillOval(n / 4, n / 4, n / 2, n / 2);
+		});
+	}
+
+	/** A step's number, dark on a yellow disc, as the Getting started card counts its steps. */
+	static ImageIcon number(int size, int number, Font font)
+	{
+		return draw(size, (g, n) ->
+		{
+			g.setColor(YELLOW);
+			g.fillOval(0, 0, n - 1, n - 1);
+			// The font at its own size, which RuneScape's fonts are drawn for, its digit's height centred on the disc.
+			g.setColor(BACKGROUND);
+			g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
+			g.setFont(font);
+			FontMetrics fm = g.getFontMetrics();
+			String text = String.valueOf(number);
+			java.awt.geom.Rectangle2D box = font.createGlyphVector(fm.getFontRenderContext(), text).getVisualBounds();
+			g.drawString(text, (float) ((n - 1 - box.getWidth()) / 2 - box.getX()), (float) ((n - 1 - box.getHeight()) / 2 - box.getY()));
 		});
 	}
 

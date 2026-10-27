@@ -22,7 +22,8 @@ import java.util.regex.Pattern;
  * and health bar, the hits that dealt the player damage this wave (Doom's stacks), the molten sand on the floor, and the
  * modifiers taken; capture() turns that and the NPCs and player of a tick into an ArenaState.
  *
- * It only reads: nothing here, or in the plugin, acts on the game or draws in it.
+ * It only reads: nothing here acts on the game. What the plugin draws, each overlay off until the player switches it on,
+ * is facts the game shows: the wave's NPCs and the player's own range (SolSurvivorPlugin).
  */
 public final class ColosseumTracker
 {
@@ -90,6 +91,9 @@ public final class ColosseumTracker
 	/** The Molten Sand objects in the scene, by tile, each with how many stand there. */
 	private final Map<GridTile, Integer> sandObjects = new LinkedHashMap<>();
 
+	/** The frem of which two have been seen alive at once this wave, Quartet's fourth's kind, by id; 0 while none has. */
+	private int quartetFrem;
+
 	private final Set<Modifier> taken = EnumSet.noneOf(Modifier.class);
 	private boolean modifiersComplete;
 	private final List<Modifier> options = new ArrayList<>(3);
@@ -136,6 +140,7 @@ public final class ColosseumTracker
 		orbs.clear();
 		damageTaken = 0;
 		waveSand.clear();
+		quartetFrem = 0;
 	}
 
 	/** A game message, on the tick it came. */
@@ -489,6 +494,51 @@ public final class ColosseumTracker
 		Integer doomStacks = waveStarted && !waveStart && modifiers.containsKey(Modifier.DOOM) ? Integer.valueOf(damageTaken) : null;
 		return new ArenaState(npcs, player, waveStart, waveStarted ? wave : null, waveTick, !waveStart && arrived, modifiers, modifiersComplete,
 			solarflareOrbs, doomStacks, sand());
+	}
+
+	/**
+	 * The list of the wave under way that the panel and the wave box show (WaveRoster), from the NPCs alive on this tick:
+	 * the dead ones left out, a serpent shaman that came as a reinforcement told apart. `eachFrem` lists the warband's
+	 * three one by one. Empty while no wave the plugin saw start is under way, or for a wave Sol Survivor does not know.
+	 */
+	public List<WaveRoster.Line> roster(int tick, List<SeenNpc> alive, ModifierLevels levels, boolean eachFrem)
+	{
+		if (!waveStarted)
+		{
+			return Collections.emptyList();
+		}
+		WaveRoster.Alive counts = new WaveRoster.Alive();
+		Map<Integer, Integer> frems = new HashMap<>();
+		for (SeenNpc n : alive)
+		{
+			if (WaveRoster.isFrem(n.getNpcId()))
+			{
+				counts.addFrem(n.getNpcId());
+				if (frems.merge(n.getNpcId(), 1, Integer::sum) >= 2)
+				{
+					quartetFrem = n.getNpcId();
+				}
+				continue;
+			}
+			NpcKind kind = NpcKind.forNpcId(n.getNpcId(), isReinforcement(n));
+			if (kind != null)
+			{
+				counts.add(kind);
+			}
+		}
+		return WaveRoster.thisWave(wave, modifiers(levels), counts, reinforcementsArrived, isWaveStartTick(tick), quartetFrem, eachFrem);
+	}
+
+	/** Doom's stacks the plugin counted this wave: the hits that dealt the player damage since the wave it saw start. */
+	public int getDamageTaken()
+	{
+		return damageTaken;
+	}
+
+	/** Whether the tracker knows of molten sand on the tile, as the link sends it (sand). */
+	public boolean isSand(GridTile tile)
+	{
+		return tile != null && (lastingSand.contains(tile) || waveSand.contains(tile) || sandObjects.containsKey(tile));
 	}
 
 	/**

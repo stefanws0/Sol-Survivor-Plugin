@@ -16,7 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -36,8 +38,16 @@ import net.runelite.client.ui.PluginPanel;
  * with small buttons that open it on the site at its start or on the tick its reinforcements came, and copy its log,
  * and on the run's head a button that copies the whole run and one that uploads it to watch it back. With Leaderboard
  * on, a row for the site's leaderboard: the name, its page outside a wave, and Remove my times. The help is in
- * the tooltip of the question mark at the top. Like the rest of the plugin it shows nothing about how to play the
- * wave; the plans are the site's.
+ * the tooltip of the question mark at the top.
+ *
+ * 1.0 draws the panel as the plugin feature designs of 2026-10-26 do (WaveCards): the wave's list and the modifiers held
+ * in the wave's row, by their pictures; the wave report once a wave ends, short under the wave's row and in full on a
+ * page of its own, which takes the panel's place until Back; the death recap after a death; and on each past wave its
+ * mistakes. Each row shows only in the moment it is about (the user's ask of 2026-10-26, "Plugin 1.0: what the panel
+ * shows when"): the pick's only while Minimus offers, at the top; Arena now only in the arena; the recap only out of it,
+ * after a death, over the rest; the leaderboard's only out of the arena; and during a wave the runs fold shut, unless
+ * the player opened one. Like the rest of the plugin the panel shows nothing about how to play the wave; the plans are
+ * the site's.
  */
 class SolSurvivorPanel extends PluginPanel
 {
@@ -50,8 +60,8 @@ class SolSurvivorPanel extends PluginPanel
 		buildRuns();
 	}
 
-	/** What the panel's buttons do, which the plugin carries out on the client thread. */
-	interface Actions
+	/** What the panel's buttons do, which the plugin carries out on the client thread; the cards' too. */
+	interface Actions extends WaveCards.Actions
 	{
 		void openNow();
 
@@ -76,6 +86,12 @@ class SolSurvivorPanel extends PluginPanel
 
 		/** Take every time of the player's off the leaderboard, once they confirmed it. */
 		void removeTimes();
+
+		/** Open the sample wave on the site, with its plan, from the Getting started card. */
+		void openSample();
+
+		/** Hide the Getting started card for good. */
+		void hideGettingStarted();
 	}
 
 	/** A logged wave, as its line shows it. */
@@ -87,12 +103,14 @@ class SolSurvivorPanel extends PluginPanel
 		private final boolean underWay;
 		private final boolean start;
 		private final boolean reinforcements;
+		private final Integer mistakes;
 
 		/**
 		 * `detail`: how the wave went, or that it is under way, which `underWay` marks in gold. `start` and
-		 * `reinforcements`: whether the log kept the wave's state on its first tick and when they came.
+		 * `reinforcements`: whether the log kept the wave's state on its first tick and when they came. `mistakes`: the
+		 * mistakes its report counts, or null when it has none.
 		 */
-		WaveRow(int id, int wave, String detail, boolean underWay, boolean start, boolean reinforcements)
+		WaveRow(int id, int wave, String detail, boolean underWay, boolean start, boolean reinforcements, Integer mistakes)
 		{
 			this.id = id;
 			this.wave = wave;
@@ -100,6 +118,7 @@ class SolSurvivorPanel extends PluginPanel
 			this.underWay = underWay;
 			this.start = start;
 			this.reinforcements = reinforcements;
+			this.mistakes = mistakes;
 		}
 
 		@Override
@@ -111,13 +130,13 @@ class SolSurvivorPanel extends PluginPanel
 			}
 			WaveRow r = (WaveRow) o;
 			return r.id == id && r.wave == wave && r.detail.equals(detail) && r.underWay == underWay && r.start == start
-				&& r.reinforcements == reinforcements;
+				&& r.reinforcements == reinforcements && Objects.equals(r.mistakes, mistakes);
 		}
 
 		@Override
 		public int hashCode()
 		{
-			return Objects.hash(id, wave, detail, underWay, start, reinforcements);
+			return Objects.hash(id, wave, detail, underWay, start, reinforcements, mistakes);
 		}
 	}
 
@@ -163,6 +182,31 @@ class SolSurvivorPanel extends PluginPanel
 		}
 	}
 
+	/** A modifier Minimus offers: its key in the state link, for its picture, and its name with the tier it would be. */
+	static final class Offer
+	{
+		private final String key;
+		private final String name;
+
+		Offer(String key, String name)
+		{
+			this.key = key;
+			this.name = name;
+		}
+
+		@Override
+		public boolean equals(Object o)
+		{
+			return o instanceof Offer && ((Offer) o).key.equals(key) && ((Offer) o).name.equals(name);
+		}
+
+		@Override
+		public int hashCode()
+		{
+			return Objects.hash(key, name);
+		}
+	}
+
 	/** The help, in the tooltip of the question mark beside the panel's title. */
 	private static final String HELP = "Arena now opens the wave on the Sol Survivor site as it is now, and copies its link. "
 		+ "Modifier pick opens Minimus's three offers there while he makes them. Under Past waves, a wave's buttons open it at "
@@ -170,32 +214,54 @@ class SolSurvivorPanel extends PluginPanel
 		+ "With Upload past runs on in the settings, Watch uploads that run's tiles, hitpoints, prayers, hits and recorded gear "
 		+ "to the site, where anyone with its link can view it for seven days. With Share wave logs on, each wave's log goes to "
 		+ "the site, without your levels, as the wave ends, and with Leaderboard on too, each wave you finish goes on "
-		+ "the site's leaderboard under your RuneScape name or the name you set. All are off until you turn them on. This plugin draws nothing in the game.";
+		+ "the site's leaderboard under your RuneScape name or the name you set. All are off until you turn them on. "
+		+ "During a wave the panel lists its NPCs and the modifiers you hold; once it ends, the wave report says what got past "
+		+ "your prayer and what else cost you, and after a death the recap shows the last ticks before it. What the plugin "
+		+ "draws on the game's screen is off until you switch it on, under On the game screen in the settings.";
 
 	private static final ImageIcon SUN = Stone.sun(24);
 	/** Yellow, as the text of the primary button it sits on. */
 	private static final ImageIcon ARENA = Stone.arena(12, Stone.YELLOW);
-	private static final ImageIcon CARDS_ON = Stone.cards(24, Stone.GOLD);
-	private static final ImageIcon CARDS_OFF = Stone.cards(24, Stone.DIM);
+	/**
+	 * Minimus's face in the pick's slot, as the site shows him (design round two's item 7): in colour while he offers his
+	 * three, faded until he does.
+	 */
+	private static final Icon MINIMUS_ON = Icons.of("minimus", 28);
+	private static final Icon MINIMUS_OFF = Icons.of("minimus", 28, 0.35f);
+	/** The glory laurel in the leaderboard's slot, as the site's leaderboard has it over first place. */
+	private static final Icon LAUREL = Icons.of("glory-laurel", 28);
+	/** Yellow, as the text of the primary button it sits on, as Arena now's icon. */
+	private static final ImageIcon PICK_ICON = Stone.cards(12, Stone.YELLOW);
 	private static final ImageIcon START_ICON = Stone.play(10, Stone.ORANGE);
 	private static final ImageIcon REINFORCEMENTS_ICON = Stone.figures(12, Stone.ORANGE);
 	private static final ImageIcon COPY_ICON = Stone.copy(11, Stone.MUTED);
 	private static final ImageIcon COPY_RUN_ICON = Stone.copy(12, Stone.MUTED);
 	private static final ImageIcon WATCH_ICON = Stone.replay(12, Stone.ORANGE);
 	private static final ImageIcon OPEN_ICON = Stone.caret(9, Stone.MUTED, true);
+	/** Yellow, as the text of the primary button it sits on, as Arena now's icon. */
+	private static final ImageIcon SAMPLE_ICON = Stone.play(10, Stone.YELLOW);
 	private static final ImageIcon SHUT_ICON = Stone.caret(9, Stone.MUTED, false);
+	/** The outlines of a past wave's tag: the designs' dark green for a clean wave, their dark red for one with mistakes. */
+	private static final Color CLEAN_OUTLINE = new Color(0x1f5a1f);
+	private static final Color MISTAKES_OUTLINE = new Color(0x5e250c);
 
 	private final Actions actions;
+	/** The wave's list, the wave report and the death recap, under the wave's row. */
+	final WaveCards cards;
 	private final Stone.Slot waveSlot = new Stone.Slot(34, SUN);
 	private final JLabel waveTitle = new Stone.Shadowed("", bold(), Stone.ORANGE);
 	private final JLabel waveState = label("", small(), Stone.TEXT);
 	private final Stone.Button openNow = new Stone.Button("Arena now", ARENA, true, small(), 7, 6);
+	/** The wave row's layout, whose gaps close up out of the arena, where the row keeps only its head and result. */
+	private final BorderLayout waveLayout = new BorderLayout(0, 6);
 	private final Stone.Well resultWell = new Stone.Well(new BorderLayout(), 4, 5, 4, 5);
 	private final JLabel result = label("", small(), Stone.TEXT);
-	private final Stone.Row pickRow = new Stone.Row(new BorderLayout(8, 0), 5, 5, 5, 6);
-	private final Stone.Slot pickSlot = new Stone.Slot(34, CARDS_OFF);
+	private final Stone.Row pickRow = new Stone.Row(new BorderLayout(0, 6), 5, 5, 6, 6);
+	private final Stone.Slot pickSlot = new Stone.Slot(34, MINIMUS_ON);
 	private final JLabel pickState = label("", small(), Stone.MUTED);
-	private final Stone.Button openRecommender = new Stone.Button("Open", null, true, small(), 7, 6);
+	/** Minimus's three by their pictures, and the button that opens them on the site, Arena now's twin, under the row's head. */
+	private final Stone.Well offersWell = new Stone.Well(new java.awt.GridLayout(1, 3, 4, 0), 4, 3, 4, 3);
+	private final Stone.Button openPick = new Stone.Button("Open the pick", PICK_ICON, true, small(), 7, 6);
 	/** The leaderboard's row, while Leaderboard is on or the player has times to remove (showBoard). */
 	private final Stone.Row boardRow = new Stone.Row(new BorderLayout(0, 5), 5, 6, 6, 6);
 	private final JLabel boardState = label("", small(), Stone.TEXT);
@@ -204,49 +270,124 @@ class SolSurvivorPanel extends PluginPanel
 	/** Beside Past waves, while "Share wave logs" is on: each wave's log goes to the site as it ends. */
 	private final JLabel sharing = label("Sharing logs", small(), Stone.GOOD);
 	private final JPanel runsBox = new JPanel();
-	private final JLabel foot = label("", small(), Stone.DIM);
+	/**
+	 * The Getting started card (the onboarding ideas of 2026-10-27, O1), at the top for a player new to the plugin: the
+	 * three steps from the game to a plan, and a sample wave to try with no Colosseum needed. It goes for good on Hide or
+	 * once the player has opened or copied an arena's link (the plugin's gettingStartedDone).
+	 */
+	private final Stone.Row startRow = new Stone.Row(new BorderLayout(0, 6), 5, 6, 6, 6);
+	/** The first step, which says whether the panel opens by itself as the player enters (Open panel on entering). */
+	private final JLabel enterStep = label("", small(), Stone.TEXT);
+	/**
+	 * What the plugin sends to the site (O2), in place of the foot's line: a row that folds open onto the three settings
+	 * that send anything, each On or Off as set, what it sends and what it gets the player. It only shows them: each is
+	 * switched in the settings, where RuneLite shows its warning first.
+	 */
+	private final Stone.Row sendsRow = new Stone.Row(new BorderLayout(0, 5), 4, 6, 5, 5);
+	/** Which of the three are on: Upload past runs, Share wave logs and Leaderboard, as the settings hold them. */
+	private boolean[] shownSends;
+	/** Whether the player folded What you share open or shut; null, it is open while the Getting started card shows. */
+	private Boolean sendsOpen;
 	/** Which runs the player folded open or shut, by key; a run not here is open when it is the newest. */
 	private final Map<Integer, Boolean> folded = new HashMap<>();
 	private List<RunGroup> shownRuns;
 	private String shownNote;
 	private Integer shownWave;
-	private boolean shownOffers;
+	private List<Offer> shownOffers;
+	/** Whether a wave is under way, which folds the runs shut but those the player opened. */
+	private boolean shownUnderWay;
+	/** The panel's rows, top to bottom; each shows only in its moment, and has no size while it hides. */
+	private final List<JComponent> rows = new ArrayList<>();
+	/** The page that takes the rows' place, the wave report in full, or null while the rows show. */
+	private JComponent page;
 
 	SolSurvivorPanel(Actions actions)
 	{
 		this.actions = actions;
+		this.cards = new WaveCards(actions, new WaveCards.Pages()
+		{
+			@Override
+			public void showPage(JComponent page)
+			{
+				SolSurvivorPanel.this.showPage(page);
+			}
+
+			@Override
+			public void showMain()
+			{
+				SolSurvivorPanel.this.showMain();
+			}
+		});
 		setBackground(Stone.BACKGROUND);
 		getParent().setBackground(Stone.BACKGROUND);
 		getScrollPane().getViewport().setBackground(Stone.BACKGROUND);
 		getWrappedPanel().setBackground(Stone.BACKGROUND);
 
-		add(header());
-		add(waveRow());
-		add(pickRow());
-		add(boardRow());
-		add(pastHeading());
+		rows.add(header());
+		rows.add(startRow());
+		rows.add(cards.recapCard);
+		rows.add(pickRow());
+		rows.add(waveRow());
+		rows.add(cards.reportCard);
+		rows.add(boardRow());
+		rows.add(pastHeading());
 		runsBox.setLayout(new BoxLayout(runsBox, BoxLayout.Y_AXIS));
 		runsBox.setOpaque(false);
-		add(runsBox);
-		foot.setBorder(new EmptyBorder(2, 1, 0, 0));
-		add(foot);
+		rows.add(runsBox);
+		rows.add(gap(6));
+		rows.add(sendsRow);
+		addRows();
 
 		showSharing(false);
+		showSends(false, false, false);
 		showBoard(null, false, true);
-		showState(false, null, "Not in the Colosseum", "Enter it to open a wave.", false, "", new ArrayList<>());
+		showState(false, false, null, "Not in the Colosseum", "Enter it to open a wave.", false, new ArrayList<>(), "", new ArrayList<>());
 	}
 
-	private static Font bold()
+	/** The rows in their order. */
+	private void addRows()
+	{
+		removeAll();
+		for (JComponent row : rows)
+		{
+			add(row);
+		}
+		revalidate();
+		repaint();
+	}
+
+	/** The wave report's own page, in place of the rows, from its top. */
+	private void showPage(JComponent shown)
+	{
+		page = shown;
+		removeAll();
+		add(shown);
+		revalidate();
+		repaint();
+		javax.swing.SwingUtilities.invokeLater(() -> getScrollPane().getVerticalScrollBar().setValue(0));
+	}
+
+	/** The rows again, after the page's Back. */
+	private void showMain()
+	{
+		if (page != null)
+		{
+			page = null;
+			addRows();
+		}
+	}
+
+	static Font bold()
 	{
 		return FontManager.getRunescapeBoldFont();
 	}
 
-	private static Font small()
+	static Font small()
 	{
 		return FontManager.getRunescapeSmallFont();
 	}
 
-	private static JLabel label(String text, Font font, Color color)
+	static JLabel label(String text, Font font, Color color)
 	{
 		JLabel l = new JLabel(text);
 		l.setFont(font);
@@ -254,7 +395,7 @@ class SolSurvivorPanel extends PluginPanel
 		return l;
 	}
 
-	private static JPanel clear(java.awt.LayoutManager layout)
+	static JPanel clear(java.awt.LayoutManager layout)
 	{
 		JPanel p = new JPanel(layout);
 		p.setOpaque(false);
@@ -285,34 +426,58 @@ class SolSurvivorPanel extends PluginPanel
 		top.add(waveSlot, BorderLayout.WEST);
 		top.add(text, BorderLayout.CENTER);
 
-		openNow.setToolTipText("Opens the arena as it is now on the site, and copies its link.");
 		openNow.addActionListener(e -> actions.openNow());
 
 		resultWell.add(result);
 		resultWell.setVisible(false);
 
-		Stone.Row row = new Stone.Row(new BorderLayout(0, 6), 5, 5, 6, 6);
+		// The wave's list and the modifiers held go under the button and its well, in the wave's row, as the designs have them.
+		JPanel under = clear(new BorderLayout(0, 0));
+		under.add(resultWell, BorderLayout.NORTH);
+		under.add(cards.waveBody, BorderLayout.CENTER);
+
+		Stone.Row row = new Stone.Row(waveLayout, 5, 5, 6, 6);
 		row.add(top, BorderLayout.NORTH);
 		row.add(openNow, BorderLayout.CENTER);
-		row.add(resultWell, BorderLayout.SOUTH);
+		row.add(under, BorderLayout.SOUTH);
 		return row;
 	}
 
-	/** Minimus's pick: its row stays, so that the player knows of it, and lights up gold while he offers his three. */
+	/**
+	 * Minimus's pick: a row at the top, in the arena, lit gold while he offers his three, which it shows by their
+	 * pictures over a button as wide as the row, Arena now's twin, that opens them on the site; greyed until he does.
+	 */
 	private JPanel pickRow()
 	{
 		JPanel text = clear(new BorderLayout(0, 1));
 		text.add(new Stone.Shadowed("Modifier pick", bold(), Stone.ORANGE), BorderLayout.NORTH);
 		text.add(pickState, BorderLayout.CENTER);
-		openRecommender.setToolTipText("While Minimus offers his three modifiers: opens the site's modifier pick with them filled in.");
-		openRecommender.addActionListener(e -> actions.openRecommender());
-		JPanel east = clear(new BorderLayout());
-		east.add(openRecommender, BorderLayout.NORTH);
-		east.setBorder(new EmptyBorder(6, 0, 0, 0));
-		pickRow.add(pickSlot, BorderLayout.WEST);
-		pickRow.add(text, BorderLayout.CENTER);
-		pickRow.add(east, BorderLayout.EAST);
+		pickState.setForeground(Stone.TEXT);
+		openPick.addActionListener(e -> actions.openRecommender());
+		JPanel head = clear(new BorderLayout(8, 0));
+		head.add(pickSlot, BorderLayout.WEST);
+		head.add(text, BorderLayout.CENTER);
+		pickRow.setLayout(new BorderLayout(0, 6));
+		pickRow.setVisible(false);
+		pickRow.add(head, BorderLayout.NORTH);
+		pickRow.add(offersWell, BorderLayout.CENTER);
+		pickRow.add(openPick, BorderLayout.SOUTH);
 		return pickRow;
+	}
+
+	/** An offer in the pick's well: its picture over its name and tier, the name in the tooltip too. */
+	private static JComponent offer(Offer o)
+	{
+		JLabel l = label(wrapHtml("<div style='text-align: center'>" + o.name.replace("&", "&amp;").replace("<", "&lt;") + "</div>", 56), small(),
+			Stone.TEXT);
+		l.setIcon(Icons.of(Icons.modifier(o.key), 20));
+		l.setVerticalTextPosition(JLabel.BOTTOM);
+		l.setHorizontalTextPosition(JLabel.CENTER);
+		l.setHorizontalAlignment(JLabel.CENTER);
+		l.setVerticalAlignment(JLabel.TOP);
+		l.setIconTextGap(2);
+		l.setToolTipText(o.name);
+		return l;
 	}
 
 	/** The leaderboard's row: its name and what goes up, the page's Open, and Remove my times under them. */
@@ -337,6 +502,7 @@ class SolSurvivorPanel extends PluginPanel
 			}
 		});
 		JPanel top = clear(new BorderLayout(8, 0));
+		top.add(new Stone.Slot(34, LAUREL), BorderLayout.WEST);
 		top.add(text, BorderLayout.CENTER);
 		top.add(east, BorderLayout.EAST);
 		JPanel foot = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -376,15 +542,162 @@ class SolSurvivorPanel extends PluginPanel
 		return h;
 	}
 
-	/**
-	 * What the panel shows, on the Swing thread: whether the player is in the Colosseum, the wave for the slot (null for
-	 * none), the wave row's title and state, whether Minimus is offering modifiers, a note
-	 * in place of the runs when there are none, and the runs, newest first. The runs' rows are built again only when
-	 * they changed, so that a line under the mouse stays as it is.
-	 */
-	void showState(boolean inColosseum, Integer wave, String title, String state, boolean offers, String note,
-		List<RunGroup> runs)
+	/** The Getting started card: its heading and Hide, the three steps, and the sample wave's button and what it opens. */
+	private JPanel startRow()
 	{
+		Stone.Button hide = new Stone.Button("Hide", null, false, small(), 6, 3);
+		hide.setToolTipText("Hides this card for good. The help is in the question mark at the top.");
+		hide.addActionListener(e -> actions.hideGettingStarted());
+		JPanel head = clear(new BorderLayout(6, 0));
+		head.add(new Stone.Shadowed("Getting started", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		head.add(hide, BorderLayout.EAST);
+
+		JPanel steps = clear(null);
+		steps.setLayout(new BoxLayout(steps, BoxLayout.Y_AXIS));
+		steps.add(step(1, enterStep));
+		steps.add(gap(4));
+		steps.add(step(2, label(stepText("Press <font color='#ffff00'>Arena now</font> at a wave's start, or on a pillar stack."), small(),
+			Stone.TEXT)));
+		steps.add(gap(4));
+		steps.add(step(3, label(stepText("On the site, press <font color='#ffff00'>Solve</font> and play the plan it finds."), small(),
+			Stone.TEXT)));
+
+		Stone.Button sample = new Stone.Button("Try a sample wave", SAMPLE_ICON, true, small(), 7, 6);
+		sample.setToolTipText("Opens wave 7 on the Sol Survivor site with the plan it found, to look round before you play.");
+		sample.addActionListener(e -> actions.openSample());
+		JPanel foot = clear(new BorderLayout(0, 3));
+		foot.add(sample, BorderLayout.NORTH);
+		foot.add(label(wrap("Opens wave 7 on the site with its plan, no Colosseum needed.", 200), small(), Stone.DIM), BorderLayout.CENTER);
+
+		startRow.setGlow(Stone.YELLOW);
+		startRow.add(head, BorderLayout.NORTH);
+		startRow.add(steps, BorderLayout.CENTER);
+		startRow.add(foot, BorderLayout.SOUTH);
+		startRow.setVisible(false);
+		return startRow;
+	}
+
+	/** A step's words, wrapped to the card beside its number. */
+	private static String stepText(String html)
+	{
+		return wrapHtml(html, 170);
+	}
+
+	/** A step of Getting started: its number in a yellow disc, then its words. */
+	private static JPanel step(int n, JLabel words)
+	{
+		JLabel number = new JLabel(Stone.number(14, n, small()));
+		number.setVerticalAlignment(JLabel.TOP);
+		number.setBorder(new EmptyBorder(1, 0, 0, 0));
+		JPanel line = clear(new BorderLayout(6, 0));
+		line.add(number, BorderLayout.WEST);
+		line.add(words, BorderLayout.CENTER);
+		line.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return line;
+	}
+
+	/**
+	 * The three settings that send anything to the site, as What you share lists them: each one's name in the settings,
+	 * what it sends and what it gets the player.
+	 */
+	private static final String[][] SENDS = {
+		{"Upload past runs", "a run's tiles, hitpoints, prayers and hits, when you press Watch.", "your run played back on the site, "
+			+ "for anyone with its link, for seven days."},
+		{"Share wave logs", "each wave's log as it ends, with no name or levels.", "a planner checked against real waves."},
+		{"Leaderboard", "your name with each wave you finish. Needs Share wave logs.", "a place on the site's leaderboard."},
+	};
+
+	/** What you share, folded open or shut as the player left it, else open while the Getting started card shows. */
+	private void buildSends()
+	{
+		boolean open = sendsOpen != null ? sendsOpen : startRow.isVisible();
+		int on = 0;
+		for (boolean send : shownSends)
+		{
+			on += send ? 1 : 0;
+		}
+		sendsRow.removeAll();
+
+		JPanel head = clear(new BorderLayout(5, 0));
+		head.add(new JLabel(open ? OPEN_ICON : SHUT_ICON), BorderLayout.WEST);
+		head.add(new Stone.Shadowed("What you share", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		head.add(label(on == 0 ? "All off" : on + " on", small(), on == 0 ? Stone.MUTED : Stone.GOOD), BorderLayout.EAST);
+		head.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		head.setToolTipText(open ? null : "What the plugin sends to the Sol Survivor site, and what each setting gets you.");
+		MouseAdapter fold = new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				sendsOpen = !open;
+				buildSends();
+			}
+		};
+		head.addMouseListener(fold);
+		for (Component c : head.getComponents())
+		{
+			c.addMouseListener(fold);
+		}
+		sendsRow.add(head, BorderLayout.NORTH);
+
+		if (open)
+		{
+			JPanel body = clear(null);
+			body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+			body.add(text("Each is off until you switch it on. Here is what it sends, and what it gets you.", Stone.TEXT));
+			for (int i = 0; i < SENDS.length; i++)
+			{
+				body.add(gap(5));
+				body.add(send(SENDS[i], shownSends[i]));
+			}
+			body.add(gap(5));
+			body.add(text("Switch them under Sending to the site in this plugin's settings, where RuneLite warns you first. "
+				+ "With all three off, the plugin sends nothing.", Stone.DIM));
+			sendsRow.add(body, BorderLayout.CENTER);
+		}
+		sendsRow.revalidate();
+		sendsRow.repaint();
+	}
+
+	/** A line of What you share's words, as wide as the row. */
+	private static JComponent text(String words, Color color)
+	{
+		JLabel l = label(wrap(words, 200), small(), color);
+		JPanel p = clear(new BorderLayout());
+		p.add(l, BorderLayout.CENTER);
+		p.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return p;
+	}
+
+	/** A setting in What you share's well: its name and whether it is on, what it sends and what it gets the player. */
+	private static JComponent send(String[] setting, boolean on)
+	{
+		JPanel top = clear(new BorderLayout(4, 0));
+		top.add(label(setting[0], small(), Stone.TEXT), BorderLayout.CENTER);
+		Stone.Tag tag = on ? new Stone.Tag("On", Stone.GOOD, CLEAN_OUTLINE, small()) : new Stone.Tag("Off", Stone.MUTED, Stone.BEVEL_LIGHT, small());
+		JPanel east = clear(new BorderLayout());
+		east.add(tag, BorderLayout.NORTH);
+		top.add(east, BorderLayout.EAST);
+		JPanel words = clear(new BorderLayout(0, 1));
+		words.add(label(wrapHtml("Sends: " + setting[1], 180), small(), Stone.MUTED), BorderLayout.NORTH);
+		words.add(label(wrapHtml("<font color='#3cff3c'>Gets you:</font> " + setting[2], 180), small(), Stone.MUTED), BorderLayout.CENTER);
+		Stone.Well well = new Stone.Well(new BorderLayout(0, 3), 4, 6, 5, 6);
+		well.add(top, BorderLayout.NORTH);
+		well.add(words, BorderLayout.CENTER);
+		well.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return well;
+	}
+
+	/**
+	 * What the panel shows, on the Swing thread: whether the player is in the Colosseum, whether the death recap shows,
+	 * the wave for the slot (null for none), the wave row's title and state, whether a wave is under way, Minimus's offers
+	 * while he makes them, a note in place of the runs when there are none, and the runs, newest first. The runs' rows are
+	 * built again only when they changed, so that a line under the mouse stays as it is.
+	 */
+	void showState(boolean inColosseum, boolean recap, Integer wave, String title, String state, boolean underWay, List<Offer> offerList,
+		String note, List<RunGroup> runs)
+	{
+		boolean offers = !offerList.isEmpty();
 		if (!Objects.equals(wave, shownWave) || shownRuns == null)
 		{
 			waveSlot.show(SUN, wave == null ? null : String.valueOf(wave));
@@ -392,24 +705,52 @@ class SolSurvivorPanel extends PluginPanel
 		}
 		waveTitle.setText(title);
 		waveState.setText(state);
+		// The buttons stay where they are, greyed while they have nothing to open, so that the panel does not jump and shows
+		// what it is for; both go while the death recap shows, which is the panel's then (the user's choice, 2026-10-26).
+		// Arena now is greyed out of the arena. The pick is greyed in the arena until Minimus offers, and goes out of it,
+		// where there is no run to pick for.
 		openNow.setEnabled(inColosseum);
-		if (offers != shownOffers || shownRuns == null)
+		openNow.setToolTipText(inColosseum ? "Opens the arena as it is now on the site, and copies its link."
+			: "Opens the arena on the site once you are in the Colosseum.");
+		if (openNow.isVisible() == recap)
 		{
-			pickSlot.show(offers ? CARDS_ON : CARDS_OFF, null);
-			pickState.setForeground(offers ? Stone.TEXT : Stone.MUTED);
-			pickState.setText(offers && wave != null
-				? wrapHtml("Minimus offers three for wave <font color='#ffff00'>" + wave + "</font>", 112)
-				: offers ? wrap("Minimus offers three.", 112) : wrap("Lights up when Minimus offers.", 112));
-			pickRow.setGlow(offers ? Stone.GOLD : null);
-			openRecommender.setEnabled(offers);
-			shownOffers = offers;
+			openNow.setVisible(!recap);
+			fitWaveRow();
 		}
-		if (runs.equals(shownRuns) && note.equals(shownNote))
+		boolean pick = inColosseum && !recap;
+		if (!offerList.equals(shownOffers) || pick != pickRow.isVisible() || shownRuns == null)
+		{
+			offersWell.removeAll();
+			for (Offer o : offerList)
+			{
+				offersWell.add(offer(o));
+			}
+			offersWell.setVisible(offers);
+			pickState.setText(!offers
+				? wrap("Opens when Minimus makes his offers.", 150)
+				: wave != null
+				? wrapHtml("Minimus offers three for wave <font color='#ffff00'>" + wave + "</font>", 150)
+				: wrap("Minimus offers three.", 150));
+			pickState.setForeground(offers ? Stone.TEXT : Stone.MUTED);
+			pickSlot.show(offers ? MINIMUS_ON : MINIMUS_OFF, null);
+			pickRow.setGlow(offers ? Stone.GOLD : null);
+			pickRow.setVisible(pick);
+			openPick.setEnabled(offers);
+			openPick.setToolTipText(offers ? "Opens the site's modifier pick with Minimus's three, the modifiers you hold and the next wave filled "
+				+ "in, and copies its link." : "Opens the site's modifier pick once Minimus offers his three, after a wave.");
+			shownOffers = new ArrayList<>(offerList);
+			pickRow.revalidate();
+			pickRow.repaint();
+			revalidate();
+			repaint();
+		}
+		if (runs.equals(shownRuns) && note.equals(shownNote) && underWay == shownUnderWay)
 		{
 			return;
 		}
 		shownRuns = new ArrayList<>(runs);
 		shownNote = note;
+		shownUnderWay = underWay;
 		buildRuns();
 	}
 
@@ -417,9 +758,52 @@ class SolSurvivorPanel extends PluginPanel
 	void showSharing(boolean on)
 	{
 		sharing.setVisible(on);
-		foot.setText(wrap(on
-			? "Draws nothing in the game. Each wave's log goes to the site as it ends (Share wave logs)."
-			: "Draws nothing in the game, and sends nothing until you switch on Upload past runs or Share wave logs.", 215));
+	}
+
+	/**
+	 * The Getting started card (O1): `shown` until the player hid it or opened an arena's link, and never during a wave;
+	 * its first step as "Open panel on entering" is set (`opensItself`). On the Swing thread.
+	 */
+	void showGettingStarted(boolean shown, boolean opensItself)
+	{
+		enterStep.setText(stepText(opensItself
+			? "Walk into the Fortis Colosseum. This panel opens by itself."
+			: "Walk into the Fortis Colosseum, and open this panel from its sun in the sidebar."));
+		if (startRow.isVisible() != shown)
+		{
+			startRow.setVisible(shown);
+			if (shownSends != null)
+			{
+				buildSends();
+			}
+			revalidate();
+			repaint();
+		}
+	}
+
+	/**
+	 * What you share (O2): which of Upload past runs, Share wave logs and Leaderboard are on, as the settings hold them;
+	 * `shown` false hides the row, as during a wave. On the Swing thread.
+	 */
+	void showSends(boolean upload, boolean share, boolean board)
+	{
+		boolean[] sends = {upload, share, board};
+		if (!java.util.Arrays.equals(sends, shownSends))
+		{
+			shownSends = sends;
+			buildSends();
+		}
+	}
+
+	/** What you share, hidden during a wave. On the Swing thread. */
+	void showSendsRow(boolean shown)
+	{
+		if (sendsRow.isVisible() != shown)
+		{
+			sendsRow.setVisible(shown);
+			revalidate();
+			repaint();
+		}
 	}
 
 	/** What the last button did, in the well under the wave's buttons. On the Swing thread. */
@@ -427,6 +811,13 @@ class SolSurvivorPanel extends PluginPanel
 	{
 		result.setText(wrap(message, 196));
 		resultWell.setVisible(!message.isEmpty());
+		fitWaveRow();
+	}
+
+	/** The wave row's gaps, closed up while it holds nothing under its head. */
+	private void fitWaveRow()
+	{
+		waveLayout.setVgap(openNow.isVisible() || resultWell.isVisible() ? 6 : 0);
 		revalidate();
 	}
 
@@ -447,7 +838,9 @@ class SolSurvivorPanel extends PluginPanel
 			{
 				runsBox.add(gap(5));
 			}
-			runsBox.add(runRow(run, folded.getOrDefault(run.key, i == 0)));
+			// The newest run is open but during a wave, when they all fold shut to keep the panel short; a run the player
+			// opened or shut stays as they left it.
+			runsBox.add(runRow(run, folded.getOrDefault(run.key, i == 0 && !shownUnderWay)));
 		}
 		runsBox.revalidate();
 		runsBox.repaint();
@@ -522,8 +915,19 @@ class SolSurvivorPanel extends PluginPanel
 	/** A wave's line: its name and how it went, and the buttons that open it at its start or its reinforcements and copy its log. */
 	private JPanel waveLine(WaveRow row, boolean last)
 	{
+		JPanel name = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		name.add(label("Wave " + row.wave, small(), Stone.TEXT));
+		if (row.mistakes != null)
+		{
+			// The wave's mistakes, as its report counts them, tagged as the designs tag them: green for a clean wave.
+			Stone.Tag tag = row.mistakes == 0 ? new Stone.Tag("clean", Stone.GOOD, CLEAN_OUTLINE, small())
+				: new Stone.Tag(WaveCards.plural(row.mistakes, "mistake"), Stone.ORANGE, MISTAKES_OUTLINE, small());
+			tag.setBorder(null);
+			name.add(Box.createHorizontalStrut(5));
+			name.add(tag);
+		}
 		JPanel text = clear(new BorderLayout());
-		text.add(label("Wave " + row.wave, small(), Stone.TEXT), BorderLayout.NORTH);
+		text.add(name, BorderLayout.NORTH);
 		text.add(label(row.detail, small(), row.underWay ? Stone.GOLD : Stone.MUTED), BorderLayout.SOUTH);
 
 		Stone.Button start = new Stone.Button(START_ICON, 22);
@@ -556,7 +960,7 @@ class SolSurvivorPanel extends PluginPanel
 		return line;
 	}
 
-	private static JComponent gap(int height)
+	static JComponent gap(int height)
 	{
 		JPanel gap = clear(null);
 		gap.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -571,12 +975,12 @@ class SolSurvivorPanel extends PluginPanel
 	 * the sidebar's scrollbar shows, 7 pixels narrower than without it: a width wider than the row cuts the end of each
 	 * line off.
 	 */
-	private static String wrap(String text, int width)
+	static String wrap(String text, int width)
 	{
 		return wrapHtml(text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"), width);
 	}
 
-	private static String wrapHtml(String html, int width)
+	static String wrapHtml(String html, int width)
 	{
 		return "<html><body style='width: " + Math.round(width / 1.3f) + "px'>" + html + "</body></html>";
 	}

@@ -8,6 +8,7 @@ import static org.junit.Assert.fail;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,6 +55,25 @@ public class WaveStoreTest
 		assertEquals(START_STATE, back.getStartState());
 		assertEquals(wave.getReinforcementState(), back.getReinforcementState());
 		assertEquals(WaveLogWriter.toJson(log), back.getJson());
+	}
+
+	@Test
+	public void aWaveThatZeroNineSavedStillLoads() throws IOException
+	{
+		// Wave 4 as 0.9.0 saved it, kept as it was written: 1.0 promises its players' saved runs come back (the 1.0 plan
+		// of 2026-10-26). A new format gets a new VERSION, and reads this one too.
+		WaveLog.Past back;
+		try (InputStream in = WaveStoreTest.class.getResourceAsStream("/fixtures/saved-wave-0.9.0.wave.gz"))
+		{
+			back = WaveStore.read(in);
+		}
+		assertEquals(4, back.getWave());
+		assertEquals(2, back.size());
+		assertEquals(WaveLog.End.COMPLETED, back.getEnd());
+		assertEquals(Integer.valueOf(980), back.getGlory());
+		assertEquals(START_STATE, back.getStartState());
+		assertEquals("{\"v\":1,\"setup\":{\"wave\":4}}", back.getReinforcementState());
+		assertTrue(back.getJson().startsWith("{\"v\":1,\"kind\":\"solSurvivorWaveLog\",\"plugin\":\"0.9.0\",\"wave\":4,"));
 	}
 
 	@Test

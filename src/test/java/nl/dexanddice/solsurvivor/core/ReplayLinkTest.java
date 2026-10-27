@@ -12,6 +12,8 @@ public class ReplayLinkTest
 	{
 		assertEquals("https://sol.example/api/replays", ReplayLink.endpoint("https://sol.example/old/#s=state"));
 		assertEquals("https://sol.example/#replay=" + ID, ReplayLink.browser("https://sol.example", ID));
+		assertEquals("https://sol.example/#replay=" + ID + ".7.143", ReplayLink.browser("https://sol.example", ID, 7, 143));
+		assertEquals("https://sol.example/#replay=" + ID + ".7", ReplayLink.browser("https://sol.example", ID, 7, null));
 		assertEquals("http://localhost:4174/api/replays", ReplayLink.endpoint("http://localhost:4174/"));
 	}
 

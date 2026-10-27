@@ -33,6 +33,12 @@ final class ReplayUpload
 	 */
 	static String browserUrl(Gson gson, String site, Response response) throws IOException
 	{
+		return ReplayLink.browser(site, idOf(gson, response));
+	}
+
+	/** The stored run's id from the site's answer, checked as browserUrl checks it, for a link to a wave and a tick of it. */
+	static String idOf(Gson gson, Response response) throws IOException
+	{
 		if (!response.isSuccessful())
 		{
 			String error = response.code() == 429 ? "Too many runs opened. Try again in a minute."
@@ -49,7 +55,12 @@ final class ReplayUpload
 		try
 		{
 			JsonObject data = gson.fromJson(body.source().readUtf8(), JsonObject.class);
-			return ReplayLink.browser(site, data.get("id").getAsString());
+			String id = data.get("id").getAsString();
+			if (!ReplayLink.isId(id))
+			{
+				throw new IOException("The site returned an invalid recording link. Try again.");
+			}
+			return id;
 		}
 		catch (RuntimeException ex)
 		{

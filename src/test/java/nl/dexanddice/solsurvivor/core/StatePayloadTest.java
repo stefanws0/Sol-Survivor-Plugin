@@ -103,6 +103,17 @@ public class StatePayloadTest
 	}
 
 	@Test
+	public void theFirstLinksMarkComesAfterTheRestOfTheLink() throws Exception
+	{
+		// wave4-first.json is wave4-start.json with the mark of the plugin's first link, which the site's tests open
+		// (test/link/pluginFixtures.test.ts) and count as a plugin player's first page.
+		String start = fixture("wave4-start.json");
+		assertEquals(fixture("wave4-first.json"), StatePayload.withFirst(start));
+		String link = StatePayload.linkOfJson("https://solsurvivor.app/", StatePayload.withFirst(start));
+		assertEquals(fixture("wave4-first.json"), unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
+	}
+
+	@Test
 	public void theTrianglesSharesAreKeptToTheSettingsRangeAndNoneAboveNothingPlacesNoDot()
 	{
 		assertEquals(TriangleDot.of(0, 100, 0), TriangleDot.of(-5, 200, 0));

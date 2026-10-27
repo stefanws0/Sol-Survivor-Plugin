@@ -1,5 +1,7 @@
 package nl.dexanddice.solsurvivor;
 
+import java.awt.Color;
+import net.runelite.client.config.Alpha;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
@@ -95,6 +97,414 @@ public interface SolSurvivorConfig extends Config
 		return true;
 	}
 
+	/** The mistake tracker: the wave report once each wave ends, and which mistakes it counts. */
+	@ConfigSection(
+		name = "Mistake tracker",
+		description = "Counts your mistakes quietly from the wave log, and shows the report in the panel once the wave ends. Nothing shows while a wave is under way.",
+		position = 8
+	)
+	String mistakesSection = "mistakes";
+
+	String TRACK_MISTAKES = "trackMistakes";
+
+	@ConfigItem(
+		keyName = TRACK_MISTAKES,
+		name = "Track mistakes",
+		description = "Counts them quietly; the report shows in the panel when the wave ends. Needs Record wave log.",
+		position = 1,
+		section = mistakesSection
+	)
+	default boolean trackMistakes()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "reportInChat",
+		name = "Say the report in chat",
+		description = "One line in your chat box at the wave's end: its mistakes, the damage you took and your prayer.",
+		position = 2,
+		section = mistakesSection
+	)
+	default boolean reportInChat()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "countPastPrayer",
+		name = "Hits past my prayer",
+		description = "Counts each attack that met the wrong protection prayer or none, with what it hit for.",
+		position = 3,
+		section = mistakesSection
+	)
+	default boolean countPastPrayer()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "countLateFlicks",
+		name = "Flicks a tick late",
+		description = "Counts each attack whose protection prayer came on a tick late or went off a tick early.",
+		position = 4,
+		section = mistakesSection
+	)
+	default boolean countLateFlicks()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "countSpecials",
+		name = "Javelin specials that hit",
+		description = "Counts each Javelin Colossus special that landed on you.",
+		position = 5,
+		section = mistakesSection
+	)
+	default boolean countSpecials()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "countVolatility",
+		name = "Volatility blasts that hit",
+		description = "Counts each Volatility explosion you stood in.",
+		position = 6,
+		section = mistakesSection
+	)
+	default boolean countVolatility()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "countSolarflareSand",
+		name = "Solarflare and molten sand",
+		description = "Counts each hit of Solarflare's orb, and each hit no attack explains while you stood on molten sand.",
+		position = 7,
+		section = mistakesSection
+	)
+	default boolean countSolarflareSand()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "countIdle",
+		name = "Idle ticks",
+		description = "Counts each stretch in which you had a living NPC as your target and your weapon ready, but neither attacked, ate nor took a step. Waiting with no target, as on a pillar stack, is not counted.",
+		position = 8,
+		section = mistakesSection
+	)
+	default boolean countIdle()
+	{
+		return true;
+	}
+
+	@Range(min = 1, max = 20)
+	@Units(Units.TICKS)
+	@ConfigItem(
+		keyName = "idleFrom",
+		name = "Idle from",
+		description = "How many idle ticks in a row count as a mistake.",
+		position = 9,
+		section = mistakesSection
+	)
+	default int idleFrom()
+	{
+		return 2;
+	}
+
+	@ConfigItem(
+		keyName = "deathRecap",
+		name = "Death recap",
+		description = "After a death, shows in the panel the last ticks before it: your hitpoints, your prayer, and each hit and what dealt it. Needs Record wave log.",
+		position = 10,
+		section = mistakesSection
+	)
+	default boolean deathRecap()
+	{
+		return true;
+	}
+
+	/** What the panel lists of the wave under way and the next, and of the modifiers held. */
+	@ConfigSection(
+		name = "Waves and modifiers",
+		description = "What the panel and the wave box list of each wave and of the modifiers you hold: only what is in the arena, no timers.",
+		position = 9
+	)
+	String wavesSection = "waves";
+
+	@ConfigItem(
+		keyName = "showWaveNpcs",
+		name = "Show the wave's NPCs",
+		description = "Lists the wave's NPCs in the panel while it is under way, with how many of each are left.",
+		position = 1,
+		section = wavesSection
+	)
+	default boolean showWaveNpcs()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "markDead",
+		name = "Mark the dead",
+		description = "Struck through as each one dies. Off, the dead drop off the list.",
+		position = 2,
+		section = wavesSection
+	)
+	default boolean markDead()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "listWarband",
+		name = "List the warband",
+		description = "Lists the Fremennik warband's archer, seer and berserker one by one. Off, the three show as one line.",
+		position = 3,
+		section = wavesSection
+	)
+	default boolean listWarband()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "showNextWave",
+		name = "Show the next wave",
+		description = "Between waves, lists what the next wave brings.",
+		position = 4,
+		section = wavesSection
+	)
+	default boolean showNextWave()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showModifiers",
+		name = "Show modifiers held",
+		description = "Lists the modifiers you hold, with their tiers.",
+		position = 5,
+		section = wavesSection
+	)
+	default boolean showModifiers()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "doomLimit",
+		name = "Doom against its limit",
+		description = "Shows Doom's stacks as \"4 of 10\", red on the last stack, from the game's own count.",
+		position = 6,
+		section = wavesSection
+	)
+	default boolean doomLimit()
+	{
+		return true;
+	}
+
+	/** Where the wave box shows: off, the wave under way, the next, or both. */
+	enum WaveBox
+	{
+		OFF("Off"),
+		THIS_WAVE("This wave"),
+		NEXT_WAVE("Next wave"),
+		BOTH("Both");
+
+		private final String name;
+
+		WaveBox(String name)
+		{
+			this.name = name;
+		}
+
+		boolean showsThisWave()
+		{
+			return this == THIS_WAVE || this == BOTH;
+		}
+
+		boolean showsNextWave()
+		{
+			return this == NEXT_WAVE || this == BOTH;
+		}
+
+		@Override
+		public String toString()
+		{
+			return name;
+		}
+	}
+
+	/** What the plugin draws on the game's screen: all of it off until the player switches it on. */
+	@ConfigSection(
+		name = "On the game screen",
+		description = "Everything here draws on the game's screen, so it is all off until you switch it on.",
+		position = 10
+	)
+	String screenSection = "screen";
+
+	@ConfigItem(
+		keyName = "waveBox",
+		name = "Wave box",
+		description = "A box on the game's screen with the wave's NPCs, the next wave's, or both: the same as the panel's list, no timers. Move it by holding Alt and dragging.",
+		position = 1,
+		section = screenSection
+	)
+	default WaveBox waveBox()
+	{
+		return WaveBox.OFF;
+	}
+
+	@ConfigItem(
+		keyName = "modifiersBar",
+		name = "Modifiers above the chatbox",
+		description = "The modifiers you hold in a row of their pictures with their tiers, above the chatbox, as the panel shows them. Move it by holding Alt and dragging.",
+		position = 2,
+		section = screenSection
+	)
+	default boolean modifiersBar()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "doomByOrb",
+		name = "Doom by the hitpoints orb",
+		description = "Doom's stacks against its limit, as \"4/10\", beside the hitpoints orb, red on the last stack, from the game's own count.",
+		position = 3,
+		section = screenSection
+	)
+	default boolean doomByOrb()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "volatilityReminder",
+		name = "Volatility reminder",
+		description = "While you hold Volatility, Volatility's picture over each NPC that dies, for 5 ticks, as a reminder that it will explode. It does not mark the blast's area.",
+		position = 4,
+		section = screenSection
+	)
+	default boolean volatilityReminder()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "offerNames",
+		name = "Names on Minimus's offers",
+		description = "Writes each of Minimus's three offers' names on his screen with the tier taking it brings, such as Frailty III, its tier coloured light blue for I, a deeper blue for II and purple for III.",
+		position = 5,
+		section = screenSection
+	)
+	default boolean offerNames()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "myRange",
+		name = "My attack range",
+		description = "Outlines on the floor the tiles you can hit from where you stand: your weapon's range, with Myopia's cut, and only those in your line of sight.",
+		position = 6,
+		section = screenSection
+	)
+	default boolean myRange()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "highlightInRange",
+		name = "Highlight NPCs in range",
+		description = "Outlines the NPCs you can hit from where you stand, as Attack Ranges and Dynamic line of sight do.",
+		position = 7,
+		section = screenSection
+	)
+	default boolean highlightInRange()
+	{
+		return false;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "rangeColour",
+		name = "Range colour",
+		description = "The colour of your range's outline and of the NPCs in it.",
+		position = 8,
+		section = screenSection
+	)
+	default Color rangeColour()
+	{
+		return new Color(0xFF, 0xD2, 0x4A, 0xFF);
+	}
+
+	String HIDE_PILLARS = "hidePillars";
+
+	@ConfigItem(
+		keyName = HIDE_PILLARS,
+		name = "Hide the pillars",
+		description = "Stops the game drawing the arena's four pillars, so that you can see past them, and marks where each stands flat on the floor. They still block your path and your line of sight.",
+		position = 9,
+		section = screenSection
+	)
+	default boolean hidePillars()
+	{
+		return false;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "hiddenPillarsColour",
+		name = "Hidden pillars' colour",
+		description = "With the pillars hidden, the colour of the square left flat on the floor where each one stands, which you cannot walk onto. Set its opacity to 0 for none.",
+		position = 10,
+		section = screenSection
+	)
+	default Color hiddenPillarsColour()
+	{
+		return new Color(0x1A, 0x12, 0x0C, 0x96);
+	}
+
+	/** Minimus's loot: what it adds up to, and banking it in one click. */
+	@ConfigSection(
+		name = "Loot",
+		description = "Minimus's loot between waves and the reward chest at the end. Off until you switch them on.",
+		position = 11
+	)
+	String lootSection = "loot";
+
+	@ConfigItem(
+		keyName = "lootTotals",
+		name = "Loot totals",
+		description = "On Minimus's screen between waves, the value of all the loot so far under the last wave's, and what it comes to with the next wave's.",
+		position = 1,
+		section = lootSection
+	)
+	default boolean lootTotals()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "leftClickBankAll",
+		name = "Left-click Bank-all",
+		description = "Makes Bank-all the reward chest's left click in the arena, so that one click banks the loot.",
+		position = 2,
+		section = lootSection
+	)
+	default boolean leftClickBankAll()
+	{
+		return false;
+	}
+
 	/**
 	 * RuneLite's wording for a setting that sends anything to a server it does not run: each such setting is off by
 	 * default and shows it as the player switches it on, as RuneLite's plugin guide asks (runelite/example-plugin's
@@ -106,7 +516,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Sending to the site",
 		description = "Off until you switch them on. With Upload past runs and Share wave logs off, the plugin sends nothing to the Sol Survivor site.",
-		position = 8
+		position = 12
 	)
 	String sendingSection = "sending";
 
@@ -193,7 +603,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 9,
+		position = 12,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
@@ -255,7 +665,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 10,
+		position = 13,
 		closedByDefault = true
 	)
 	String prayerSection = "prayer";
@@ -284,5 +694,56 @@ public interface SolSurvivorConfig extends Config
 	default String prayerRecord()
 	{
 		return "";
+	}
+
+	/**
+	 * Whether the panel's Getting started card is done with (the onboarding ideas of 2026-10-27, O1): on Hide, once the
+	 * player opened or copied an arena's link, or for a player who had saved waves before the card came; not shown.
+	 */
+	String GETTING_STARTED_DONE = "gettingStartedDone";
+
+	@ConfigItem(
+		keyName = GETTING_STARTED_DONE,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean gettingStartedDone()
+	{
+		return false;
+	}
+
+	/**
+	 * Whether the plugin has said in chat, the first time the player entered the arena with it, where Arena now is (O3),
+	 * or the player had saved waves before the line came; not shown.
+	 */
+	String ENTERING_SAID = "enteringSaid";
+
+	@ConfigItem(
+		keyName = ENTERING_SAID,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean enteringSaid()
+	{
+		return false;
+	}
+
+	/**
+	 * Whether the plugin has opened its first arena on the site, whose link carries the site's mark of a first link, for
+	 * the site's short tour of a plugin player's page (O4), or the player had saved waves before the mark came; not shown.
+	 */
+	String FIRST_LINK_OPENED = "firstLinkOpened";
+
+	@ConfigItem(
+		keyName = FIRST_LINK_OPENED,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean firstLinkOpened()
+	{
+		return false;
 	}
 }

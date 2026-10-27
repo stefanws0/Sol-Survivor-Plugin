@@ -17,8 +17,8 @@ import java.util.zip.Deflater;
  * the NPCs' health bars, Doom's stacks; and the molten sand on the floor), and with the player's gear the `prayer`
  * values and the `equipment`; with the player's setting for it, the place of the dot on the site's Safe / Fast / Easy
  * triangle (`triangle`, withTriangle); and with theirs for that, their prayer over the waves the plugin counted, which
- * sets the site's Prayer reliability (`prayerRecord`, withPrayerRecord). The site keeps its own kill table and solver
- * settings.
+ * sets the site's Prayer reliability (`prayerRecord`, withPrayerRecord); and on the plugin's first link, a mark that
+ * says so (`first`, withFirst). The site keeps its own kill table and solver settings.
  *
  * The JSON is written by hand, ASCII only and in a fixed order, so that a state always gives the same link and the
  * tests can compare links whole.
@@ -492,7 +492,29 @@ public final class StatePayload
 	 */
 	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle, PrayerRecord prayer)
 	{
-		return linkOfJson(siteUrl, toJson(state, equipment), triangle, prayer);
+		return link(siteUrl, state, equipment, triangle, prayer, false);
+	}
+
+	/**
+	 * The whole link, with the player's gear when `equipment` is not null, the place they set for the site's triangle when
+	 * `triangle` is not null (withTriangle), their prayer over the waves counted when `prayer` is not null
+	 * (withPrayerRecord), and the mark of the plugin's first link when `first` (withFirst).
+	 */
+	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle, PrayerRecord prayer, boolean first)
+	{
+		String json = toJson(state, equipment);
+		return linkOfJson(siteUrl, first ? withFirst(json) : json, triangle, prayer);
+	}
+
+	/**
+	 * A payload's JSON with the mark of the plugin's first link, `"first":true`, after the rest (the onboarding ideas of
+	 * 2026-10-27, O4): the site opens a plugin player's first page with a short tour of its own, and counts how many such
+	 * pages it opens and how many are solved. Only the first arena the plugin opens on the site takes it.
+	 */
+	public static String withFirst(String json)
+	{
+		// toJson's JSON is one object, so its last character closes it.
+		return json.substring(0, json.lastIndexOf('}')) + ",\"first\":true}";
 	}
 
 	/**

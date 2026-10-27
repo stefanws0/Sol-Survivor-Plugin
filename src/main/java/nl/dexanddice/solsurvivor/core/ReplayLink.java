@@ -17,11 +17,27 @@ public final class ReplayLink
 
 	public static String browser(String site, String id)
 	{
-		if (id == null || !id.matches("[a-f0-9]{32}"))
+		return browser(site, id, null, null);
+	}
+
+	/**
+	 * The page that opens the stored run at wave `wave` and at `tick` of it, as the wave report and the death recap ask:
+	 * "#replay=<id>.<wave>.<tick>", or without the tick, or without either when `wave` is null.
+	 */
+	public static String browser(String site, String id, Integer wave, Integer tick)
+	{
+		if (!isId(id))
 		{
 			throw new IllegalArgumentException("The site returned an invalid recording link. Try again.");
 		}
-		return origin(site) + "/#replay=" + id;
+		String at = wave == null ? "" : "." + wave + (tick == null ? "" : "." + Math.max(0, tick));
+		return origin(site) + "/#replay=" + id + at;
+	}
+
+	/** Whether `id` is a stored run's id as the site gives them, 32 hexadecimal digits: nothing else goes in a link. */
+	public static boolean isId(String id)
+	{
+		return id != null && id.matches("[a-f0-9]{32}");
 	}
 
 	/** The site's origin, its scheme, host and port: HTTPS, or HTTP on localhost for development. WaveShare posts to it too. */

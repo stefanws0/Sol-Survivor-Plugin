@@ -159,10 +159,25 @@ public class PrayerFlicksTest
 		log.record(0, new WaveLog.PlayerTick(new GridTile(7, 15), 99, 50, list("ranged"), -1, WaveLog.TARGET_NONE), Collections.emptyList());
 		log.record(1, new WaveLog.PlayerTick(new GridTile(7, 15), 99, 50, list("magic", "ranged"), -1, WaveLog.TARGET_NONE), Collections.emptyList());
 		List<WaveLog.Tick> ticks = log.getTicks();
-		assertEquals("ranged", PrayerFlicks.protectionOn(ticks.get(1), ticks.get(0)));
-		assertEquals("magic", PrayerFlicks.protectionOn(ticks.get(1), null));
+		assertEquals("ranged", PrayerFlicks.protectionOn(ticks.get(1), ticks.get(0), null));
+		assertEquals("magic", PrayerFlicks.protectionOn(ticks.get(1), null, null));
 		assertEquals(PrayerFlicks.NO_PRAYER, PrayerFlicks.protectionOn(new WaveLog.Tick(2, new WaveLog.PlayerTick(null, 99, 50, Collections.emptyList(), -1,
-			WaveLog.TARGET_NONE), null, Collections.emptyList(), null, null, null, null, null, null), null));
+			WaveLog.TARGET_NONE), null, Collections.emptyList(), null, null, null, null, null, null), null, null));
+	}
+
+	@Test
+	public void aSwitchMadeInTimeAndClickedAgainKeepsTheOneGoneTheTickAfter()
+	{
+		// Magic, then Melee in time for tick 1 and Missiles clicked straight after, which the game takes on tick 2.
+		WaveLog log = new WaveLog();
+		log.start(1, 0, new EnumMap<>(Modifier.class), true, "test", null);
+		log.record(0, new WaveLog.PlayerTick(new GridTile(7, 15), 99, 50, list("magic"), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.record(1, new WaveLog.PlayerTick(new GridTile(7, 15), 99, 50, list("ranged", "melee"), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.record(2, new WaveLog.PlayerTick(new GridTile(7, 15), 99, 50, list("ranged"), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		List<WaveLog.Tick> ticks = log.getTicks();
+		assertEquals("melee", PrayerFlicks.protectionOn(ticks.get(1), ticks.get(0), ticks.get(2)));
+		// Without the tick after, the first named.
+		assertEquals("ranged", PrayerFlicks.protectionOn(ticks.get(1), ticks.get(0), null));
 	}
 
 	@Test

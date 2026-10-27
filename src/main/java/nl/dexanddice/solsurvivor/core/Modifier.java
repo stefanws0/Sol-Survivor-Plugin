@@ -1,6 +1,7 @@
 package nl.dexanddice.solsurvivor.core;
 
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -63,6 +64,32 @@ public enum Modifier
 	public String getKey()
 	{
 		return key;
+	}
+
+	/** Its name as the game gives it: "Mantimayhem", "Bees!", "Dynamic Duo". */
+	public String getName()
+	{
+		switch (this)
+		{
+			case BEES:
+				return "Bees!";
+			case DYNAMIC_DUO:
+				return "Dynamic Duo";
+			case RED_FLAG:
+				return "Red Flag";
+			default:
+				return name().charAt(0) + name().substring(1).toLowerCase(Locale.ROOT);
+		}
+	}
+
+	/** Its name at a tier, as the game gives it: "Mantimayhem II", or "Quartet" for a modifier without tiers. */
+	public String getName(int tier)
+	{
+		if (!hasTiers() || tier < 1 || tier > 3)
+		{
+			return getName();
+		}
+		return getName() + " " + (tier == 1 ? "I" : tier == 2 ? "II" : "III");
 	}
 
 	/** The modifier with a game id, or null for an id this plugin does not know. */

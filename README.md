@@ -2,8 +2,12 @@
 [Sol Survivor](https://solsurvivor.app/), a planner in your browser that works out where to stand, what to attack and
 which prayer to have up on every tick, down to the last kill.
 
-The plugin draws nothing in the game and never plays for you. It reads the arena, turns it into a link, and opens that
-link in your browser.
+![A plan for wave 7 playing on Sol Survivor, tick by tick, from the first tick to the last kill: where to stand, what to hit and which prayer to have up](images/plan-plays.webp)
+
+The plugin never plays for you, and nothing it shows says how to play a wave: it reads the arena, turns it into a
+link, and opens that link in your browser. In its panel it lists each wave's NPCs, reports your mistakes once a wave
+ends, and shows what hit you after a death. On the game's screen it shows only what you switch on: a box with the
+wave's NPCs, and your attack range.
 
 ![Sol Survivor's planner with a wave 7 opened from the plugin and solved: the arena, the plans found on the Safe · Fast · Easy triangle, and the chosen plan's tick grid](images/planner.webp)
 
@@ -20,6 +24,20 @@ link in your browser.
 
 The site is made for a desktop or laptop browser, beside the game, not for a phone.
 
+## Getting started
+
+<img src="images/getting-started.png" width="242" align="right" alt="The panel's Getting started card: walk into the Fortis Colosseum and the panel opens by itself; press Arena now at a wave's start or on a pillar stack; on the site, press Solve and play the plan it finds; and Try a sample wave, which opens wave 7 on the site with its plan, no Colosseum needed">
+
+Fresh from the Plugin Hub, the panel starts with a **Getting started** card: the three steps from the game to a plan,
+and **Try a sample wave**, which opens wave 7 on the site with the plan it found, so that you can look round before
+you play. It goes once you have opened a wave from the game, or on **Hide**.
+
+The first time you walk into the Colosseum with the plugin, one line in your chat box says where **Arena now** is, and
+on a browser new to the site, the first wave you open there comes with a short tour of its own: three steps on the
+wave you came with.
+
+<br clear="right">
+
 ## Your computer does the solving
 
 No server works out your plans: the planner runs in your browser, on your own computer, and solving a wave is heavy
@@ -34,27 +52,34 @@ work. Expect your computer to notice.
 - **If the game stutters**, solve between waves, or press **Stop**: the plans found so far stay.
 - **The modifier pick solves too.** It plays the next wave under each of Minimus's offers, which keeps your computer
   busy for a little while.
-- **In RuneLite, the plugin is light.** It notes where everything stands each tick and makes a link when you press a
-  button.
+- **In RuneLite, the plugin is light.** It notes where everything stands each tick, makes a link when you press a
+  button, and reads each wave's log once, as the wave ends, for its report.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 5: the wave's row with Arena now, the Modifier pick, the Leaderboard row, and past waves grouped by run, each wave with its time and glory">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick greyed until Minimus offers; the wave's row with Arena now and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; the wave report to come; and past waves, the latest run folded shut during the wave">
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
-Survivor site's stone look. The row at the top is for the wave you are in, with its number. Its **Arena now** opens the
-wave as it is right now, with the fight so far, and a line under it says what the last button did. To open the wave as
+Survivor site's stone look, and each part of it shows only when it is about the moment you are in. The row at the top
+is for the wave you are in, with its number. In the arena its **Arena now** opens the wave as it is right now, with the
+fight so far, and a line under it says what the last button did; out of the arena it is greyed. To open the wave as
 it was on its first tick, press the play button on its line under Past waves.
 
-The **Modifier pick** row lights up while Minimus offers his three modifiers: its **Open** button opens the site's
+In the same row, the panel lists the wave by the NPCs' faces: each with how many are left, struck through as they
+die, the reinforcements still to come, and the modifiers you hold by their pictures and tiers, with Doom's stacks as
+"Doom 4 of 10", red on the last. Between waves it lists what the next wave brings instead, and the reinforcements that
+join it later.
+
+The **Modifier pick** row shows at the top of the panel in the arena, greyed until Minimus offers his three modifiers.
+Then it lights up with them, by their pictures and the tier each would be, and **Open the pick** opens the site's
 modifier pick with his offers, the modifiers you hold and the next wave filled in.
 
 Each of these also copies its link, so you can share the wave. A hotkey, unset by default, copies the arena's link
 without leaving the game.
 
 **Past waves** lists your last 25 waves, grouped by run, newest first, and keeps them when RuneLite closes. Each
-wave's line gives its time and the glory it earned, by the game's own counter, and each run adds up its glory under
-its head. Click a run's head to fold it open or shut. Each wave's line has three buttons:
+wave's line gives its time and the glory it earned, by the game's own counter, and its mistakes, or "clean", once its
+report is in; each run adds up its glory under its head. Click a run's head to fold it open or shut; during a wave the runs fold shut, but one you opened. Each wave's line has three buttons:
 
 - The play button opens the wave as it was on its first tick.
 - The two-figure button opens it on the tick its reinforcements came.
@@ -64,14 +89,73 @@ its head. Click a run's head to fold it open or shut. Each wave's line has three
 **Watch**, on a run's head, opens the whole run on the site to watch back. The copy button beside it copies the whole
 run for the site's log checker. The question mark at the top of the panel sums all this up.
 
-With **Leaderboard** on, a **Leaderboard** row shows the name your waves go up under, with **Open**, which opens
-the site's leaderboard outside a wave, and **Remove my times**.
+With **Leaderboard** on, out of the arena a **Leaderboard** row shows the name your waves go up under, with **Open**,
+which opens the site's leaderboard, and **Remove my times**.
 
 <br clear="right">
 
+## After each wave: the wave report
+
+<img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, and four mistakes, each with the face of what did it, its damage and its tick, over Review on site and All mistakes">
+
+As a wave ends, the panel shows its report. Nothing shows while the wave is under way: the report waits for its end.
+The panel's card gives the damage you took, the attacks you prayed on time and your idle ticks, and the first five
+mistakes, each by the face of what did it. **All mistakes** opens the whole report in the panel, until **Back**:
+
+- **Your prayer against the wave's attacks**: how many met the right protection prayer on time, a tick off, the wrong
+  one, or none.
+- **The wave's mistakes, by tick**, each with what it cost: an attack that got past your prayer, a protection prayer a
+  tick late or off a tick early, a Javelin Colossus special or a Volatility blast that hit you, a hit of Solarflare's
+  orb or the molten sand, and idle ticks. Idle is a stretch with a living NPC as your target and your weapon ready in
+  which you neither attacked, ate nor took a step: waiting with no target, as on a pillar stack, is not counted.
+- **The run so far**, a bar for each wave's mistakes, and the kind the run has most.
+
+Each mistake's button opens the wave on the site's run review on its tick, and **Review on site** at its start, to see
+what happened. Like **Watch**, they upload the run, so they need **Upload past runs**. **Copy report** copies the
+report as text. Each kind of mistake has its own switch under **Mistake tracker** in the settings, and **Say the
+report in chat** puts one line in your chat box as the wave ends.
+
+<br clear="right">
+
+## After a death: the recap
+
+<img src="images/death-recap.png" width="242" align="right" alt="The death recap for wave 6: the hit that killed and the one before it that got past the prayer, then the last 8 ticks with hitpoints, prayer, what happened and what each hit did">
+
+When you die, the panel shows at its top, once you are out of the arena, what did it: the hit that took your last hitpoints and any attack that got past your
+prayer in the ticks before. Under it, the last 8 ticks, each with your hitpoints, the protection prayer you had up, and
+each hit and what dealt it. **Open at tick** opens the wave on the site's run review on the first of those ticks, and
+**Watch the run** the whole run.
+
+<br clear="right">
+
+## In the game
+
+Each of these is off until you switch it on, under **On the game screen** in the settings. They show only what is in
+the arena: none of them reads a plan, picks a target or marks a tile to stand on.
+
+- **Wave box**: the panel's list of the wave's NPCs on the game's screen, by their faces, with Doom's stacks, for the
+  wave under way, the next wave or both. A rule splits the NPCs at the wave's start from the reinforcements that join
+  later. Hold Alt and drag it to move it.
+- **Modifiers above the chatbox**: the modifiers you hold in a row of their pictures, with their tiers, just above
+  the chatbox. Hold Alt and drag it to move it.
+- **Doom by the hitpoints orb**: Doom's stacks against its limit, as "4/10", just left of your hitpoints orb, red on
+  the last stack.
+- **My attack range**: outlines the tiles you can hit from where you stand, with your weapon's range at its attack
+  style, Myopia's cut taken off, and only those in your line of sight.
+- **Highlight NPCs in range**: outlines the NPCs you can hit from where you stand, as RuneLite's Attack Ranges and
+  Dynamic line of sight plugins do.
+- **Volatility reminder**: while you hold Volatility, its picture over each NPC that dies, for 5 ticks, as a reminder
+  that it will explode. It does not mark the blast's area.
+- **Names on Minimus's offers**: writes each offer's name under its picture when Minimus makes his offers, with the
+  tier taking it brings, such as Frailty III, as the Fortis Colosseum plugin does, the tier light blue for I, a deeper
+  blue for II and purple for III.
+- **Hide the pillars**: stops the game drawing the arena's four pillars, so that you can see past them. They still
+  block your path and your line of sight, so where each stood stays marked flat on the floor, a faint square you
+  cannot walk onto. Switching it in the arena reloads the scene for a moment.
+
 ## Between waves: which modifier to take
 
-When Minimus makes his offers, press **Open** on the panel's Modifier pick. The site fills in his three offers and the
+When Minimus makes his offers, press **Open the pick** on the panel's Modifier pick. The site fills in his three offers and the
 modifiers you hold, solves the next wave on a few spawn layouts under each offer, and recommends the one that costs you
 least. Each offer also shows the OSRS Wiki's verdict on it and what the video guides make of it, which decide between
 offers that cost about the same.
@@ -107,6 +191,14 @@ game's clock does not back is not counted, and one that looks too good to be tru
 
 ## Privacy
 
+<img src="images/what-you-share.png" width="242" align="right" alt="The panel's What you share, folded open: Upload past runs, Share wave logs and Leaderboard, each Off, with what it sends and what it gets you, and where to switch them">
+
+The panel's **What you share**, at its foot, lists the three settings that send anything, whether each is on, what it
+sends and what it gets you. It only shows them: you switch each under **Sending to the site** in the settings, where
+RuneLite warns you first.
+
+<br clear="right">
+
 - **A wave or Modifier pick link keeps what it holds after its `#`**, the part of a link that browsers do not send to
   the site's server.
 - **Watch uploads only once you turn on Upload past runs, and only when you press it.** It sends the selected
@@ -128,6 +220,8 @@ game's clock does not back is not counted, and one that looks too good to be tru
   the plugin makes once and keeps in RuneLite's settings, so that the name and the times stay yours. Anyone can see the names, times and modifiers on the boards and
   watch their runs from the shared logs; the logs of a run in the first 20 places of a board are kept past their 90
   days while it stays there. **Remove my times** (`/api/board/remove`) deletes your name and every time of yours.
+- **The wave report, the death recap and what the plugin shows in the game are worked out on your computer** from
+  what it already notes, and send nothing.
 - **Both are off until you turn them on**, and RuneLite warns as you do that each sends your IP address to a server it
   does not run. With both off, the plugin sends nothing, Leaderboard on or not.
 - **Wave logs stay on your computer**, unless you copy one, watch a run or share them. With **Keep runs between
@@ -160,6 +254,36 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
 - **Keep runs between sessions**: on by default. Saves those waves on your computer, each account's apart, so that
   Past waves still lists them after RuneLite closes. Switch it off to delete the saved waves; Past waves then lasts
   until RuneLite closes.
+- **Mistake tracker**: the wave report and the death recap (see above). They need **Record wave log**.
+  - **Track mistakes**: on by default. Shows the wave report as each wave ends.
+  - **Say the report in chat**: off by default. One line in your chat box as the wave ends: its mistakes, the damage
+    you took and your prayer.
+  - **Hits past my prayer**, **Flicks a tick late**, **Javelin specials that hit**, **Volatility blasts that hit**,
+    **Solarflare and molten sand** and **Idle ticks**: each on by default, each a kind of mistake the report counts.
+  - **Idle from**: 2 ticks by default. How many idle ticks in a row count as a mistake.
+  - **Death recap**: on by default. Shows the last ticks before a death.
+- **Waves and modifiers**: what the panel's list and the wave box show.
+  - **Show the wave's NPCs**, **Show the next wave** and **Show modifiers held**: each on by default.
+  - **Mark the dead**: on by default. Strikes each NPC through as it dies; off, the dead drop off the list.
+  - **List the warband**: off by default. Lists the Fremennik warband's archer, seer and berserker one by one, rather
+    than as one line.
+  - **Doom against its limit**: on by default. Shows Doom's stacks as "4 of 10", red on the last, from the game's own
+    count.
+- **On the game screen**: everything the plugin draws in the game, all off by default (see In the game).
+  - **Wave box**: Off, This wave, Next wave or Both.
+  - **Modifiers above the chatbox**.
+  - **Doom by the hitpoints orb**.
+  - **Volatility reminder**.
+  - **Names on Minimus's offers**.
+  - **My attack range** and **Highlight NPCs in range**.
+  - **Range colour**: the colour of the range's outline and of the NPCs in it.
+  - **Hide the pillars**.
+  - **Hidden pillars' colour**: the colour of the square left on the floor where each hidden pillar stands; set its
+    opacity to 0 for none.
+- **Loot**: Minimus's loot, both off by default.
+  - **Loot totals**: on Minimus's screen between waves, the value of all your loot so far under the last wave's, and
+    what it comes to with the next wave's, from the game's own values.
+  - **Left-click Bank-all**: makes Bank-all the reward chest's left click, so that one click banks your loot.
 - **Sending to the site**: the settings that send something, together.
   - **Upload past runs**: off by default. Lets a run's Watch button upload that run to the site (see Privacy); until
     it is on, pressing Watch says so.
