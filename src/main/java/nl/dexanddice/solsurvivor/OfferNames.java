@@ -24,11 +24,11 @@ final class OfferNames
 	private static final int[] BUTTONS = {InterfaceID.ColosseumIntermission2.MOD_BUTTON_1, InterfaceID.ColosseumIntermission2.MOD_BUTTON_2,
 		InterfaceID.ColosseumIntermission2.MOD_BUTTON_3};
 	/**
-	 * The colour of an offer's tier by the tier taking it brings: light blue for I, a deeper blue for II, purple for III.
+	 * The colour of an offer's tier by the tier taking it brings: white for I, as the name, blue for II, purple for III.
 	 * Neither good nor bad, so that the colour tells the tier and nothing of which offer to take (the user's choice of
-	 * 2026-10-26, over green, yellow and red).
+	 * 2026-10-26, over green, yellow and red; tier I white rather than light blue, the user's of 2026-10-27).
 	 */
-	private static final String[] TIER_COLOURS = {"8cd2ff", "4a8cff", "c070ff"};
+	private static final String[] TIER_COLOURS = {"ffffff", "4a8cff", "c070ff"};
 
 	private OfferNames()
 	{

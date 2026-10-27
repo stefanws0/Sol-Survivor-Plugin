@@ -147,8 +147,8 @@ the arena: none of them reads a plan, picks a target or marks a tile to stand on
 - **Volatility reminder**: while you hold Volatility, its picture over each NPC that dies, for 5 ticks, as a reminder
   that it will explode. It does not mark the blast's area.
 - **Names on Minimus's offers**: writes each offer's name under its picture when Minimus makes his offers, with the
-  tier taking it brings, such as Frailty III, as the Fortis Colosseum plugin does, the tier light blue for I, a deeper
-  blue for II and purple for III.
+  tier taking it brings, such as Frailty III, as the Fortis Colosseum plugin does, the tier white for I, blue for II
+  and purple for III.
 - **Hide the pillars**: stops the game drawing the arena's four pillars, so that you can see past them. They still
   block your path and your line of sight, so where each stood stays marked flat on the floor, a faint square you
   cannot walk onto. Switching it in the arena reloads the scene for a moment.

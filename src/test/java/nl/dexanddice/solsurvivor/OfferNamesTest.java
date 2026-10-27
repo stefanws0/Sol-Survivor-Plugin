@@ -11,7 +11,7 @@ public class OfferNamesTest
 	@Test
 	public void anOfferIsNamedWithTheTierTakingItBrings()
 	{
-		assertEquals("Frailty <col=8cd2ff>I</col>", OfferNames.label(Modifier.FRAILTY, 0));
+		assertEquals("Frailty <col=ffffff>I</col>", OfferNames.label(Modifier.FRAILTY, 0));
 		assertEquals("Frailty <col=c070ff>III</col>", OfferNames.label(Modifier.FRAILTY, 2));
 		// Its third tier is its last: one held at III that is offered again stays at III.
 		assertEquals("Frailty <col=c070ff>III</col>", OfferNames.label(Modifier.FRAILTY, 3));

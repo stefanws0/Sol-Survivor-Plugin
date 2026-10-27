@@ -400,7 +400,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "offerNames",
 		name = "Names on Minimus's offers",
-		description = "Writes each of Minimus's three offers' names on his screen with the tier taking it brings, such as Frailty III, its tier coloured light blue for I, a deeper blue for II and purple for III.",
+		description = "Writes each of Minimus's three offers' names on his screen with the tier taking it brings, such as Frailty III, its tier white for I, blue for II and purple for III.",
 		position = 5,
 		section = screenSection
 	)
