@@ -228,8 +228,8 @@ class SolSurvivorPanel extends PluginPanel
 	 */
 	private static final Icon MINIMUS_ON = Icons.of("minimus", 28);
 	private static final Icon MINIMUS_OFF = Icons.of("minimus", 28, 0.35f);
-	/** The glory laurel in the leaderboard's slot, as the site's leaderboard has it over first place. */
-	private static final Icon LAUREL = Icons.of("glory-laurel", 28);
+	/** The gold medal in the leaderboard's slot, as the site's leaderboard gives first place (render 11). */
+	private static final Icon MEDAL = Icons.of("medal-gold", 28);
 	/** Yellow, as the text of the primary button it sits on, as Arena now's icon. */
 	private static final ImageIcon PICK_ICON = Stone.cards(12, Stone.YELLOW);
 	private static final ImageIcon START_ICON = Stone.play(10, Stone.ORANGE);
@@ -502,7 +502,7 @@ class SolSurvivorPanel extends PluginPanel
 			}
 		});
 		JPanel top = clear(new BorderLayout(8, 0));
-		top.add(new Stone.Slot(34, LAUREL), BorderLayout.WEST);
+		top.add(new Stone.Slot(34, MEDAL), BorderLayout.WEST);
 		top.add(text, BorderLayout.CENTER);
 		top.add(east, BorderLayout.EAST);
 		JPanel foot = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));

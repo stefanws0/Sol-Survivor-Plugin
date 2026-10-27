@@ -1,3 +1,5 @@
+![Sol Survivor 1.0: Sol Heredit over the arena with the sun behind him, and below him a player on a plan's golden path](images/key-art.webp)
+
 **Plan your Fortis Colosseum waves tick by tick.** Press a button in RuneLite and the wave you are in opens on
 [Sol Survivor](https://solsurvivor.app/), a planner in your browser that works out where to stand, what to attack and
 which prayer to have up on every tick, down to the last kill.
