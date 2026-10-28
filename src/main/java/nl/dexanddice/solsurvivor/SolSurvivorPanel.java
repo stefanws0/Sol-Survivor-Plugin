@@ -43,12 +43,14 @@ import nl.dexanddice.solsurvivor.core.ColosseumTracker;
  *
  * 1.0 draws the panel as the plugin feature designs of 2026-10-26 do (WaveCards): the wave's list and the modifiers held
  * in the wave's row, by their pictures; the wave report once a wave ends, short under the wave's row and in full on a
- * page of its own, which takes the panel's place until Back; the death recap after a death; and on each past wave its
+ * page of its own, which takes the panel's place until Back; the death report after a death; and on each past wave its
  * mistakes. Each row shows only in the moment it is about (the user's ask of 2026-10-26, "Plugin 1.0: what the panel
- * shows when"): the pick's only while Minimus offers, at the top; Arena now only in the arena; the recap only out of it,
- * after a death, over the rest; the leaderboard's only out of the arena; and in the arena Past waves fold into their
- * heading until the player opens them (the user's ask of 2026-10-27). Like the rest of the plugin the panel shows nothing
- * about how to play the wave; the plans are the site's.
+ * shows when"): the pick's only in the arena, its head alone until Minimus offers; the leaderboard's only out of the
+ * arena; and in the arena Past waves fold into their heading until the player opens them (the user's ask of
+ * 2026-10-27). After a death the recap is a page of its own, the death report, which opens as the player comes out of
+ * the arena, with Home to the rows, where a line opens it again; and out of the arena the last wave's report is a line
+ * too (the user's ask of 2026-10-28, that a player who has just died is not met by everything at once). Like the rest of
+ * the plugin the panel shows nothing about how to play the wave; the plans are the site's.
  */
 class SolSurvivorPanel extends PluginPanel
 {
@@ -217,8 +219,8 @@ class SolSurvivorPanel extends PluginPanel
 		+ "<font color='#ff981f'>Open the pick</font> opens Minimus's three offers there while he makes them.<br><br>"
 		+ "<font color='#ff981f'>Past waves</font>: a wave's play button opens it at its start. In the arena, click the heading to "
 		+ "show them.<br><br>"
-		+ "The <font color='#ff981f'>wave report</font> comes as each wave ends, and the <font color='#ff981f'>death recap</font> "
-		+ "after a death.<br><br>"
+		+ "The <font color='#ff981f'>wave report</font> comes as each wave ends, and the <font color='#ff981f'>death report</font> "
+		+ "as you leave after a death.<br><br>"
 		+ "<font color='#ff981f'>What you share</font>, at the foot, says what goes to the site. All of it is off until you switch it "
 		+ "on, as is everything under On the game screen.";
 
@@ -251,14 +253,12 @@ class SolSurvivorPanel extends PluginPanel
 	private static final Color MISTAKES_OUTLINE = new Color(0x5e250c);
 
 	private final Actions actions;
-	/** The wave's list, the wave report and the death recap, under the wave's row. */
+	/** The wave's list under the wave's row, the wave report, the death report, and their pages. */
 	final WaveCards cards;
 	private final Stone.Slot waveSlot = new Stone.Slot(34, SUN);
 	private final JLabel waveTitle = new Stone.Shadowed("", bold(), Stone.ORANGE);
 	private final JLabel waveState = label("", small(), Stone.TEXT);
 	private final Stone.Button openNow = new Stone.Button("Arena now", ARENA, true, small(), 7, 6);
-	/** The wave row's layout, whose gaps close up out of the arena, where the row keeps only its head and result. */
-	private final BorderLayout waveLayout = new BorderLayout(0, 6);
 	private final Stone.Well resultWell = new Stone.Well(new BorderLayout(), 4, 5, 4, 5);
 	private final JLabel result = label("", small(), Stone.TEXT);
 	private final Stone.Row pickRow = new Stone.Row(new BorderLayout(0, 6), 5, 5, 6, 6);
@@ -324,8 +324,11 @@ class SolSurvivorPanel extends PluginPanel
 	private boolean pastOpen;
 	/** The panel's rows, top to bottom; each shows only in its moment, and has no size while it hides. */
 	private final List<JComponent> rows = new ArrayList<>();
-	/** The page that takes the rows' place, the wave report in full, or null while the rows show. */
-	private JComponent page;
+	/**
+	 * The pages over the rows, the last the one that shows: the death report, and the wave report in full, which can open
+	 * from it and goes Back to it. Empty while the rows show.
+	 */
+	private final List<JComponent> pages = new ArrayList<>();
 
 	SolSurvivorPanel(Actions actions)
 	{
@@ -335,13 +338,28 @@ class SolSurvivorPanel extends PluginPanel
 			@Override
 			public void showPage(JComponent page)
 			{
-				SolSurvivorPanel.this.showPage(page);
+				pages.remove(page);
+				pages.add(page);
+				showTop();
+			}
+
+			@Override
+			public void closePage(JComponent page)
+			{
+				if (pages.remove(page))
+				{
+					showTop();
+				}
 			}
 
 			@Override
 			public void showMain()
 			{
-				SolSurvivorPanel.this.showMain();
+				if (!pages.isEmpty())
+				{
+					pages.clear();
+					showTop();
+				}
 			}
 		});
 		setBackground(Stone.BACKGROUND);
@@ -351,7 +369,7 @@ class SolSurvivorPanel extends PluginPanel
 
 		rows.add(header());
 		rows.add(startRow());
-		rows.add(cards.recapCard);
+		rows.add(cards.deathRow);
 		rows.add(pickRow());
 		rows.add(waveRow());
 		rows.add(cards.reportCard);
@@ -367,7 +385,7 @@ class SolSurvivorPanel extends PluginPanel
 		showSharing(false);
 		showSends(false, false, false);
 		showBoard(null, false, true);
-		showState(false, false, false, null, "Not in the Colosseum", "Enter it to open a wave.", new ArrayList<>(), "", new ArrayList<>());
+		showState(false, false, null, "Not in the Colosseum", "Enter it to open a wave.", new ArrayList<>(), "", new ArrayList<>());
 	}
 
 	/** The rows in their order. */
@@ -382,25 +400,19 @@ class SolSurvivorPanel extends PluginPanel
 		repaint();
 	}
 
-	/** The wave report's own page, in place of the rows, from its top. */
-	private void showPage(JComponent shown)
+	/** The last page, in place of the rows, from its top; or the rows again once no page is left. */
+	private void showTop()
 	{
-		page = shown;
+		if (pages.isEmpty())
+		{
+			addRows();
+			return;
+		}
 		removeAll();
-		add(shown);
+		add(pages.get(pages.size() - 1));
 		revalidate();
 		repaint();
 		javax.swing.SwingUtilities.invokeLater(() -> getScrollPane().getVerticalScrollBar().setValue(0));
-	}
-
-	/** The rows again, after the page's Back. */
-	private void showMain()
-	{
-		if (page != null)
-		{
-			page = null;
-			addRows();
-		}
 	}
 
 	static Font bold()
@@ -462,7 +474,7 @@ class SolSurvivorPanel extends PluginPanel
 		under.add(resultWell, BorderLayout.NORTH);
 		under.add(cards.waveBody, BorderLayout.CENTER);
 
-		Stone.Row row = new Stone.Row(waveLayout, 5, 5, 6, 6);
+		Stone.Row row = new Stone.Row(new BorderLayout(0, 6), 5, 5, 6, 6);
 		row.add(top, BorderLayout.NORTH);
 		row.add(openNow, BorderLayout.CENTER);
 		row.add(under, BorderLayout.SOUTH);
@@ -471,7 +483,8 @@ class SolSurvivorPanel extends PluginPanel
 
 	/**
 	 * Minimus's pick: a row at the top, in the arena, lit gold while he offers his three, which it shows by their
-	 * pictures over a button as wide as the row, Arena now's twin, that opens them on the site; greyed until he does.
+	 * pictures over a button as wide as the row, Arena now's twin, that opens them on the site; until he does, its head
+	 * alone, greyed.
 	 */
 	private JPanel pickRow()
 	{
@@ -480,6 +493,8 @@ class SolSurvivorPanel extends PluginPanel
 		text.add(pickState, BorderLayout.CENTER);
 		pickState.setForeground(Stone.TEXT);
 		openPick.addActionListener(e -> actions.openRecommender());
+		openPick.setToolTipText("Opens the site's modifier pick with Minimus's three, the modifiers you hold and the next wave filled in, and copies "
+			+ "its link.");
 		JPanel head = clear(new BorderLayout(8, 0));
 		head.add(pickSlot, BorderLayout.WEST);
 		head.add(text, BorderLayout.CENTER);
@@ -748,13 +763,12 @@ class SolSurvivorPanel extends PluginPanel
 
 	/**
 	 * What the panel shows, on the Swing thread: whether the player is in the Colosseum, whether Arena now has a wave to
-	 * open (`live`: one of waves 1 to 11 under way), whether the death recap shows, the wave for the slot (null for none),
-	 * the wave row's title and state, Minimus's offers while he makes them, a note in place of the runs when there are
-	 * none, and the runs, newest first. The runs' rows are built again only when they changed, so that a line under the
-	 * mouse stays as it is.
+	 * open (`live`: one of waves 1 to 11 under way), the wave for the slot (null for none), the wave row's title and state,
+	 * Minimus's offers while he makes them, a note in place of the runs when there are none, and the runs, newest first.
+	 * The runs' rows are built again only when they changed, so that a line under the mouse stays as it is.
 	 */
-	void showState(boolean inColosseum, boolean live, boolean recap, Integer wave, String title, String state, List<Offer> offerList,
-		String note, List<RunGroup> runs)
+	void showState(boolean inColosseum, boolean live, Integer wave, String title, String state, List<Offer> offerList, String note,
+		List<RunGroup> runs)
 	{
 		boolean offers = !offerList.isEmpty();
 		if (!Objects.equals(wave, shownWave) || shownRuns == null)
@@ -764,24 +778,18 @@ class SolSurvivorPanel extends PluginPanel
 		}
 		waveTitle.setText(title);
 		waveState.setText(state);
-		// The buttons stay where they are, greyed while they have nothing to open, so that the panel does not jump and shows
-		// what it is for; both go while the death recap shows, which is the panel's then (the user's choice, 2026-10-26).
-		// Arena now is lit only while a wave it plans is under way, as the arena has nothing to open before a wave or between
-		// two (the UX review of 2026-10-27, F1). The pick is greyed in the arena until Minimus offers, and goes out of it,
-		// where there is no run to pick for.
+		// Arena now stays where it is, greyed while it has nothing to open, so that the panel does not jump and shows what it
+		// is for (the user's choice, 2026-10-26); it is lit only while a wave it plans is under way, as the arena has nothing
+		// to open before a wave or between two (the UX review of 2026-10-27, F1). The pick is its head alone in the arena
+		// until Minimus offers, as its button can do nothing through a wave (F9, the user's ask of 2026-10-28 to fold what a
+		// moment does not need), and goes out of the arena, where there is no run to pick for.
 		openNow.setEnabled(live);
 		openNow.setToolTipText(live ? "Opens the arena as it is now on the site, and copies its link."
 			: !inColosseum ? "Opens the arena on the site once you are in the Colosseum."
 			: wave != null && wave > ColosseumTracker.LAST_WAVE ? "Sol Survivor plans waves 1 to 11, not Sol Heredit's."
 			: "Opens the arena on the site once the wave starts. A wave you played opens at its start from the play button on its "
 				+ "line under Past waves.");
-		if (openNow.isVisible() == recap)
-		{
-			openNow.setVisible(!recap);
-			fitWaveRow();
-		}
-		boolean pick = inColosseum && !recap;
-		if (!offerList.equals(shownOffers) || pick != pickRow.isVisible() || shownRuns == null)
+		if (!offerList.equals(shownOffers) || inColosseum != pickRow.isVisible() || shownRuns == null)
 		{
 			offersWell.removeAll();
 			for (Offer o : offerList)
@@ -797,10 +805,8 @@ class SolSurvivorPanel extends PluginPanel
 			pickState.setForeground(offers ? Stone.TEXT : Stone.MUTED);
 			pickSlot.show(offers ? MINIMUS_ON : MINIMUS_OFF, null);
 			pickRow.setGlow(offers ? Stone.GOLD : null);
-			pickRow.setVisible(pick);
-			openPick.setEnabled(offers);
-			openPick.setToolTipText(offers ? "Opens the site's modifier pick with Minimus's three, the modifiers you hold and the next wave filled "
-				+ "in, and copies its link." : "Opens the site's modifier pick once Minimus offers his three, after a wave.");
+			pickRow.setVisible(inColosseum);
+			openPick.setVisible(offers);
 			shownOffers = new ArrayList<>(offerList);
 			pickRow.revalidate();
 			pickRow.repaint();
@@ -897,19 +903,16 @@ class SolSurvivorPanel extends PluginPanel
 		}
 	}
 
-	/** What the last button did, in the well under the wave's buttons. On the Swing thread. */
+	/**
+	 * What the last button did, in the well under the wave's buttons, and on a page while one shows, as the death
+	 * report's Watch is there. On the Swing thread.
+	 */
 	void showResult(String message)
 	{
 		result.setText(wrap(message, 196));
 		resultWell.setVisible(!message.isEmpty());
-		fitWaveRow();
-	}
-
-	/** The wave row's gaps, closed up while it holds nothing under its head. */
-	private void fitWaveRow()
-	{
-		waveLayout.setVgap(openNow.isVisible() || resultWell.isVisible() ? 6 : 0);
 		revalidate();
+		cards.showResult(message);
 	}
 
 	/**

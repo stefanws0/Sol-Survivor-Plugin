@@ -339,8 +339,11 @@ public class SolSurvivorPlugin extends Plugin
 	private boolean shownBoardOpen;
 	private List<Object> shownWave;
 	private WaveCards.Report shownReport;
-	private boolean shownPending;
 	private WaveCards.Recap shownRecap;
+	/** Whether the cards were last shown out of the arena, where the report is a line. */
+	private boolean shownOutside;
+	/** Whether a wave was under way at the last update, so that the last result is cleared as one starts. */
+	private boolean shownDuring;
 	/** The first-run cards as last shown: the three sending settings, Getting started's, and whether a wave is under way. */
 	private List<Object> shownFirstRun;
 
@@ -544,8 +547,9 @@ public class SolSurvivorPlugin extends Plugin
 			shownBoardOpen = false;
 			shownWave = null;
 			shownReport = null;
-			shownPending = false;
 			shownRecap = null;
+			shownOutside = false;
+			shownDuring = false;
 			shownFirstRun = null;
 			waveView = WaveView.NONE;
 			sandTicks.clear();
@@ -1223,8 +1227,7 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			return null;
 		}
-		String when = "Tick " + r.getDied() + " \u00b7 " + duration(r.getDied()) + " into the wave";
-		return new WaveCards.Recap(id, wave.getWave(), when, r.getCause(), r.getRecap(), r.getMaxHitpoints());
+		return new WaveCards.Recap(id, wave.getWave(), r.getDied(), duration(r.getDied()), r.getCause(), r.getRecap(), r.getMaxHitpoints());
 	}
 
 	/** Copies the report of the logged wave `id` as text, for a clan's chat or the site's Discord. */
@@ -2551,9 +2554,10 @@ public class SolSurvivorPlugin extends Plugin
 		String boardRow = colosseum ? null : board != null ? board : BoardEntry.isKey(config.leaderboardKey()) ? "" : null;
 		boolean boardOpen = !(colosseum && tracker.isWaveStarted());
 		// The cards, each in its moment ("Plugin 1.0: what the panel shows when", 2026-10-26): the wave's list in the
-		// arena; during a wave only the line that says the report comes at its end; the report of the last wave reviewed
-		// between waves and out of the arena after a run, until the player is back in the arena before a new run's first
-		// wave; and the recap only out of the arena, after the death that ended the run.
+		// arena; nothing of the report during a wave, which is the wave's (the UX review of 2026-10-27, F13); the report of
+		// the last wave reviewed between waves, and out of the arena after a run as a line, until the player is back in the
+		// arena before a new run's first wave; and the recap only out of the arena, after the death that ended the run, as
+		// the death report's page with a line to it (the user's ask of 2026-10-28).
 		WaveView view = colosseum ? waveView : WaveView.NONE;
 		List<Object> waveCard = Arrays.asList(view, config.showWaveNpcs(), config.markDead(), config.showNextWave(), config.showModifiers(),
 			config.doomLimit());
@@ -2565,10 +2569,16 @@ public class SolSurvivorPlugin extends Plugin
 		boolean tracking = config.trackMistakes() && config.recordWaveLog();
 		boolean newRun = colosseum && wave == null;
 		WaveCards.Report report = tracking && !during && !newRun ? reportOf(lastReview) : null;
-		boolean pending = tracking && during;
 		WaveCards.Recap recap = config.deathRecap() && !colosseum ? recapOf(lastReview) : null;
-		boolean cardsSame = waveCard.equals(shownWave) && Objects.equals(report, shownReport) && pending == shownPending
-			&& Objects.equals(recap, shownRecap);
+		boolean cardsSame = waveCard.equals(shownWave) && Objects.equals(report, shownReport) && Objects.equals(recap, shownRecap)
+			&& !colosseum == shownOutside;
+		// The last result is about the moment before: it goes as a wave starts and as the player leaves the arena (the UX
+		// review of 2026-10-27, F15).
+		if (during && !shownDuring || !colosseum && shownInColosseum)
+		{
+			SwingUtilities.invokeLater(() -> p.showResult(""));
+		}
+		shownDuring = during;
 		// The first-run cards (the onboarding ideas of 2026-10-27): Getting started until it is done with, and What you share
 		// as the settings are; neither during a wave, which the panel keeps to. While Minimus offers, Getting started waits,
 		// so that his pick is the one lit card (the UX review of 2026-10-27, F4).
@@ -2598,8 +2608,8 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			shownWave = waveCard;
 			shownReport = report;
-			shownPending = pending;
 			shownRecap = recap;
+			shownOutside = !colosseum;
 			boolean list = config.showWaveNpcs();
 			boolean markDead = config.markDead();
 			boolean next = config.showNextWave();
@@ -2608,15 +2618,7 @@ public class SolSurvivorPlugin extends Plugin
 			SwingUtilities.invokeLater(() ->
 			{
 				p.cards.showWave(view, list, markDead, next, modifiers, doom);
-				if (pending)
-				{
-					p.cards.showReportPending();
-				}
-				else
-				{
-					p.cards.showReport(report);
-				}
-				p.cards.showRecap(recap);
+				p.cards.showReview(report, recap, !colosseum);
 			});
 		}
 		shownInColosseum = colosseum;
@@ -2630,7 +2632,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownBoardOpen = boardOpen;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, live, recap != null, colosseum ? wave : null, title, state, offers, note, runs);
+			p.showState(colosseum, live, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
 			p.showBoard(boardRow, sharing, boardOpen);
 		});

@@ -60,7 +60,7 @@ work. Expect your computer to notice.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick greyed until Minimus offers; the wave's row with Arena now and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; the wave report to come; and Past waves folded into its heading, as it is in the arena">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick, its heading alone until Minimus offers; the wave's row with Arena now, a line saying it opened the arena and copied its link, and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; and Past waves folded into its heading, as it is in the arena">
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
 Survivor site's stone look, and each part of it shows only when it is about the moment you are in. The row at the top
@@ -74,8 +74,8 @@ die, the reinforcements still to come, and the modifiers you hold by their pictu
 "Doom 4 of 10", red on the last. Between waves it lists what the next wave brings instead, and the reinforcements that
 join it later.
 
-The **Modifier pick** row shows at the top of the panel in the arena, greyed until Minimus offers his three modifiers.
-Then it lights up with them, by their pictures and the tier each would be, and **Open the pick** opens the site's
+The **Modifier pick** row shows at the top of the panel in the arena, its heading alone until Minimus offers his three
+modifiers. Then it lights up with them, by their pictures and the tier each would be, and **Open the pick** opens the site's
 modifier pick with his offers, the modifiers you hold and the next wave filled in.
 
 Each of these also copies its link, so you can share the wave. A hotkey, unset by default, copies the arena's link
@@ -105,7 +105,7 @@ which opens the site's leaderboard, and **Remove my times**.
 <img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, and four mistakes, each with the face of what did it, its damage and its tick, over Watch wave 5 and All mistakes">
 
 As a wave ends, the panel shows its report. Nothing shows while the wave is under way: the report waits for its end.
-The panel's card gives the damage you took, the attacks you prayed on time and your idle ticks, and the first five
+Out of the arena it folds to a line, with **Open** to see it whole. The panel's card gives the damage you took, the attacks you prayed on time and your idle ticks, and the first five
 mistakes, each by the face of what did it. **All mistakes** opens the whole report in the panel, until **Back**:
 
 - **Your prayer against the wave's attacks**: how many met the right protection prayer on time, a tick off, the wrong
@@ -124,14 +124,17 @@ report in chat** puts one line in your chat box as the wave ends.
 
 <br clear="right">
 
-## After a death: the recap
+## After a death: the death report
 
-<img src="images/death-recap.png" width="242" align="right" alt="The death recap for wave 6: the hit that killed and the one before it that got past the prayer, then the last 8 ticks with hitpoints, prayer, what happened and what each hit did">
+<img src="images/death-recap.png" width="242" align="right" alt="The death report for wave 6, with Home at its top: the hit that killed and the one before it that got past the prayer, then the last 8 ticks with hitpoints, prayer, what happened and what each hit did, Watch from tick 28 and Watch the run, and the wave's report as a line to open">
 
-When you die, the panel shows at its top, once you are out of the arena, what did it: the hit that took your last hitpoints and any attack that got past your
-prayer in the ticks before. Under it, the last 8 ticks, each with your hitpoints, the protection prayer you had up, and
-each hit and what dealt it. **Watch from tick** opens the wave on the site's run review on the first of those ticks,
-and **Watch the run** the whole run. Both need **Upload past runs**, as the wave report's do.
+When you die, the panel opens on the death report as you come out of the arena, and keeps the rest out of the way. It
+starts with what did it: the hit that took your last hitpoints and any attack that got past your prayer in the ticks
+before. Under it, the last 8 ticks, each with your hitpoints, the protection prayer you had up, and each hit and what
+dealt it. **Watch from tick** opens the wave on the site's run review on the first of those ticks, and **Watch the
+run** the whole run. Both need **Upload past runs**, as the wave report's do. The wave's report is a line at the
+foot: **Open** shows it whole, and **Back** comes back here. **Home** takes you to the rest of the panel, where a line
+at the top opens the death report again until you go back into the arena.
 
 <br clear="right">
 

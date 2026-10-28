@@ -24,7 +24,8 @@ import org.junit.Test;
  * in the lobby and everywhere else out of it (the user's ask of 2026-10-27). And the fixes of the UX review of
  * 2026-10-27 that the 1.0.0 review took: Arena now lit only when it has a wave to open (F1), every Watch saying it needs
  * Upload past runs before the press (F2), Getting started moving on in the arena (F4), a short help (F5), and "died"
- * for a death (F6).
+ * for a death (F6). And the calmer panel of 2026-10-28: the death report on a page of its own with Home back to the rest,
+ * the report a line out of the arena, the greyed pick its head alone (F9), and nothing of the report during a wave (F13).
  */
 public class SolSurvivorPanelTest
 {
@@ -91,7 +92,7 @@ public class SolSurvivorPanelTest
 		arena(panel, true);
 		assertTrue(button(panel, "Arena now").isEnabled());
 		// Sol Heredit's wave is under way, but the site plans waves 1 to 11.
-		panel.showState(true, false, false, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
+		panel.showState(true, false, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
 		assertFalse(button(panel, "Arena now").isEnabled());
 		assertTrue(button(panel, "Arena now").getToolTipText().contains("Sol Heredit"));
 	}
@@ -100,28 +101,115 @@ public class SolSurvivorPanelTest
 	public void everyWatchSaysItNeedsUploadPastRunsWhileThatIsOff()
 	{
 		SolSurvivorPanel panel = panel();
-		lobby(panel);
+		arena(panel, false);
 		WaveCards cards = panel.cards;
-		cards.showReport(new WaveCards.Report(5, 5, "1:15", 10, 0, 0, 0, 0, 0, Collections.emptyList(), null, new int[] {5}, new int[] {0}, null));
-		cards.showRecap(new WaveCards.Recap(6, 6, "0:25 into the wave", null, Collections.emptyList(), 99));
+		cards.showReview(report(5), null, false);
 		// Off, as it is until the player switches it on: secondary, with the line under it.
 		assertFalse(button(cards.reportCard, "Watch wave 5").isPrimary());
-		assertFalse(button(cards.recapCard, "Watch from tick 0").isPrimary());
 		assertEquals(1, shows(cards.reportCard, "Watch needs Upload past runs"));
-		assertEquals(1, shows(cards.recapCard, "Watch needs Upload past runs"));
 		assertEquals(1, shows(cards.reportPage, "Watch needs Upload past runs"));
+		lobby(panel);
+		cards.showReview(report(6), recap(6), true);
+		assertFalse(button(cards.deathPage, "Watch from tick 0").isPrimary());
+		assertEquals(1, shows(cards.deathPage, "Watch needs Upload past runs"));
 
 		panel.showSends(true, false, false);
-		assertTrue(button(cards.reportCard, "Watch wave 5").isPrimary());
-		assertTrue(button(cards.recapCard, "Watch from tick 0").isPrimary());
-		assertEquals(0, shows(cards.reportCard, "Watch needs Upload past runs"));
-		assertEquals(0, shows(cards.recapCard, "Watch needs Upload past runs"));
+		assertTrue(button(cards.deathPage, "Watch from tick 0").isPrimary());
+		assertEquals(0, shows(cards.deathPage, "Watch needs Upload past runs"));
 		assertEquals(0, shows(cards.reportPage, "Watch needs Upload past runs"));
+		arena(panel, false);
+		cards.showReview(report(5), null, false);
+		assertTrue(button(cards.reportCard, "Watch wave 5").isPrimary());
+		assertEquals(0, shows(cards.reportCard, "Watch needs Upload past runs"));
+	}
 
-		// While the wave under way's report waits, it has no Watch to speak for.
-		cards.showReportPending();
-		panel.showSends(false, false, false);
-		assertEquals(0, shows(cards.reportCard, "Watch"));
+	@Test
+	public void aDeathOpensItsReportOnAPageOfItsOwnWithHomeBackToTheRest()
+	{
+		SolSurvivorPanel panel = panel();
+		lobby(panel);
+		WaveCards cards = panel.cards;
+		cards.showReview(report(6), recap(6), true);
+		// The death report takes the panel's place as the player comes out of the arena.
+		assertEquals(1, count(panel, "Death report"));
+		assertEquals(1, count(panel, "You died on wave 6"));
+		assertEquals(0, count(panel, "Latest run"));
+
+		button(panel, "‹ Home").doClick();
+		assertEquals(1, count(panel, "Latest run"));
+		// At home the death is one line that opens it again, and neither the recap nor the report shows there.
+		assertEquals(1, count(panel, "You died on wave 6"));
+		assertEquals(0, count(panel, "Death report"));
+		assertEquals(0, shows(panel, "Watch from tick"));
+		assertEquals(0, shows(panel, "Wave 6 report"));
+		// The same death shown again, as a setting changes, stays at home.
+		cards.showReview(report(6), recap(6), true);
+		assertEquals(1, count(panel, "Latest run"));
+
+		button(cards.deathRow, "Open").doClick();
+		assertEquals(1, count(panel, "Death report"));
+		// The wave's report is a line on it, whose page goes Back to the death report.
+		button(panel, "Open").doClick();
+		assertEquals(1, shows(panel, "Copy report"));
+		button(panel, "‹ Back").doClick();
+		assertEquals(1, count(panel, "Death report"));
+
+		// Back in the arena, the death and its pages go.
+		arena(panel, false);
+		cards.showReview(null, null, false);
+		assertEquals(0, count(panel, "Death report"));
+		assertEquals(0, count(panel, "You died on wave 6"));
+		assertEquals(1, count(panel, "6 waves"));
+	}
+
+	@Test
+	public void outOfTheArenaTheReportIsALineWhoseOpenShowsItWhole()
+	{
+		SolSurvivorPanel panel = panel();
+		arena(panel, false);
+		WaveCards cards = panel.cards;
+		cards.showReview(report(5), null, false);
+		assertEquals(1, shows(panel, "Watch wave 5"));
+
+		lobby(panel);
+		cards.showReview(report(5), null, true);
+		assertEquals(1, count(panel, "Wave 5 report"));
+		assertEquals(0, shows(panel, "Watch wave 5"));
+		assertEquals(1, shows(panel, "No mistakes counted"));
+		button(cards.reportCard, "Open").doClick();
+		// The page holds the figures the short card has, and the rest.
+		assertEquals(1, shows(panel, "damage"));
+		assertEquals(1, shows(panel, "Watch wave 5"));
+		button(panel, "‹ Back").doClick();
+		assertEquals(1, count(panel, "Latest run"));
+	}
+
+	@Test
+	public void aResultShowsOnThePageThatShowsAndAPageOpensWithNone()
+	{
+		SolSurvivorPanel panel = panel();
+		lobby(panel);
+		WaveCards cards = panel.cards;
+		cards.showReview(report(6), recap(6), true);
+		panel.showResult("Uploading the run to watch it back…");
+		assertEquals(1, shows(panel, "Uploading the run"));
+		button(panel, "Open").doClick();
+		assertEquals(0, shows(panel, "Uploading the run"));
+	}
+
+	@Test
+	public void duringAWaveThePickIsItsHeadAloneAndTheReportWaits()
+	{
+		SolSurvivorPanel panel = panel();
+		arena(panel, true);
+		panel.cards.showReview(null, null, false);
+		assertEquals(1, shows(panel, "Opens when Minimus makes his offers."));
+		assertEquals(0, shows(panel, "Open the pick"));
+		assertEquals(0, shows(panel, "Comes when the wave ends"));
+
+		panel.showState(true, false, 7, "Wave 7 next", "Between waves", Arrays.asList(new SolSurvivorPanel.Offer("myopia", "Myopia"),
+			new SolSurvivorPanel.Offer("frailty", "Frailty"), new SolSurvivorPanel.Offer("blasphemy", "Blasphemy")), "", runs(false));
+		assertEquals(1, shows(panel, "Open the pick"));
 	}
 
 	@Test
@@ -179,6 +267,17 @@ public class SolSurvivorPanelTest
 		return log.current();
 	}
 
+	/** The report of wave `wave`, a clean one. */
+	private static WaveCards.Report report(int wave)
+	{
+		return new WaveCards.Report(wave, wave, "1:15", 10, 0, 0, 0, 0, 0, Collections.emptyList(), null, new int[] {wave}, new int[] {0}, null);
+	}
+
+	private static WaveCards.Recap recap(int wave)
+	{
+		return new WaveCards.Recap(wave, wave, 42, "0:25", null, Collections.emptyList(), 99);
+	}
+
 	private static SolSurvivorPanel panel()
 	{
 		return new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(SolSurvivorPanelTest.class.getClassLoader(),
@@ -188,13 +287,13 @@ public class SolSurvivorPanelTest
 	/** Wave 6 under way, or wave 5 done, in the arena. */
 	private static void arena(SolSurvivorPanel panel, boolean underWay)
 	{
-		panel.showState(true, underWay, false, 6, underWay ? "Wave 6" : "Wave 6 next", underWay ? "Under way" : "Between waves", NO_OFFERS,
+		panel.showState(true, underWay, 6, underWay ? "Wave 6" : "Wave 6 next", underWay ? "Under way" : "Between waves", NO_OFFERS,
 			"", runs(underWay));
 	}
 
 	private static void lobby(SolSurvivorPanel panel)
 	{
-		panel.showState(false, false, false, null, "Not in the Colosseum", "Enter it to open a wave.", NO_OFFERS, "", runs(false));
+		panel.showState(false, false, null, "Not in the Colosseum", "Enter it to open a wave.", NO_OFFERS, "", runs(false));
 	}
 
 	/** One run of waves 1 to 5, and wave 6 under way. */

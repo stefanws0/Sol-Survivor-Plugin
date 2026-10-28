@@ -43,6 +43,11 @@ import nl.dexanddice.solsurvivor.core.WaveRoster;
  * once a wave ends, short in the panel and in full on a page of its own; and the death recap, once the player has died.
  * During a wave they show only what is in the arena: the report waits for the wave's end, and nothing here says how to
  * play it. Built on the Swing thread.
+ *
+ * After a death the recap is a page of its own, the death report, which opens by itself as the player comes out of the
+ * arena and goes Home to the panel, where a line opens it again (the user's ask of 2026-10-28: a player who has just died
+ * was met by the recap, the report and the rest at once). Out of the arena the report is a line too, as the player saw
+ * it between waves; its page holds the whole of it.
  */
 final class WaveCards
 {
@@ -71,6 +76,7 @@ final class WaveCards
 	private static final String UPLOAD_OFF = "Watch needs Upload past runs, in the settings.";
 	/** The log book in the report's slot, as the site marks a wave's log with it (design round two's item 7). */
 	private static final Icon REPORT_ICON = Icons.of("log-book", 24);
+	private static final Icon SKULL = Icons.of("skull", 20);
 
 	/** The wave report as the panel shows it, with the settings applied: the mistakes the player counts, and their run's. */
 	static final class Report
@@ -209,23 +215,28 @@ final class WaveCards
 	}
 
 	/**
-	 * The death recap: the wave's log id and number, when the player died, what killed them, the last ticks, and the most
-	 * hitpoints the player had in the wave, which colours the hitpoints of each tick.
+	 * The death recap: the wave's log id and number, when the player died, the tick of the wave and how long into it in
+	 * game time, such as "0:21", what killed them, the last ticks, and the most hitpoints the player had in the wave,
+	 * which colours the hitpoints of each tick.
 	 */
 	static final class Recap
 	{
 		final int id;
 		final int wave;
+		/** When the player died, in full on the death report, such as "Tick 35 · 0:21 into the wave". */
 		final String when;
+		/** When, short for the line at home, such as "0:21 into the wave". */
+		final String into;
 		final String cause;
 		final List<WaveReview.RecapLine> lines;
 		final int maxHitpoints;
 
-		Recap(int id, int wave, String when, String cause, List<WaveReview.RecapLine> lines, int maxHitpoints)
+		Recap(int id, int wave, int tick, String time, String cause, List<WaveReview.RecapLine> lines, int maxHitpoints)
 		{
 			this.id = id;
 			this.wave = wave;
-			this.when = when;
+			this.into = time + " into the wave";
+			this.when = "Tick " + tick + " \u00b7 " + into;
 			this.cause = cause;
 			this.lines = lines;
 			this.maxHitpoints = maxHitpoints;
@@ -260,11 +271,18 @@ final class WaveCards
 		void copyReport(int id);
 	}
 
-	/** Where the report's own page shows: the panel puts it in place of its rows, and back. */
+	/**
+	 * Where the pages show: the panel puts one in place of its rows, over the rows or another page, which its Back goes
+	 * back to.
+	 */
 	interface Pages
 	{
 		void showPage(JComponent page);
 
+		/** Takes `page` away wherever it is among the pages shown, showing what was under it. */
+		void closePage(JComponent page);
+
+		/** The panel's rows again, from every page. */
 		void showMain();
 	}
 
@@ -272,12 +290,22 @@ final class WaveCards
 	private final Pages pages;
 	/** The wave's list and the modifiers held, which the wave's row holds under its buttons. */
 	final JPanel waveBody = new Stone.Group(null);
+	/** The wave report under the wave's row: in short between waves, a line out of the arena; hidden after a death. */
 	final Stone.Row reportCard = new Stone.Row(null, 5, 6, 6, 6);
-	/** The recap's two cards and its buttons. */
-	final Stone.Group recapCard = new Stone.Group(null);
+	/** Out of the arena after a death, at the panel's top: a line that opens the death report again. */
+	final Stone.Row deathRow = new Stone.Row(null, 5, 6, 6, 6);
 	/** The report in full, on a page of its own in place of the panel's rows. */
 	final JPanel reportPage = new Stone.Group(null);
-	private boolean pageOpen;
+	/** The death report: the recap, its buttons and a line to the wave's report, on a page of its own. */
+	final JPanel deathPage = new Stone.Group(null);
+	/**
+	 * What the last button did, on each page under its Home or Back, as the panel's well is under the page: only what came
+	 * while a page showed, so that a page opens with none.
+	 */
+	private final JLabel reportResult = label("", small(), Stone.TEXT);
+	private final JPanel reportResultBox = resultBox(reportResult);
+	private final JLabel deathResult = label("", small(), Stone.TEXT);
+	private final JPanel deathResultBox = resultBox(deathResult);
 	/**
 	 * Whether Upload past runs is on, which every Watch needs: off, each goes secondary, with a line under it that says so
 	 * before the press rather than after (the UX review of 2026-10-27, F2).
@@ -286,17 +314,35 @@ final class WaveCards
 	/** The report and the recap shown, to build again as the setting changes; null while none shows. */
 	private Report report;
 	private Recap recap;
+	/** Whether the player is out of the arena, where the report is a line. */
+	private boolean outside;
+	/** The log id of the death whose report opened by itself, so that it opens once; null for none yet. */
+	private Integer deathOpened;
 
 	WaveCards(Actions actions, Pages pages)
 	{
 		this.actions = actions;
 		this.pages = pages;
-		for (JPanel card : new JPanel[] {waveBody, reportCard, recapCard, reportPage})
+		for (JPanel card : new JPanel[] {waveBody, reportCard, deathRow, reportPage, deathPage})
 		{
 			card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
 			card.setVisible(false);
 		}
-		reportCard.setGlow(Stone.GOLD);
+		// The pages show only once the panel puts them in its place.
+		reportPage.setVisible(true);
+		deathPage.setVisible(true);
+	}
+
+	/** A page's well for the last result, under its bar, with the gap above it; hidden until a result comes. */
+	private static JPanel resultBox(JLabel words)
+	{
+		Stone.Well well = new Stone.Well(new BorderLayout(), 4, 5, 4, 5);
+		well.add(words);
+		JPanel box = new Stone.Group(new BorderLayout());
+		box.add(well, BorderLayout.CENTER);
+		box.setBorder(new EmptyBorder(6, 0, 0, 0));
+		box.setVisible(false);
+		return box;
 	}
 
 	/**
@@ -469,61 +515,143 @@ final class WaveCards
 			return;
 		}
 		upload = on;
-		if (report != null)
-		{
-			showReport(report);
-		}
-		if (recap != null)
-		{
-			showRecap(recap);
-		}
-	}
-
-	/** Between a wave's start and its end: the report's card says it comes then. */
-	void showReportPending()
-	{
-		closePage();
-		report = null;
-		reportCard.removeAll();
-		reportCard.setGlow(null);
-		Stone.Slot slot = new Stone.Slot(30, REPORT_ICON);
-		JPanel text = clear(new BorderLayout(0, 1));
-		text.add(new Stone.Shadowed("Wave report", bold(), Stone.ORANGE), BorderLayout.NORTH);
-		text.add(label("Comes when the wave ends.", small(), Stone.MUTED), BorderLayout.CENTER);
-		JPanel row = clear(new BorderLayout(8, 0));
-		row.add(slot, BorderLayout.WEST);
-		row.add(text, BorderLayout.CENTER);
-		reportCard.add(left(row));
-		reportCard.setVisible(true);
-		reportCard.revalidate();
-		reportCard.repaint();
+		build();
 	}
 
 	/**
-	 * The wave report, or none for null. In the panel: the wave's time, its mistakes by their pictures with what each cost,
-	 * the first few of them, and the buttons to the site and to the report's own page. On that page, the whole report: the
-	 * prayer against the wave's attacks, every mistake by tick with a button to watch it, the kinds the settings leave out,
-	 * and the run's mistakes wave by wave.
+	 * The last wave's report and the recap of the death in it, or none for null, as the panel shows them: in the arena
+	 * between waves the report in short under the wave's row; out of it (`outside`) the report as a line, or after a death
+	 * a line at the top that opens the death report. That page opens by itself the first time a death's recap shows, as
+	 * the player comes out of the arena; null closes it, and the report's page with a null report, as a wave starts.
 	 */
-	void showReport(Report r)
+	void showReview(Report report, Recap recap, boolean outside)
 	{
-		report = r;
-		reportCard.removeAll();
-		reportPage.removeAll();
-		if (r == null)
+		boolean died = recap != null && !Objects.equals(deathOpened, recap.id);
+		this.report = report;
+		this.recap = recap;
+		this.outside = outside;
+		build();
+		if (report == null)
 		{
-			reportCard.setVisible(false);
-			closePage();
-			return;
+			pages.closePage(reportPage);
 		}
+		if (recap == null)
+		{
+			pages.closePage(deathPage);
+		}
+		else if (died)
+		{
+			deathOpened = recap.id;
+			open(deathPage);
+		}
+	}
+
+	/**
+	 * What the last button did, shown on the page that shows, scrolled into sight: the panel's own well is under the page.
+	 * Each page opens with none.
+	 */
+	void showResult(String message)
+	{
+		reportResult.setText(wrap(message, 196));
+		deathResult.setText(wrap(message, 196));
+		for (JPanel box : new JPanel[] {reportResultBox, deathResultBox})
+		{
+			box.setVisible(!message.isEmpty());
+			box.revalidate();
+			if (!message.isEmpty())
+			{
+				// After the layout the revalidate asked for, so that the well's place is known; on a page not shown it does nothing.
+				javax.swing.SwingUtilities.invokeLater(() -> box.scrollRectToVisible(new java.awt.Rectangle(0, 0, box.getWidth(), box.getHeight())));
+			}
+		}
+	}
+
+	/** Shows a page from its top, with no result yet. */
+	private void open(JComponent page)
+	{
+		showResult("");
+		pages.showPage(page);
+	}
+
+	/** The panel's cards and the pages, as the report, the recap and the setting are now. */
+	private void build()
+	{
+		reportCard.removeAll();
+		deathRow.removeAll();
+		reportPage.removeAll();
+		deathPage.removeAll();
+		Report r = report;
+		if (r != null && recap == null)
+		{
+			if (outside)
+			{
+				reportCard.setGlow(null);
+				reportCard.add(left(reportLine(r)));
+			}
+			else
+			{
+				buildCard(r);
+			}
+		}
+		reportCard.setVisible(r != null && recap == null);
+		if (recap != null)
+		{
+			deathRow.add(left(line(new Stone.Slot(30, SKULL), "You died on wave " + recap.wave, recap.into,
+				"Opens the death report: what did it, the last ticks before, and the wave's report.", () -> open(deathPage))));
+			buildDeathPage(recap);
+		}
+		deathRow.setVisible(recap != null);
+		if (r != null)
+		{
+			buildPage(r);
+		}
+		for (JPanel card : new JPanel[] {reportCard, deathRow, reportPage, deathPage})
+		{
+			card.revalidate();
+			card.repaint();
+		}
+	}
+
+	/**
+	 * A line that stands for a card: its picture in a slot, its title and what it holds, and Open, which shows its page.
+	 * Out of the arena, where the player has played the wave, the report and the death are each one of these.
+	 */
+	private static JPanel line(Stone.Slot slot, String title, String holds, String tip, Runnable open)
+	{
+		JPanel text = clear(new BorderLayout(0, 1));
+		text.add(new Stone.Shadowed(title, bold(), Stone.ORANGE), BorderLayout.NORTH);
+		text.add(label(wrap(holds, 120), small(), Stone.MUTED), BorderLayout.CENTER);
+		Stone.Button button = new Stone.Button("Open", null, false, small(), 7, 6);
+		button.setToolTipText(tip);
+		button.addActionListener(e -> open.run());
+		JPanel row = clear(new BorderLayout(8, 0));
+		row.add(slot, BorderLayout.WEST);
+		row.add(text, BorderLayout.CENTER);
+		row.add(top(button), BorderLayout.EAST);
+		return row;
+	}
+
+	/** The report as a line: the wave, its mistakes and its time, and Open to its page. */
+	private JPanel reportLine(Report r)
+	{
+		String mistakes = r.mistakes.isEmpty() ? "No mistakes counted" : plural(r.mistakes.size(), "mistake");
+		return line(new Stone.Slot(30, REPORT_ICON), "Wave " + r.wave + " report", mistakes + " \u00b7 " + r.time,
+			"Opens the whole report in the panel: what the wave cost you, your prayer, every mistake with a button to watch it, and the run's waves.",
+			() -> open(reportPage));
+	}
+
+	/**
+	 * The wave report in short, between waves in the arena: the wave's time, its three figures, its mistakes by their
+	 * pictures with what each cost, the first few of them, and the buttons to the site and to the report's own page. On
+	 * that page, the whole report: the figures, the prayer against the wave's attacks, every mistake by tick with a button
+	 * to watch it, the kinds the settings leave out, and the run's mistakes wave by wave.
+	 */
+	private void buildCard(Report r)
+	{
 		reportCard.setGlow(Stone.GOLD);
 		reportCard.add(left(reportHead(r)));
 		reportCard.add(SolSurvivorPanel.gap(5));
-		JPanel stats = clear(new java.awt.GridLayout(1, 3, 4, 0));
-		stats.add(stat(String.valueOf(r.damage), "damage<br>taken"));
-		stats.add(stat(r.attacks() == 0 ? "\u2013" : r.onTime + "/" + r.attacks(), "prayed<br>on time"));
-		stats.add(stat(String.valueOf(r.idleTicks), "idle<br>ticks"));
-		reportCard.add(left(stats));
+		reportCard.add(left(stats(r)));
 		reportCard.add(SolSurvivorPanel.gap(6));
 		reportCard.add(left(new Stone.Shadowed(r.mistakes.isEmpty() ? "No mistakes counted" : plural(r.mistakes.size(), "mistake"), small(),
 			r.mistakes.isEmpty() ? Stone.GOOD : Stone.ORANGE)));
@@ -546,16 +674,19 @@ final class WaveCards
 		}
 		Stone.Button full = new Stone.Button("All mistakes", null, false, small(), 7, 6);
 		full.setToolTipText("Opens the whole report in the panel: your prayer, every mistake with a button to watch it, and the run's waves.");
-		full.addActionListener(e -> openPage());
+		full.addActionListener(e -> open(reportPage));
 		reportCard.add(left(buttons(reviewButton(r), full)));
 		addUploadOff(reportCard);
-		reportCard.setVisible(true);
-		reportCard.revalidate();
-		reportCard.repaint();
+	}
 
-		buildPage(r);
-		reportPage.revalidate();
-		reportPage.repaint();
+	/** The report's three figures side by side: the damage the wave cost, the attacks prayed on time and the idle ticks. */
+	private static JPanel stats(Report r)
+	{
+		JPanel stats = clear(new java.awt.GridLayout(1, 3, 4, 0));
+		stats.add(stat(String.valueOf(r.damage), "damage<br>taken"));
+		stats.add(stat(r.attacks() == 0 ? "\u2013" : r.onTime + "/" + r.attacks(), "prayed<br>on time"));
+		stats.add(stat(String.valueOf(r.idleTicks), "idle<br>ticks"));
+		return stats;
 	}
 
 	/** One of the report's three figures in a well: its value in the values' yellow over its words, on two lines. */
@@ -627,17 +758,24 @@ final class WaveCards
 		return left(line);
 	}
 
-	/** The report's own page: a way back, then the prayer, every mistake, the run, and the buttons. */
+	/**
+	 * The report's own page: a way back, to the panel or the death report it opened from, then the three figures, the
+	 * prayer, every mistake, the run, and the buttons.
+	 */
 	private void buildPage(Report r)
 	{
 		Stone.Button back = new Stone.Button("‹ Back", null, false, small(), 7, 5);
-		back.setToolTipText("Back to the panel.");
-		back.addActionListener(e -> closePage());
+		back.setToolTipText("Back to where you opened it.");
+		back.addActionListener(e -> pages.closePage(reportPage));
 		JPanel bar = clear(new BorderLayout(8, 0));
 		bar.add(back, BorderLayout.WEST);
 		bar.add(reportHead(r), BorderLayout.CENTER);
 		reportPage.add(left(bar));
+		reportPage.add(left(reportResultBox));
 		reportPage.add(SolSurvivorPanel.gap(8));
+		// The figures, as the short card has them, so that the page holds the whole report where the panel shows a line.
+		reportPage.add(left(stats(r)));
+		reportPage.add(SolSurvivorPanel.gap(6));
 
 		if (r.attacks() > 0)
 		{
@@ -740,40 +878,27 @@ final class WaveCards
 		return left(line);
 	}
 
-	private void openPage()
-	{
-		pageOpen = true;
-		reportPage.setVisible(true);
-		pages.showPage(reportPage);
-	}
-
-	private void closePage()
-	{
-		if (pageOpen)
-		{
-			pageOpen = false;
-			reportPage.setVisible(false);
-			pages.showMain();
-		}
-	}
-
 	/**
-	 * The death recap, or none for null: a card that says when the player died and what did it, a card of the last ticks
-	 * before, each with the hitpoints, the protection prayer up, what happened and what it hit for, and the buttons.
+	 * The death report, a page of its own: Home to the panel; a card that says when the player died and what did it, a
+	 * card of the last ticks before, each with the hitpoints, the protection prayer up, what happened and what it hit for,
+	 * and the buttons; and under them the wave's report as a line, whose page Back brings the player here from.
 	 */
-	void showRecap(Recap r)
+	private void buildDeathPage(Recap r)
 	{
-		recap = r;
-		recapCard.removeAll();
-		if (r == null)
-		{
-			recapCard.setVisible(false);
-			return;
-		}
+		Stone.Button home = new Stone.Button("‹ Home", null, false, small(), 7, 5);
+		home.setToolTipText("Back to the panel, where this report stays a click away until you enter the arena again.");
+		home.addActionListener(e -> pages.showMain());
+		JPanel bar = clear(new BorderLayout(8, 0));
+		bar.add(home, BorderLayout.WEST);
+		bar.add(new Stone.Shadowed("Death report", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		deathPage.add(left(bar));
+		deathPage.add(left(deathResultBox));
+		deathPage.add(SolSurvivorPanel.gap(8));
+
 		Stone.Row head = card();
 		head.setGlow(Stone.BAD);
 		JPanel title = clear(new BorderLayout(8, 0));
-		title.add(new Stone.Slot(30, Icons.of("skull", 20)), BorderLayout.WEST);
+		title.add(new Stone.Slot(30, SKULL), BorderLayout.WEST);
 		JPanel text = clear(new BorderLayout(0, 1));
 		text.add(new Stone.Shadowed("You died on wave " + r.wave, bold(), Stone.ORANGE), BorderLayout.NORTH);
 		text.add(label(r.when, small(), Stone.MUTED), BorderLayout.CENTER);
@@ -788,11 +913,11 @@ final class WaveCards
 			cause.add(left(label(wrap(r.cause, 184), small(), Stone.TEXT)));
 			head.add(left(cause));
 		}
-		recapCard.add(left(head));
+		deathPage.add(left(head));
 
 		if (!r.lines.isEmpty())
 		{
-			recapCard.add(SolSurvivorPanel.gap(5));
+			deathPage.add(SolSurvivorPanel.gap(5));
 			Stone.Row ticks = card();
 			ticks.add(left(new Stone.Shadowed("The last " + r.lines.size() + " ticks", bold(), Stone.ORANGE)));
 			ticks.add(SolSurvivorPanel.gap(4));
@@ -816,7 +941,7 @@ final class WaveCards
 				well.add(recapRow(tick, hitpoints, prayer, what, landed, tint, i == r.lines.size() - 1));
 			}
 			ticks.add(left(well));
-			recapCard.add(left(ticks));
+			deathPage.add(left(ticks));
 		}
 
 		int from = r.lines.isEmpty() ? 0 : r.lines.get(0).getTick();
@@ -828,11 +953,16 @@ final class WaveCards
 		watch.addActionListener(e -> actions.watchAt(r.id, null));
 		JPanel foot = buttons(open, watch);
 		foot.setBorder(new EmptyBorder(6, 0, 2, 0));
-		recapCard.add(left(foot));
-		addUploadOff(recapCard);
-		recapCard.setVisible(true);
-		recapCard.revalidate();
-		recapCard.repaint();
+		deathPage.add(left(foot));
+		addUploadOff(deathPage);
+		if (report != null)
+		{
+			// The wave's report as a line: the death is the page's, and the report's page is a click away, Back to here.
+			deathPage.add(SolSurvivorPanel.gap(8));
+			Stone.Row line = card();
+			line.add(left(reportLine(report)));
+			deathPage.add(left(line));
+		}
 	}
 
 	/** A row of the recap's table, its columns at fixed widths so that they line up from row to row, on a tint or none. */
