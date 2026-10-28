@@ -317,6 +317,30 @@ public class WaveLogTest
 	}
 
 	@Test
+	public void aWaveThePlayerDiedInIsMarkedSoThoughItsLogEndsAsLeft()
+	{
+		// Wave 4: the player's hitpoints fall to 0 on the third tick, and the plugin ends the log as LEFT as they leave, as
+		// it does a wave they walked out of. Past waves tells the two apart by the mark (the UX review of 2026-10-27, F6).
+		startWave4(100);
+		log.record(100, player(7, 15, 30, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		assertFalse(log.current().isDied());
+		log.record(101, player(7, 15, 0, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.finish(WaveLog.End.LEFT);
+		assertTrue(log.current().isDied());
+		assertEquals(WaveLog.End.LEFT, log.current().getEnd());
+
+		// Wave 5 the player walked out of alive; the next wave keeps both as they were among the past ones.
+		log.start(5, 200, Collections.emptyMap(), true, "test", null);
+		assertFalse(log.current().isDied());
+		log.record(200, player(7, 15, 99, 77, Collections.emptyList(), -1, WaveLog.TARGET_NONE), Collections.emptyList());
+		log.finish(WaveLog.End.LEFT);
+		log.start(6, 300, Collections.emptyMap(), true, "test", null);
+		assertFalse(log.getPast().get(0).isDied());
+		assertTrue(log.getPast().get(1).isDied());
+		assertTrue(log.getPast().get(1).withId(40).isDied());
+	}
+
+	@Test
 	public void wavesSavedInAnEarlierSessionComeBackBehindThisSessionsUnderNewIds()
 	{
 		// The last session's run, waves 1 and 2, as WaveStore reads them back: newest first, each under id 0.

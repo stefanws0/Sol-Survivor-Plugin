@@ -486,7 +486,7 @@ public final class ColosseumTracker
 		}
 		if (npcs.isEmpty())
 		{
-			throw new ExportException("There are no NPCs in the arena to export.");
+			throw new ExportException("The arena has no NPCs yet: try again once the wave starts.");
 		}
 
 		Integer waveTick = waveStarted && !waveStart ? Integer.valueOf(tick - waveStartTick) : null;

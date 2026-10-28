@@ -19,7 +19,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "copyHotkey",
 		name = "Copy link hotkey",
-		description = "Copies a link of the arena as it is now.",
+		description = "Copies a link of the arena as it is now, without opening the browser, so that the game keeps its focus mid-wave. Paste it into the site.",
 		position = 1
 	)
 	default Keybind copyHotkey()
@@ -40,8 +40,8 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "chatConfirm",
-		name = "Say so in chat",
-		description = "Puts a line in your chat box when a link is copied, or why it could not be.",
+		name = "Messages in chat",
+		description = "Puts the plugin's messages in your chat box: what each button did, or why it could not, the hint as you first enter and the leaderboard's answers. Off, they show only in the panel.",
 		position = 3
 	)
 	default boolean chatConfirm()
@@ -64,7 +64,7 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = ONLY_AT_COLOSSEUM,
-		name = "Show only at the Colosseum",
+		name = "Sidebar icon only at the Colosseum",
 		description = "Shows the plugin's sun in RuneLite's sidebar only in the Fortis Colosseum and its lobby. Past waves are then at hand only there.",
 		position = 5
 	)
@@ -101,7 +101,8 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Mistake tracker",
 		description = "Counts your mistakes quietly from the wave log, and shows the report in the panel once the wave ends. Nothing shows while a wave is under way.",
-		position = 8
+		position = 9,
+		closedByDefault = true
 	)
 	String mistakesSection = "mistakes";
 
@@ -233,7 +234,8 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Waves and modifiers",
 		description = "What the panel and the wave box list of each wave and of the modifiers you hold: only what is in the arena, no timers.",
-		position = 9
+		position = 10,
+		closedByDefault = true
 	)
 	String wavesSection = "waves";
 
@@ -345,7 +347,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "On the game screen",
 		description = "Everything here draws on the game's screen, so it is all off until you switch it on.",
-		position = 10
+		position = 11
 	)
 	String screenSection = "screen";
 
@@ -477,7 +479,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Loot",
 		description = "Minimus's loot between waves and the reward chest at the end. Off until you switch them on.",
-		position = 11
+		position = 12
 	)
 	String lootSection = "loot";
 
@@ -512,11 +514,14 @@ public interface SolSurvivorConfig extends Config
 	 */
 	String SHARE_WARNING = "This feature submits your IP address to a 3rd-party server not controlled or verified by RuneLite developers";
 
-	/** The settings that send something to the site, together, so that the player sees they are off by default. */
+	/**
+	 * The settings that send something to the site, together, so that the player sees they are off by default: first
+	 * after the general settings, where the panel's What you share sends the player (the UX review of 2026-10-27, F7).
+	 */
 	@ConfigSection(
 		name = "Sending to the site",
 		description = "Off until you switch them on. With Upload past runs and Share wave logs off, the plugin sends nothing to the Sol Survivor site.",
-		position = 12
+		position = 8
 	)
 	String sendingSection = "sending";
 
@@ -603,7 +608,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 12,
+		position = 13,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
@@ -665,7 +670,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 13,
+		position = 14,
 		closedByDefault = true
 	)
 	String prayerSection = "prayer";

@@ -48,6 +48,8 @@ final class Stone
 	static final Color YELLOW = new Color(0xffff00);
 	static final Color GOLD = new Color(0xffd24a);
 	static final Color GOOD = new Color(0x3cff3c);
+	/** A step done's disc: a darker green than GOOD's words, which would outshine the yellow numbers beside it. */
+	static final Color DONE = new Color(0x3a9a3a);
 	/** Damage taken, and Doom on its last stack. */
 	static final Color BAD = new Color(0xff5a3c);
 
@@ -410,6 +412,12 @@ final class Stone
 			setIconTextGap(5);
 		}
 
+		/** Whether it is its row's main action, in the site's orange, rather than a secondary one in stone. */
+		boolean isPrimary()
+		{
+			return face == PRIMARY;
+		}
+
 		@Override
 		public Dimension getPreferredSize()
 		{
@@ -751,6 +759,20 @@ final class Stone
 			String text = String.valueOf(number);
 			java.awt.geom.Rectangle2D box = font.createGlyphVector(fm.getFontRenderContext(), text).getVisualBounds();
 			g.drawString(text, (float) ((n - 1 - box.getWidth()) / 2 - box.getX()), (float) ((n - 1 - box.getHeight()) / 2 - box.getY()));
+		});
+	}
+
+	/** A step done, a dark tick on a green disc, in place of the step's number once the player has taken it. */
+	static ImageIcon done(int size)
+	{
+		return draw(size, (g, n) ->
+		{
+			g.setColor(DONE);
+			g.fillOval(0, 0, n - 1, n - 1);
+			g.setColor(BACKGROUND);
+			g.setStroke(new BasicStroke(2f));
+			g.drawLine(3, n / 2, n / 2 - 1, n - 5);
+			g.drawLine(n / 2 - 1, n - 5, n - 4, 3);
 		});
 	}
 

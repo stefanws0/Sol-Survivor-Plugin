@@ -312,7 +312,7 @@ public final class WaveLog
 
 	/**
 	 * A past wave's log, kept as its JSON once the next wave started, with the state links' payloads on its first tick and
-	 * on the tick its reinforcements came, and the glory it earned. getRun and getRuns give the wave under way or the last
+	 * on the tick its reinforcements came, the glory it earned, and whether the player died in it. getRun and getRuns give the wave under way or the last
 	 * one the same way, its JSON written when it is asked for, so that the panel can list the waves every tick without
 	 * writing any. A wave saved in an earlier session (WaveStore) comes back as one too, its JSON read with it.
 	 */
@@ -327,9 +327,16 @@ public final class WaveLog
 		private final String startState;
 		private final String reinforcementState;
 		private final Integer glory;
+		private final boolean died;
 
 		Past(int id, int wave, int size, End end, boolean recording, Supplier<String> json, String startState, String reinforcementState,
 			Integer glory)
+		{
+			this(id, wave, size, end, recording, json, startState, reinforcementState, glory, false);
+		}
+
+		Past(int id, int wave, int size, End end, boolean recording, Supplier<String> json, String startState, String reinforcementState,
+			Integer glory, boolean died)
 		{
 			this.id = id;
 			this.wave = wave;
@@ -340,12 +347,13 @@ public final class WaveLog
 			this.startState = startState;
 			this.reinforcementState = reinforcementState;
 			this.glory = glory;
+			this.died = died;
 		}
 
 		/** The same wave under the id `newId`, as WaveLog.restore gives a saved one. */
 		Past withId(int newId)
 		{
-			return new Past(newId, wave, size, end, recording, json, startState, reinforcementState, glory);
+			return new Past(newId, wave, size, end, recording, json, startState, reinforcementState, glory, died);
 		}
 
 		/** The log's id, as getId gave it while it was the one under way. */
@@ -399,6 +407,15 @@ public final class WaveLog
 		public Integer getGlory()
 		{
 			return glory;
+		}
+
+		/**
+		 * Whether the player died in the wave: a tick recorded with no hitpoints. The log ends a death as LEFT, as it does
+		 * leaving, so that Past waves can tell the two apart only by this (the UX review of 2026-10-27, F6).
+		 */
+		public boolean isDied()
+		{
+			return died;
 		}
 	}
 
@@ -493,6 +510,8 @@ public final class WaveLog
 	/** The game's glory counter on the first tick recorded that read it, null before then, and on the last. */
 	private Integer firstGlory;
 	private int lastGlory;
+	/** Whether a tick recorded had the player with no hitpoints: a death, which ends the log as LEFT. */
+	private boolean died;
 
 	/** The hitsplats since the last tick was recorded, which go in the next one. */
 	private final List<Hit> pendingPlayerHits = new ArrayList<>();
@@ -527,7 +546,7 @@ public final class WaveLog
 		{
 			WaveLog done = snapshot();
 			past.add(0, new Past(id, this.wave, ticks.size(), end, false, once(() -> WaveLogWriter.toJson(done)), this.startState, reinforcementState,
-				getGlory()));
+				getGlory(), died));
 			while (past.size() > MAX_PAST)
 			{
 				past.remove(past.size() - 1);
@@ -551,6 +570,7 @@ public final class WaveLog
 		lastCounters = null;
 		firstGlory = null;
 		lastGlory = 0;
+		died = false;
 	}
 
 	/** A hitsplat on the player, as it comes; it goes in the next tick recorded. */
@@ -680,6 +700,10 @@ public final class WaveLog
 			}
 			lastGlory = glory;
 		}
+		if (player != null && player.getHitpoints() == 0)
+		{
+			died = true;
+		}
 		ticks.add(new Tick(t, player, Collections.unmodifiableList(new ArrayList<>(pendingPlayerHits)), Collections.unmodifiableList(onGrid),
 			Collections.unmodifiableMap(npcHits), Collections.unmodifiableList(orbs), Collections.unmodifiableList(new ArrayList<>(pendingAnimations)),
 			Collections.unmodifiableList(new ArrayList<>(pendingPlayerAnimations)), changed, Collections.unmodifiableList(new ArrayList<>(pendingTileGraphics)),
@@ -731,6 +755,7 @@ public final class WaveLog
 		lastCounters = null;
 		firstGlory = null;
 		lastGlory = 0;
+		died = false;
 		past.clear();
 		discardPending();
 	}
@@ -838,7 +863,7 @@ public final class WaveLog
 		}
 		WaveLog now = snapshot();
 		return new Past(id, wave, ticks.size(), end, recording, once(() -> WaveLogWriter.toJson(now)), startState, reinforcementState,
-			getGlory());
+			getGlory(), died);
 	}
 
 	/**
@@ -894,6 +919,7 @@ public final class WaveLog
 		copy.lastId = lastId;
 		copy.firstGlory = firstGlory;
 		copy.lastGlory = lastGlory;
+		copy.died = died;
 		return copy;
 	}
 

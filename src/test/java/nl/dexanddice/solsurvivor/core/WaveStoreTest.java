@@ -74,6 +74,8 @@ public class WaveStoreTest
 		assertEquals(START_STATE, back.getStartState());
 		assertEquals("{\"v\":1,\"setup\":{\"wave\":4}}", back.getReinforcementState());
 		assertTrue(back.getJson().startsWith("{\"v\":1,\"kind\":\"solSurvivorWaveLog\",\"plugin\":\"0.9.0\",\"wave\":4,"));
+		// Version 1 had no death in it: such a wave reads as one the player did not die in.
+		assertFalse(back.isDied());
 	}
 
 	@Test
@@ -89,6 +91,18 @@ public class WaveStoreTest
 
 		WaveLog.Past left = new WaveLog.Past(7, 3, 90, WaveLog.End.LEFT, false, () -> "{}", null, null, null);
 		assertEquals(WaveLog.End.LEFT, WaveStore.read(new ByteArrayInputStream(saved(left))).getEnd());
+		assertFalse(WaveStore.read(new ByteArrayInputStream(saved(left))).isDied());
+	}
+
+	@Test
+	public void aWaveThePlayerDiedInComesBackSo() throws IOException
+	{
+		// Past waves says "died" for it after RuneLite closes too, not "left" (the UX review of 2026-10-27, F6).
+		WaveLog.Past died = new WaveLog.Past(7, 6, 42, WaveLog.End.LEFT, false, () -> "{}", null, null, null, true);
+		WaveLog.Past back = WaveStore.read(new ByteArrayInputStream(saved(died)));
+		assertTrue(back.isDied());
+		assertEquals(WaveLog.End.LEFT, back.getEnd());
+		assertEquals(42, back.size());
 	}
 
 	@Test

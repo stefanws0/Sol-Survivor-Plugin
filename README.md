@@ -28,11 +28,12 @@ The site is made for a desktop or laptop browser, beside the game, not for a pho
 
 ## Getting started
 
-<img src="images/getting-started.png" width="242" align="right" alt="The panel's Getting started card: walk into the Fortis Colosseum and the panel opens by itself; press Arena now at a wave's start or on a pillar stack; on the site, press Solve and play the plan it finds; and Try a sample wave, which opens wave 7 on the site with its plan, no Colosseum needed">
+<img src="images/getting-started.png" width="242" align="right" alt="The panel's Getting started card: walk into the Fortis Colosseum and the panel opens by itself; press Arena now at a wave's start or on a pillar stack; on the site, press Solve wave and play the plan it finds; and Try a sample wave, which opens wave 7 on the site with its plan, no Colosseum needed">
 
 Fresh from the Plugin Hub, the panel starts with a **Getting started** card: the three steps from the game to a plan,
 and **Try a sample wave**, which opens wave 7 on the site with the plan it found, so that you can look round before
-you play. It goes once you have opened a wave from the game, or on **Hide**.
+you play. In the arena the card moves on: the first step is ticked, the sample goes, and it steps aside during a wave
+and while Minimus offers. It goes once you have opened a wave from the game, or on **Hide**.
 
 The first time you walk into the Colosseum with the plugin, one line in your chat box says where **Arena now** is, and
 on a browser new to the site, the first wave you open there comes with a short tour of its own: three steps on the
@@ -45,7 +46,7 @@ wave you came with.
 No server works out your plans: the planner runs in your browser, on your own computer, and solving a wave is heavy
 work. Expect your computer to notice.
 
-- **Nothing runs until you press Solve.** Opening a link only shows the wave.
+- **Nothing runs until you press Solve wave.** Opening a link only shows the wave.
 - **A solve uses all but one of your processor's threads**, 15 at most, for anything from a few seconds to a few
   minutes: the busier the wave, the longer. On a computer with four threads, a wave 7 kept the processor 85%
   busy for two minutes.
@@ -63,10 +64,10 @@ work. Expect your computer to notice.
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
 Survivor site's stone look, and each part of it shows only when it is about the moment you are in. The row at the top
-is for the wave you are in, with its number. In the arena its **Arena now** opens the wave as it is right now, with the
-fight so far, and a line under it says what the last button did; out of the arena it is greyed. To open the wave as
-it was on its first tick, press the play button on its line under Past waves, which in the arena opens with a click
-on its heading.
+is for the wave you are in, with its number. While a wave is under way its **Arena now** opens the wave as it is right
+now, with the fight so far, and a line under it says what the last button did; before a wave, between waves and out of
+the arena it is greyed, as the arena has nothing to open then. To open a wave as it was on its first tick, press the
+play button on its line under Past waves, which in the arena opens with a click on its heading.
 
 In the same row, the panel lists the wave by the NPCs' faces: each with how many are left, struck through as they
 die, the reinforcements still to come, and the modifiers you hold by their pictures and tiers, with Doom's stacks as
@@ -101,7 +102,7 @@ which opens the site's leaderboard, and **Remove my times**.
 
 ## After each wave: the wave report
 
-<img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, and four mistakes, each with the face of what did it, its damage and its tick, over Review on site and All mistakes">
+<img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, and four mistakes, each with the face of what did it, its damage and its tick, over Watch wave 5 and All mistakes">
 
 As a wave ends, the panel shows its report. Nothing shows while the wave is under way: the report waits for its end.
 The panel's card gives the damage you took, the attacks you prayed on time and your idle ticks, and the first five
@@ -115,8 +116,9 @@ mistakes, each by the face of what did it. **All mistakes** opens the whole repo
   which you neither attacked, ate nor took a step: waiting with no target, as on a pillar stack, is not counted.
 - **The run so far**, a bar for each wave's mistakes, and the kind the run has most.
 
-Each mistake's button opens the wave on the site's run review on its tick, and **Review on site** at its start, to see
-what happened. Like **Watch**, they upload the run, so they need **Upload past runs**. **Copy report** copies the
+Each mistake's button opens the wave on the site's run review on its tick, and **Watch wave 5** at its start, to see
+what happened. Like **Watch**, they upload the run, so they need **Upload past runs**: until it is on, they show in
+plain stone, with a line under them that says so. **Copy report** copies the
 report as text. Each kind of mistake has its own switch under **Mistake tracker** in the settings, and **Say the
 report in chat** puts one line in your chat box as the wave ends.
 
@@ -128,8 +130,8 @@ report in chat** puts one line in your chat box as the wave ends.
 
 When you die, the panel shows at its top, once you are out of the arena, what did it: the hit that took your last hitpoints and any attack that got past your
 prayer in the ticks before. Under it, the last 8 ticks, each with your hitpoints, the protection prayer you had up, and
-each hit and what dealt it. **Open at tick** opens the wave on the site's run review on the first of those ticks, and
-**Watch the run** the whole run.
+each hit and what dealt it. **Watch from tick** opens the wave on the site's run review on the first of those ticks,
+and **Watch the run** the whole run. Both need **Upload past runs**, as the wave report's do.
 
 <br clear="right">
 
@@ -248,18 +250,30 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
 
 ## Settings
 
-- **Copy link hotkey**: copies the arena's link as it is now.
+- **Copy link hotkey**: copies the arena's link as it is now, without opening the browser, so that the game keeps its
+  focus mid-wave.
 - **Include gear and stats**: on by default.
-- **Say so in chat**: a line in your chat box when a link is copied, or why it could not be.
+- **Messages in chat**: on by default. Puts the plugin's messages in your chat box: what each button did, or why it
+  could not, the hint as you first enter and the leaderboard's answers. Off, they show only in the panel.
 - **Open panel on entering**: on by default. Opens the panel as you enter the Colosseum, and RuneLite's sidebar with
   it if it is shut. Open another panel during the run and it stays open until you next come in.
-- **Show only at the Colosseum**: off by default. Shows the plugin's sun in RuneLite's sidebar only in the Colosseum
-  and its lobby, so Past waves is at hand only there.
+- **Sidebar icon only at the Colosseum**: off by default. Shows the plugin's sun in RuneLite's sidebar only in the
+  Colosseum and its lobby, so Past waves is at hand only there.
 - **Record wave log**: on by default. It keeps the last 25 waves for Past waves, up to 1,500 ticks each.
 - **Keep runs between sessions**: on by default. Saves those waves on your computer, each account's apart, so that
   Past waves still lists them after RuneLite closes. Switch it off to delete the saved waves; Past waves then lasts
   until RuneLite closes.
-- **Mistake tracker**: the wave report and the death recap (see above). They need **Record wave log**.
+- **Sending to the site**: the settings that send something, together, first after the general ones.
+  - **Upload past runs**: off by default. Lets a run's Watch button upload that run to the site (see Privacy); until
+    it is on, each Watch in the panel shows in plain stone and says so.
+  - **Share wave logs**: off by default. Sends each wave's log to the site as the wave ends (see Privacy). It
+    needs **Record wave log**, and the panel says so under Past waves while it is on.
+  - **Leaderboard**: off by default. Puts each wave you finish on the site's leaderboard (see The leaderboard), under
+    your RuneScape name or the name below. It needs **Share wave logs**.
+  - **Leaderboard name**: blank by default, for your RuneScape name. Another name for the leaderboard: 1 to 12 letters,
+    digits, spaces, hyphens or underscores.
+- **Mistake tracker**, folded shut until you open it: the wave report and the death recap (see above). They need
+  **Record wave log**.
   - **Track mistakes**: on by default. Shows the wave report as each wave ends.
   - **Say the report in chat**: off by default. One line in your chat box as the wave ends: its mistakes, the damage
     you took and your prayer.
@@ -267,7 +281,7 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
     **Solarflare and molten sand** and **Idle ticks**: each on by default, each a kind of mistake the report counts.
   - **Idle from**: 2 ticks by default. How many idle ticks in a row count as a mistake.
   - **Death recap**: on by default. Shows the last ticks before a death.
-- **Waves and modifiers**: what the panel's list and the wave box show.
+- **Waves and modifiers**, folded shut until you open it: what the panel's list and the wave box show.
   - **Show the wave's NPCs**, **Show the next wave** and **Show modifiers held**: each on by default.
   - **Mark the dead**: on by default. Strikes each NPC through as it dies; off, the dead drop off the list.
   - **List the warband**: off by default. Lists the Fremennik warband's archer, seer and berserker one by one, rather
@@ -289,15 +303,6 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
   - **Loot totals**: on Minimus's screen between waves, the value of all your loot so far under the last wave's, and
     what it comes to with the next wave's, from the game's own values.
   - **Left-click Bank-all**: makes Bank-all the reward chest's left click, so that one click banks your loot.
-- **Sending to the site**: the settings that send something, together.
-  - **Upload past runs**: off by default. Lets a run's Watch button upload that run to the site (see Privacy); until
-    it is on, pressing Watch says so.
-  - **Share wave logs**: off by default. Sends each wave's log to the site as the wave ends (see Privacy). It
-    needs **Record wave log**, and the panel says so under Past waves while it is on.
-  - **Leaderboard**: off by default. Puts each wave you finish on the site's leaderboard (see The leaderboard), under
-    your RuneScape name or the name below. It needs **Share wave logs**.
-  - **Leaderboard name**: blank by default, for your RuneScape name. Another name for the leaderboard: 1 to 12 letters,
-    digits, spaces, hyphens or underscores.
 - **Safe / Fast / Easy**: with **Set the triangle** on, every wave you open from the plugin starts with the site's
   Safe / Fast / Easy triangle where you set it, and so with the plan it suggests, instead of where you last left it.
   Copy the three numbers from the site's readout under the triangle, such as Safe 10% · Fast 0% · Easy 90%; they need

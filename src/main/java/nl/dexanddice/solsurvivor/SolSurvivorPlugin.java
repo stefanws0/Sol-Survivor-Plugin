@@ -323,7 +323,7 @@ public class SolSurvivorPlugin extends Plugin
 	private SolSurvivorPanel panel;
 	private NavigationButton navButton;
 	/**
-	 * Whether the sidebar holds the plugin's sun, which "Show only at the Colosseum" takes away outside the arena and its
+	 * Whether the sidebar holds the plugin's sun, which "Sidebar icon only at the Colosseum" takes away outside the arena and its
 	 * lobby (updateButton). On the client thread, after startUp.
 	 */
 	private boolean buttonShown;
@@ -448,7 +448,7 @@ public class SolSurvivorPlugin extends Plugin
 			}
 		});
 		// The first-run cards as the settings are now, before the panel first shows: updatePanel keeps them so after.
-		panel.showGettingStarted(!config.gettingStartedDone(), config.openOnEntering());
+		panel.showGettingStarted(!config.gettingStartedDone(), config.openOnEntering(), false);
 		panel.showSends(config.uploadPastRuns(), config.shareWaveLogs(), config.leaderboard());
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
@@ -456,7 +456,7 @@ public class SolSurvivorPlugin extends Plugin
 			.priority(10)
 			.panel(panel)
 			.build();
-		// With "Show only at the Colosseum" on, the first tick in the arena or its lobby puts the sun in the sidebar.
+		// With "Sidebar icon only at the Colosseum" on, the first tick in the arena or its lobby puts the sun in the sidebar.
 		buttonShown = !config.onlyAtColosseum();
 		if (buttonShown)
 		{
@@ -565,7 +565,7 @@ public class SolSurvivorPlugin extends Plugin
 		if (state == GameState.LOGIN_SCREEN || state == GameState.LOGGING_IN || state == GameState.HOPPING)
 		{
 			leave();
-			// No ticks come at the login screen, so the sidebar's sun goes now, with "Show only at the Colosseum" on.
+			// No ticks come at the login screen, so the sidebar's sun goes now, with "Sidebar icon only at the Colosseum" on.
 			updateButton();
 		}
 		else if (state == GameState.LOADING)
@@ -1787,7 +1787,7 @@ public class SolSurvivorPlugin extends Plugin
 	/**
 	 * The first time the player enters the arena with the plugin (the onboarding ideas of 2026-10-27, O3), one line in the
 	 * chat box from the plugin names Arena now and where it is, and never again: walking in is when it matters. Not for a
-	 * player who had saved waves before the line came (markFirstRunDone), nor with "Say so in chat" off. The plugin says
+	 * player who had saved waves before the line came (markFirstRunDone), nor with "Messages in chat" off. The plugin says
 	 * it in the game's chat box alone, as its other lines; nothing is typed for the player.
 	 */
 	private void sayOnFirstEntering()
@@ -1823,7 +1823,7 @@ public class SolSurvivorPlugin extends Plugin
 	}
 
 	/**
-	 * With "Show only at the Colosseum" on, the plugin's sun is in RuneLite's sidebar only while the player is in the arena
+	 * With "Sidebar icon only at the Colosseum" on, the plugin's sun is in RuneLite's sidebar only while the player is in the arena
 	 * or its lobby, as players asked of other minigames' plugins (the ToA and ToB Mistake Trackers' issues 9 and 11); off,
 	 * it always is. ClientToolbar adds and takes it on Swing's thread, in turn with openOnEntering's opening. On the
 	 * client thread.
@@ -2179,8 +2179,9 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * Opens the site's modifier pick in the browser with the three modifiers Minimus offers filled in, while his selector
-	 * is open: the link holds them, the modifiers held, the next wave, the run's waves finished so far and the reward
-	 * chest as the game holds it (chestItems), and nothing else.
+	 * is open, and copies its link, as Arena now does (the UX review of 2026-10-27, F3): the link holds them, the
+	 * modifiers held, the next wave, the run's waves finished so far and the reward chest as the game holds it
+	 * (chestItems), and nothing else.
 	 */
 	private void openRecommender()
 	{
@@ -2196,9 +2197,11 @@ public class SolSurvivorPlugin extends Plugin
 			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers, tracker.getRun(),
 				chestItems(InventoryID.COLOSSEUM_REWARDS_FUTURE), chestItems(InventoryID.COLOSSEUM_REWARDS));
 			LinkBrowser.browse(link);
-			report(wave == null
-				? "Opened the recommender with Minimus's offers. The plugin has not seen a wave yet: set the wave on the site."
-				: "Opened the recommender with Minimus's offers for wave " + wave + ".");
+			copy(link, wave == null
+				? "Opened the modifier pick with Minimus's offers, and copied its link. The plugin has not seen a wave yet: set the "
+					+ "wave on the site."
+				: "Opened the modifier pick with Minimus's offers for wave " + wave + ", and copied its link.",
+				"Opened the modifier pick on the site.");
 		});
 	}
 
@@ -2555,6 +2558,10 @@ public class SolSurvivorPlugin extends Plugin
 		List<Object> waveCard = Arrays.asList(view, config.showWaveNpcs(), config.markDead(), config.showNextWave(), config.showModifiers(),
 			config.doomLimit());
 		boolean during = colosseum && tracker.isWaveStarted();
+		// Arena now has a wave to open only while one it plans is under way: before a wave and between two the arena holds
+		// no NPCs, and Sol Heredit's is not planned (the UX review of 2026-10-27, F1). The title and state say as much, so
+		// the check below that skips an unchanged panel covers it.
+		boolean live = during && wave != null && wave <= ColosseumTracker.LAST_WAVE;
 		boolean tracking = config.trackMistakes() && config.recordWaveLog();
 		boolean newRun = colosseum && wave == null;
 		WaveCards.Report report = tracking && !during && !newRun ? reportOf(lastReview) : null;
@@ -2563,19 +2570,20 @@ public class SolSurvivorPlugin extends Plugin
 		boolean cardsSame = waveCard.equals(shownWave) && Objects.equals(report, shownReport) && pending == shownPending
 			&& Objects.equals(recap, shownRecap);
 		// The first-run cards (the onboarding ideas of 2026-10-27): Getting started until it is done with, and What you share
-		// as the settings are; neither during a wave, which the panel keeps to.
+		// as the settings are; neither during a wave, which the panel keeps to. While Minimus offers, Getting started waits,
+		// so that his pick is the one lit card (the UX review of 2026-10-27, F4).
 		boolean upload = config.uploadPastRuns();
 		boolean share = config.shareWaveLogs();
 		boolean leaderboard = config.leaderboard();
-		boolean gettingStarted = !config.gettingStartedDone() && !during;
+		boolean gettingStarted = !config.gettingStartedDone() && !during && offers.isEmpty();
 		boolean opensItself = config.openOnEntering();
-		List<Object> firstRun = Arrays.asList(upload, share, leaderboard, gettingStarted, opensItself, during);
+		List<Object> firstRun = Arrays.asList(upload, share, leaderboard, gettingStarted, opensItself, during, colosseum);
 		if (!firstRun.equals(shownFirstRun))
 		{
 			shownFirstRun = firstRun;
 			SwingUtilities.invokeLater(() ->
 			{
-				p.showGettingStarted(gettingStarted, opensItself);
+				p.showGettingStarted(gettingStarted, opensItself, colosseum);
 				p.showSends(upload, share, leaderboard);
 				p.showSendsRow(!during);
 			});
@@ -2622,7 +2630,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownBoardOpen = boardOpen;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, recap != null, colosseum ? wave : null, title, state, offers, note, runs);
+			p.showState(colosseum, live, recap != null, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
 			p.showBoard(boardRow, sharing, boardOpen);
 		});
@@ -2667,7 +2675,7 @@ public class SolSurvivorPlugin extends Plugin
 			Integer gloryDone = null;
 			for (WaveLog.Past wave : run)
 			{
-				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave.getEnd()) + glory(wave.getGlory());
+				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave) + glory(wave.getGlory());
 				WaveReview review = tracking && !wave.isRecording() ? reviews.get(wave.getId()) : null;
 				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.isRecording(),
 					wave.getStartState() != null, wave.getReinforcementState() != null, review == null ? null : review.counted(kinds, idleFrom).size()));
@@ -2711,9 +2719,12 @@ public class SolSurvivorPlugin extends Plugin
 		return String.format(Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
 	}
 
-	/** How a log's wave ended, after its time: only a wave the player left says so, as completing it is the rule. */
-	private static String endName(WaveLog.End end)
+	/**
+	 * How a log's wave ended, after its time: only a wave the player died in or left says so, as completing it is the
+	 * rule. A death ends the log as LEFT too, so the wave's own mark tells them apart (the UX review of 2026-10-27, F6).
+	 */
+	static String endName(WaveLog.Past wave)
 	{
-		return end == WaveLog.End.LEFT ? ", left" : "";
+		return wave.isDied() ? ", died" : wave.getEnd() == WaveLog.End.LEFT ? ", left" : "";
 	}
 }

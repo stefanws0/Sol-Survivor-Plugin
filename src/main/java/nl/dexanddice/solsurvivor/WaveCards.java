@@ -62,6 +62,13 @@ final class WaveCards
 	private static final int SHORT_LIST = 5;
 
 	private static final ImageIcon PLAY_ICON = Stone.play(8, Stone.ORANGE);
+	/** A mistake's play button and Watch's icons while Upload past runs is off, when every Watch is secondary. */
+	private static final ImageIcon PLAY_OFF_ICON = Stone.play(8, Stone.MUTED);
+	/** Yellow, as the text of the primary button it sits on, as Arena now's icon. */
+	private static final ImageIcon WATCH_ICON = Stone.replay(12, Stone.YELLOW);
+	private static final ImageIcon WATCH_OFF_ICON = Stone.replay(12, Stone.MUTED);
+	/** What every Watch needs, under the buttons while it is off. */
+	private static final String UPLOAD_OFF = "Watch needs Upload past runs, in the settings.";
 	/** The log book in the report's slot, as the site marks a wave's log with it (design round two's item 7). */
 	private static final Icon REPORT_ICON = Icons.of("log-book", 24);
 
@@ -271,6 +278,14 @@ final class WaveCards
 	/** The report in full, on a page of its own in place of the panel's rows. */
 	final JPanel reportPage = new Stone.Group(null);
 	private boolean pageOpen;
+	/**
+	 * Whether Upload past runs is on, which every Watch needs: off, each goes secondary, with a line under it that says so
+	 * before the press rather than after (the UX review of 2026-10-27, F2).
+	 */
+	private boolean upload;
+	/** The report and the recap shown, to build again as the setting changes; null while none shows. */
+	private Report report;
+	private Recap recap;
 
 	WaveCards(Actions actions, Pages pages)
 	{
@@ -446,10 +461,29 @@ final class WaveCards
 		}
 	}
 
+	/** Whether Upload past runs is on, as the settings hold it: the report and the recap shown are built again for it. */
+	void showUpload(boolean on)
+	{
+		if (on == upload)
+		{
+			return;
+		}
+		upload = on;
+		if (report != null)
+		{
+			showReport(report);
+		}
+		if (recap != null)
+		{
+			showRecap(recap);
+		}
+	}
+
 	/** Between a wave's start and its end: the report's card says it comes then. */
 	void showReportPending()
 	{
 		closePage();
+		report = null;
 		reportCard.removeAll();
 		reportCard.setGlow(null);
 		Stone.Slot slot = new Stone.Slot(30, REPORT_ICON);
@@ -473,6 +507,7 @@ final class WaveCards
 	 */
 	void showReport(Report r)
 	{
+		report = r;
 		reportCard.removeAll();
 		reportPage.removeAll();
 		if (r == null)
@@ -513,6 +548,7 @@ final class WaveCards
 		full.setToolTipText("Opens the whole report in the panel: your prayer, every mistake with a button to watch it, and the run's waves.");
 		full.addActionListener(e -> openPage());
 		reportCard.add(left(buttons(reviewButton(r), full)));
+		addUploadOff(reportCard);
 		reportCard.setVisible(true);
 		reportCard.revalidate();
 		reportCard.repaint();
@@ -552,9 +588,20 @@ final class WaveCards
 		return head;
 	}
 
+	/** The line under a card's Watch while Upload past runs is off. */
+	private void addUploadOff(JPanel card)
+	{
+		if (!upload)
+		{
+			card.add(SolSurvivorPanel.gap(4));
+			card.add(left(label(wrap(UPLOAD_OFF, 200), small(), Stone.DIM)));
+		}
+	}
+
+	/** The report's Watch, which plays the wave back on the site: the card's main button while it can. */
 	private Stone.Button reviewButton(Report r)
 	{
-		Stone.Button review = new Stone.Button("Review on site", null, true, small(), 7, 6);
+		Stone.Button review = new Stone.Button("Watch wave " + r.wave, upload ? WATCH_ICON : WATCH_OFF_ICON, upload, small(), 7, 6);
 		review.setToolTipText("Uploads this run and opens it on the Sol Survivor site at this wave, to play it back. Needs Upload past runs, in the settings.");
 		review.addActionListener(e -> actions.watchAt(r.id, null));
 		return review;
@@ -663,6 +710,7 @@ final class WaveCards
 		JPanel foot = buttons(reviewButton(r), copy);
 		foot.setBorder(new EmptyBorder(8, 0, 0, 0));
 		reportPage.add(left(foot));
+		addUploadOff(reportPage);
 		reportPage.add(SolSurvivorPanel.gap(6));
 		reportPage.add(left(label(wrap("Counted from the wave log once the wave ended. Nothing here is shown while a wave is under way.", 210),
 			small(), Stone.DIM)));
@@ -684,7 +732,7 @@ final class WaveCards
 		c.anchor = GridBagConstraints.NORTHEAST;
 		cell(line, c, 3, new Stone.Pill(m.badge, m.hit, small()), 0);
 		c.insets = new Insets(0, 0, 0, 0);
-		Stone.Button watch = new Stone.Button(PLAY_ICON, 16);
+		Stone.Button watch = new Stone.Button(upload ? PLAY_ICON : PLAY_OFF_ICON, 16);
 		watch.setToolTipText("Watch the run on the site from tick " + m.tick + ". Needs Upload past runs, in the settings.");
 		watch.addActionListener(e -> actions.watchAt(id, m.tick));
 		cell(line, c, 4, watch, 0);
@@ -715,6 +763,7 @@ final class WaveCards
 	 */
 	void showRecap(Recap r)
 	{
+		recap = r;
 		recapCard.removeAll();
 		if (r == null)
 		{
@@ -771,7 +820,7 @@ final class WaveCards
 		}
 
 		int from = r.lines.isEmpty() ? 0 : r.lines.get(0).getTick();
-		Stone.Button open = new Stone.Button("Open at tick " + from, null, true, small(), 7, 6);
+		Stone.Button open = new Stone.Button("Watch from tick " + from, null, upload, small(), 7, 6);
 		open.setToolTipText("Uploads this run and opens it on the Sol Survivor site at tick " + from + " of this wave. Needs Upload past runs, in the settings.");
 		open.addActionListener(e -> actions.watchAt(r.id, from));
 		Stone.Button watch = new Stone.Button("Watch the run", null, false, small(), 7, 6);
@@ -780,6 +829,7 @@ final class WaveCards
 		JPanel foot = buttons(open, watch);
 		foot.setBorder(new EmptyBorder(6, 0, 2, 0));
 		recapCard.add(left(foot));
+		addUploadOff(recapCard);
 		recapCard.setVisible(true);
 		recapCard.revalidate();
 		recapCard.repaint();

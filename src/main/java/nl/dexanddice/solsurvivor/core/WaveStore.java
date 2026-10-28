@@ -18,14 +18,17 @@ import java.util.zip.GZIPOutputStream;
 /**
  * A finished wave's log as "Keep runs between sessions" saves it, so that Past waves still holds it after RuneLite
  * closes: one gzipped file a wave, in the plugin's own folder of RuneLite's (Plugin.getPluginDirectory), each account's
- * apart. A file holds what WaveLog.Past does: the wave, its ticks, how it ended and the glory it earned, the state links'
- * payloads on its first tick and on the tick its reinforcements came, and its log as WaveLogWriter wrote it. The
+ * apart. A file holds what WaveLog.Past does: the wave, its ticks, how it ended, the glory it earned and whether the
+ * player died in it, the state links' payloads on its first tick and on the tick its reinforcements came, and its log as
+ * WaveLogWriter wrote it. The
  * RuneLite layer reads and writes the files, never on the client thread, as RuneLite's plugin guide asks; this class
  * only turns a wave into bytes and back, and names and sorts the files. It holds no RuneLite import, as the rest of the
  * core.
  *
  * The bytes are the plugin's own and nothing else reads them: a magic number and a version, then the fields in order,
- * each text its UTF-8 length and bytes, or -1 for none. A file of another version, or one cut short, is not read.
+ * each text its UTF-8 length and bytes, or -1 for none. Version 2 added the death after the end; a file of version 1,
+ * as 0.9.0 and the 1.0 candidates saved it, is read as a wave without one. A file of another version, or one cut short,
+ * is not read.
  */
 public final class WaveStore
 {
@@ -37,7 +40,7 @@ public final class WaveStore
 
 	/** "SSWV": a file this class wrote. */
 	private static final int MAGIC = 0x53535756;
-	private static final int VERSION = 1;
+	private static final int VERSION = 2;
 	/** The most a text in a file may be: far past a wave's log, so that a damaged length cannot fill the memory. */
 	private static final int MAX_TEXT_BYTES = 64 * 1024 * 1024;
 
@@ -86,6 +89,7 @@ public final class WaveStore
 		data.writeInt(wave.getWave());
 		data.writeInt(wave.size());
 		data.writeByte(wave.getEnd() == null ? 0 : wave.getEnd() == WaveLog.End.COMPLETED ? 1 : 2);
+		data.writeBoolean(wave.isDied());
 		data.writeBoolean(wave.getGlory() != null);
 		data.writeInt(wave.getGlory() == null ? 0 : wave.getGlory());
 		text(data, wave.getStartState());
@@ -102,9 +106,14 @@ public final class WaveStore
 	public static WaveLog.Past read(InputStream in) throws IOException
 	{
 		DataInputStream data = new DataInputStream(new GZIPInputStream(in));
-		if (data.readInt() != MAGIC || data.readInt() != VERSION)
+		if (data.readInt() != MAGIC)
 		{
-			throw new IOException("Not a saved wave of this version");
+			throw new IOException("Not a saved wave");
+		}
+		int version = data.readInt();
+		if (version != 1 && version != VERSION)
+		{
+			throw new IOException("A saved wave of version " + version);
 		}
 		int wave = data.readInt();
 		int size = data.readInt();
@@ -114,6 +123,7 @@ public final class WaveStore
 			throw new IOException("A saved wave with an unknown end: " + endCode);
 		}
 		WaveLog.End end = endCode == 0 ? null : endCode == 1 ? WaveLog.End.COMPLETED : WaveLog.End.LEFT;
+		boolean died = version >= 2 && data.readBoolean();
 		boolean hasGlory = data.readBoolean();
 		int glory = data.readInt();
 		String startState = text(data);
@@ -124,7 +134,7 @@ public final class WaveStore
 			throw new IOException("A saved wave without its log");
 		}
 		Supplier<String> log = () -> json;
-		return new WaveLog.Past(0, wave, size, end, false, log, startState, reinforcementState, hasGlory ? glory : null);
+		return new WaveLog.Past(0, wave, size, end, false, log, startState, reinforcementState, hasGlory ? glory : null, died);
 	}
 
 	private static void text(DataOutputStream data, String text) throws IOException
