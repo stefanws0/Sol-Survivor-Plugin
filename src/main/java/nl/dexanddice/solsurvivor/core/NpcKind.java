@@ -7,13 +7,13 @@ package nl.dexanddice.solsurvivor.core;
  */
 public enum NpcKind
 {
-	SERPENT_SHAMAN(1),
-	JAVELIN_COLOSSUS(2),
-	JAGUAR_WARRIOR(3),
-	MANTICORE(4),
-	MINOTAUR(5),
-	SHOCKWAVE_COLOSSUS(6),
-	REINFORCEMENT_SHAMAN(7);
+	SERPENT_SHAMAN(1, 125),
+	JAVELIN_COLOSSUS(2, 220),
+	JAGUAR_WARRIOR(3, 125),
+	MANTICORE(4, 250),
+	MINOTAUR(5, 225),
+	SHOCKWAVE_COLOSSUS(6, 125),
+	REINFORCEMENT_SHAMAN(7, 125);
 
 	public static final int SHAMAN_ID = 12811;
 	public static final int JAGUAR_ID = 12810;
@@ -27,16 +27,27 @@ public enum NpcKind
 	public static final int SOLARFLARE_ORB_ID = 12826;
 
 	private final int code;
+	private final int hitpoints;
 
-	NpcKind(int code)
+	NpcKind(int code, int hitpoints)
 	{
 		this.code = code;
+		this.hitpoints = hitpoints;
 	}
 
 	/** The LoS link's type code. */
 	public int getCode()
 	{
 		return code;
+	}
+
+	/**
+	 * Its hitpoints at full health: the site's NPC_COMBAT_STATS (src/data/npcCombatStats.ts), from each NPC's OSRS Wiki
+	 * infobox, the Fortis Colosseum versions.
+	 */
+	public int getHitpoints()
+	{
+		return hitpoints;
 	}
 
 	/**

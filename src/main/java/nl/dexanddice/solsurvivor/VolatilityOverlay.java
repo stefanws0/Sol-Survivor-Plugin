@@ -17,7 +17,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 import nl.dexanddice.solsurvivor.core.Modifier;
 
 /**
- * "Volatility reminder", a setting that is off by default: while the player holds Volatility, the modifier's picture
+ * "Volatility reminder", a setting that is on by default: while the player holds Volatility, the modifier's picture
  * over each NPC that dies, for 5 ticks from its death, as a reminder that it will explode (the user's ask of 2026-10-26,
  * so that Fortis Colosseum's own reminder can be switched off for this). It marks no tile and no blast's reach: the game
  * shows the explosion itself as it goes off. Every NPC that dies gets one, as the planner has every NPC killed explode.

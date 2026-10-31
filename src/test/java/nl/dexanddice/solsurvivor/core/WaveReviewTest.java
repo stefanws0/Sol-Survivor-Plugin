@@ -186,6 +186,19 @@ public class WaveReviewTest
 	}
 
 	@Test
+	public void shortSummariesGroupTheKindAndAttackerWithoutChangingTheDetails()
+	{
+		List<WaveReview.Mistake> mistakes = WaveReview.of(wave(false), SAND, id -> 0).getMistakes();
+		assertEquals("Shaman: attacks past your prayer", mistakes.get(0).getSummary());
+		assertEquals(mistakes.get(0).getSummary(), mistakes.get(1).getSummary());
+		assertEquals(mistakes.get(0).getGroup(), mistakes.get(1).getGroup());
+		assertEquals("PAST_PRAYER:" + SHAMAN, mistakes.get(0).getGroup());
+		assertTrue(mistakes.get(0).getText().contains("Protect from Missiles"));
+		assertTrue(mistakes.get(1).getText().contains("no protection prayer"));
+		assertEquals("Javelin: prayer a tick off", mistakes.get(2).getSummary());
+	}
+
+	@Test
 	public void theRecapListsTheLastEightTicksAndWhatKilled()
 	{
 		WaveReview review = WaveReview.of(wave(false), SAND, id -> 0);

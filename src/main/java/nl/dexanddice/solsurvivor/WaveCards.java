@@ -20,6 +20,7 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -99,10 +100,20 @@ final class WaveCards
 		final int[] runMistakes;
 		/** What the run's mistakes are mostly, in a sentence; null when there are too few to say. */
 		final String common;
+		/** The wave's last tick, the length of the report's strip of the wave. */
+		final int lastTick;
 
 		Report(int id, int wave, String time, int onTime, int tickOff, int wrong, int none, int damage, int idleTicks, List<Row> mistakes,
 			String notCounted, int[] runWaves, int[] runMistakes, String common)
 		{
+			this(id, wave, time, onTime, tickOff, wrong, none, damage, idleTicks, mistakes, notCounted, runWaves, runMistakes, common,
+				mistakes.stream().mapToInt(m -> m.tick).max().orElse(0));
+		}
+
+		Report(int id, int wave, String time, int onTime, int tickOff, int wrong, int none, int damage, int idleTicks, List<Row> mistakes,
+			String notCounted, int[] runWaves, int[] runMistakes, String common, int lastTick)
+		{
+			this.lastTick = lastTick;
 			this.id = id;
 			this.wave = wave;
 			this.time = time;
@@ -139,7 +150,8 @@ final class WaveCards
 			for (WaveReview.Mistake m : r.counted(kinds, idleFrom))
 			{
 				String badge = m.getKind() == WaveReview.Kind.IDLE ? m.getTicks() + "t" : m.getDamage() == null ? "\u2013" : String.valueOf(m.getDamage());
-				rows.add(new Row(m.getTick(), m.getText(), badge, m.getIcon(), m.getDamage() != null && m.getDamage() > 0));
+				rows.add(new Row(m.getTick(), m.getText(), badge, m.getIcon(), m.getDamage() != null && m.getDamage() > 0, m.getSummary(), m.getGroup(),
+					m.getStyle()));
 			}
 			List<String> off = new ArrayList<>();
 			for (WaveReview.Kind kind : WaveReview.Kind.values())
@@ -159,7 +171,7 @@ final class WaveCards
 			}
 			return new Report(id, wave, time, r.count(WaveReview.Prayed.ON_TIME), r.count(WaveReview.Prayed.LATE) + r.count(WaveReview.Prayed.EARLY),
 				r.count(WaveReview.Prayed.WRONG), r.count(WaveReview.Prayed.NONE), r.getDamage(), idle, rows, notCounted, waves, counts,
-				WaveReview.mostly(runReviews, kinds, idleFrom));
+				WaveReview.mostly(runReviews, kinds, idleFrom), r.getLast());
 		}
 
 		int attacks()
@@ -170,7 +182,7 @@ final class WaveCards
 		private String key()
 		{
 			return id + "|" + wave + "|" + time + "|" + onTime + "," + tickOff + "," + wrong + "," + none + "|" + damage + "," + idleTicks + "|" + mistakes + "|" + notCounted + "|"
-				+ Arrays.toString(runWaves) + Arrays.toString(runMistakes) + "|" + common;
+				+ Arrays.toString(runWaves) + Arrays.toString(runMistakes) + "|" + common + "|" + lastTick;
 		}
 
 		@Override
@@ -197,21 +209,93 @@ final class WaveCards
 		final String badge;
 		final String icon;
 		final boolean hit;
+		final String summary;
+		final String group;
+		/** The attack's style, "magic", "ranged" or "melee", or null for a mistake that is no attack's (WaveReview.Mistake). */
+		final String style;
 
 		Row(int tick, String text, String badge, String icon, boolean hit)
 		{
+			this(tick, text, badge, icon, hit, text);
+		}
+
+		Row(int tick, String text, String badge, String icon, boolean hit, String summary)
+		{
+			this(tick, text, badge, icon, hit, summary, summary + "|" + icon);
+		}
+
+		Row(int tick, String text, String badge, String icon, boolean hit, String summary, String group)
+		{
+			this(tick, text, badge, icon, hit, summary, group, null);
+		}
+
+		Row(int tick, String text, String badge, String icon, boolean hit, String summary, String group, String style)
+		{
+			this.style = style;
 			this.tick = tick;
 			this.text = text;
 			this.badge = badge;
 			this.icon = icon;
 			this.hit = hit;
+			this.summary = summary;
+			this.group = group;
 		}
 
 		@Override
 		public String toString()
 		{
-			return tick + " " + text + " " + badge + " " + icon;
+			return tick + " " + text + " " + badge + " " + icon + " " + group + " " + style;
 		}
+	}
+
+	/** A short report's group, keeping the full report's rows intact and summing only their recorded damage or idle ticks. */
+	static final class Group
+	{
+		final String text;
+		final String icon;
+		int count;
+		int first;
+		int last;
+		int damage;
+		int idle;
+		boolean hasDamage;
+
+		Group(Row row)
+		{
+			text = row.summary;
+			icon = row.icon;
+			first = row.tick;
+			last = row.tick;
+		}
+
+		String figures()
+		{
+			return "×" + count + " · " + (hasDamage ? damage + " damage" : idle + " idle ticks") + " · t" + first
+				+ (last == first ? "" : "–t" + last);
+		}
+	}
+
+	/** The short report groups the same kind and attacker in the order they first appeared; its page still shows every tick. */
+	static List<Group> grouped(List<Row> rows)
+	{
+		Map<String, Group> groups = new LinkedHashMap<>();
+		for (Row row : rows)
+		{
+			Group group = groups.computeIfAbsent(row.group + "|" + row.icon, key -> new Group(row));
+			group.count++;
+			group.first = Math.min(group.first, row.tick);
+			group.last = Math.max(group.last, row.tick);
+			if (row.badge.matches("[0-9]+"))
+			{
+				group.damage += Integer.parseInt(row.badge);
+				group.hasDamage = true;
+			}
+			else if (row.badge.matches("[0-9]+t"))
+			{
+				group.idle += Integer.parseInt(row.badge.substring(0, row.badge.length() - 1));
+			}
+		}
+		return new ArrayList<>(groups.values());
 	}
 
 	/**
@@ -439,7 +523,7 @@ final class WaveCards
 		JLabel face = new JLabel(Icons.npc(line.getIcon(), 16, dead ? DEAD_ALPHA : toCome ? TO_COME_ALPHA : 1f));
 		face.setVerticalAlignment(JLabel.TOP);
 		row.add(face, BorderLayout.WEST);
-		String name = escape(line.getName());
+		String name = escape(line.getShortName());
 		String html;
 		if (dead)
 		{
@@ -458,7 +542,7 @@ final class WaveCards
 			html = name;
 		}
 		row.add(label(wrapHtml(html, toCome ? 100 : 128), small(), dead ? Stone.DIM : toCome ? Stone.MUTED : Stone.TEXT), BorderLayout.CENTER);
-		JLabel right = dead ? new JLabel(Icons.of("skull", 12, 0.8f)) : label(toCome ? "still to come" : line.getCount() + " left", small(),
+		JLabel right = dead ? new JLabel(Icons.of("skull", 12, 0.8f)) : label(toCome ? "to come" : line.getCount() + " left", small(),
 			toCome ? Stone.DIM : Stone.YELLOW);
 		right.setVerticalAlignment(JLabel.TOP);
 		row.add(right, BorderLayout.EAST);
@@ -652,6 +736,11 @@ final class WaveCards
 		reportCard.add(left(reportHead(r)));
 		reportCard.add(SolSurvivorPanel.gap(5));
 		reportCard.add(left(stats(r)));
+		if (!r.mistakes.isEmpty() && r.lastTick > 0)
+		{
+			reportCard.add(SolSurvivorPanel.gap(6));
+			reportCard.add(left(new WaveStrip(r.mistakes, r.lastTick, r.time)));
+		}
 		reportCard.add(SolSurvivorPanel.gap(6));
 		reportCard.add(left(new Stone.Shadowed(r.mistakes.isEmpty() ? "No mistakes counted" : plural(r.mistakes.size(), "mistake"), small(),
 			r.mistakes.isEmpty() ? Stone.GOOD : Stone.ORANGE)));
@@ -659,14 +748,15 @@ final class WaveCards
 		{
 			Stone.Well well = new Stone.Well(null, 2, 3, 2, 3);
 			well.setLayout(new BoxLayout(well, BoxLayout.Y_AXIS));
-			int shown = Math.min(SHORT_LIST, r.mistakes.size());
+			List<Group> groups = grouped(r.mistakes);
+			int shown = Math.min(SHORT_LIST, groups.size());
 			for (int i = 0; i < shown; i++)
 			{
-				well.add(shortLine(r.mistakes.get(i), i == shown - 1 && shown == r.mistakes.size()));
+				well.add(shortLine(groups.get(i), i == shown - 1 && shown == groups.size()));
 			}
-			if (shown < r.mistakes.size())
+			if (shown < groups.size())
 			{
-				JLabel more = label("and " + (r.mistakes.size() - shown) + " more in the full report", small(), Stone.DIM);
+				JLabel more = label("and " + (groups.size() - shown) + " more in the full report", small(), Stone.DIM);
 				more.setBorder(new EmptyBorder(3, 4, 3, 4));
 				well.add(left(more));
 			}
@@ -738,22 +828,18 @@ final class WaveCards
 		return review;
 	}
 
-	/** A mistake in the panel's short list: its picture, what happened, its badge, and its tick. */
-	private static JPanel shortLine(Row m, boolean last)
+	/** A kind and attacker in the short list: its picture and description, with its count, cost and tick range beneath. */
+	private static JPanel shortLine(Group m, boolean last)
 	{
 		JPanel line = clear(new BorderLayout(5, 0));
 		JLabel face = new JLabel(m.icon == null ? null : Icons.of(m.icon, 16));
 		face.setPreferredSize(new Dimension(16, 16));
 		face.setVerticalAlignment(JLabel.TOP);
 		line.add(face, BorderLayout.WEST);
-		line.add(label(wrap(m.text, 110), small(), Stone.TEXT), BorderLayout.CENTER);
-		JPanel east = clear(new FlowLayout(FlowLayout.RIGHT, 3, 0));
-		east.add(new Stone.Pill(m.badge, m.hit, small()));
-		JLabel tick = label("t" + m.tick, small(), Stone.DIM);
-		tick.setPreferredSize(new Dimension(24, tick.getPreferredSize().height));
-		tick.setHorizontalAlignment(JLabel.RIGHT);
-		east.add(tick);
-		line.add(top(east), BorderLayout.EAST);
+		JPanel words = clear(new BorderLayout(0, 2));
+		words.add(label(wrap(m.text, 170), small(), Stone.TEXT), BorderLayout.NORTH);
+		words.add(label(m.figures(), small(), m.damage > 0 ? Stone.ORANGE : Stone.MUTED), BorderLayout.CENTER);
+		line.add(words, BorderLayout.CENTER);
 		line.setBorder(lined(last, new EmptyBorder(4, 3, 4, 2)));
 		return left(line);
 	}
@@ -879,9 +965,9 @@ final class WaveCards
 	}
 
 	/**
-	 * The death report, a page of its own: Home to the panel; a card that says when the player died and what did it, a
-	 * card of the last ticks before, each with the hitpoints, the protection prayer up, what happened and what it hit for,
-	 * and the buttons; and under them the wave's report as a line, whose page Back brings the player here from.
+	 * The death report, a page of its own: Home to the panel; a card that says when the player died and what did it; how it
+	 * happened, in steps; a card of the last ticks before, folded under the steps, each with the hitpoints, the protection
+	 * prayer up, what happened and what it hit for; and the buttons; and under them the wave's report as a line, whose page Back brings the player here from.
 	 */
 	private void buildDeathPage(Recap r)
 	{
@@ -915,12 +1001,34 @@ final class WaveCards
 		}
 		deathPage.add(left(head));
 
+		List<Step> steps = steps(r.lines);
+		if (!steps.isEmpty())
+		{
+			// How it happened, in steps (the design review's 9, Stefan's choice of 2026-10-31): each hit that cost
+			// hitpoints and each attack that got past the prayer, in order, the one past the prayer marked in yellow as
+			// the moment to have done otherwise; every tick stays one click under it.
+			deathPage.add(SolSurvivorPanel.gap(5));
+			Stone.Row how = card();
+			how.add(left(new Stone.Shadowed("How it happened", bold(), Stone.ORANGE)));
+			how.add(SolSurvivorPanel.gap(4));
+			for (int i = 0; i < steps.size(); i++)
+			{
+				how.add(left(stepLine(i + 1, steps.get(i))));
+				how.add(SolSurvivorPanel.gap(3));
+			}
+			deathPage.add(left(how));
+		}
+
 		if (!r.lines.isEmpty())
 		{
 			deathPage.add(SolSurvivorPanel.gap(5));
 			Stone.Row ticks = card();
-			ticks.add(left(new Stone.Shadowed("The last " + r.lines.size() + " ticks", bold(), Stone.ORANGE)));
-			ticks.add(SolSurvivorPanel.gap(4));
+			String span = r.lines.get(0).getTick() + " to " + r.lines.get(r.lines.size() - 1).getTick();
+			if (steps.isEmpty())
+			{
+				ticks.add(left(new Stone.Shadowed("The last " + r.lines.size() + " ticks", bold(), Stone.ORANGE)));
+				ticks.add(SolSurvivorPanel.gap(4));
+			}
 			Stone.Well well = new Stone.Well(null, 2, 2, 2, 2);
 			well.setLayout(new BoxLayout(well, BoxLayout.Y_AXIS));
 			well.add(recapRow(label("Tick", small(), Stone.DIM), label("HP", small(), Stone.DIM), new JLabel(), label("What happened", small(), Stone.DIM),
@@ -936,9 +1044,25 @@ final class WaveCards
 				prayer.setToolTipText(prayerName(l.getPrayer()));
 				JLabel what = label(wrap(l.getText(), 80), small(), Stone.TEXT);
 				boolean hit = l.getHit().matches("[1-9][0-9]*");
-				JComponent landed = hit ? new Stone.Pill(l.getHit(), true, small()) : label(l.getHit(), small(), Stone.MUTED);
+				JComponent landed = recapHit(l.getHit());
 				Color tint = !hit ? null : i == r.lines.size() - 1 ? new Color(232, 69, 46, 52) : new Color(232, 69, 46, 31);
 				well.add(recapRow(tick, hitpoints, prayer, what, landed, tint, i == r.lines.size() - 1));
+			}
+			if (!steps.isEmpty())
+			{
+				// Under the steps the table is folded, its button saying which ticks it holds.
+				Stone.Button every = new Stone.Button("Every tick, " + span + " ▸", null, false, small(), 7, 5);
+				every.setToolTipText("Shows each of the last ticks: your hitpoints, your prayer, what happened and what it hit for.");
+				well.setVisible(false);
+				every.addActionListener(e ->
+				{
+					well.setVisible(!well.isVisible());
+					every.setText("Every tick, " + span + (well.isVisible() ? " ▾" : " ▸"));
+					deathPage.revalidate();
+					deathPage.repaint();
+				});
+				ticks.add(left(every));
+				ticks.add(SolSurvivorPanel.gap(4));
 			}
 			ticks.add(left(well));
 			deathPage.add(left(ticks));
@@ -963,6 +1087,103 @@ final class WaveCards
 			line.add(left(reportLine(report)));
 			deathPage.add(left(line));
 		}
+	}
+
+	/** A step of the death: its tick, what happened, the hitpoints before and after, what it hit for, and whether it is the turn. */
+	static final class Step
+	{
+		final int tick;
+		final String text;
+		final Integer before;
+		final Integer after;
+		final String hit;
+		final String prayer;
+		/** An attack that got past the prayer: the moment to have done otherwise, marked in yellow. */
+		final boolean past;
+
+		Step(int tick, String text, Integer before, Integer after, String hit, String prayer, boolean past)
+		{
+			this.tick = tick;
+			this.text = text;
+			this.before = before;
+			this.after = after;
+			this.hit = hit;
+			this.prayer = prayer;
+			this.past = past;
+		}
+
+		@Override
+		public String toString()
+		{
+			return tick + " " + text + " " + before + "→" + after + " " + hit + (past ? " past" : "");
+		}
+	}
+
+	/**
+	 * The death in steps, from the recap's ticks: each tick whose attack hit for something, and each whose attack got past
+	 * the prayer, in order, with the hitpoints before it (the tick before's) and after it. Empty when no tick did either,
+	 * and the recap's table stands alone.
+	 */
+	static List<Step> steps(List<WaveReview.RecapLine> lines)
+	{
+		List<Step> steps = new ArrayList<>();
+		Integer before = null;
+		for (WaveReview.RecapLine l : lines)
+		{
+			boolean hit = l.getHit().matches("[1-9][0-9]*");
+			boolean past = l.getText().contains("past your prayer");
+			if (hit || past)
+			{
+				steps.add(new Step(l.getTick(), l.getText(), before, l.getHitpoints(), hit ? l.getHit() : null, l.getPrayer(), past));
+			}
+			before = l.getHitpoints();
+		}
+		return steps;
+	}
+
+	/** A step's line: its number in a dot, what happened over its tick and hitpoints, and what it hit for. */
+	private static JPanel stepLine(int n, Step step)
+	{
+		Stone.Well line = new Stone.Well(null, 4, 5, 4, 5);
+		line.setLayout(new BorderLayout(6, 0));
+		JLabel number = label(String.valueOf(n), small(), step.past ? Stone.YELLOW : Stone.MUTED);
+		number.setVerticalAlignment(JLabel.TOP);
+		number.setPreferredSize(new Dimension(12, number.getPreferredSize().height));
+		line.add(number, BorderLayout.WEST);
+		JPanel words = clear(new BorderLayout(0, 1));
+		words.add(label(wrap(step.text, 150), small(), Stone.TEXT), BorderLayout.NORTH);
+		String hitpoints = step.before == null || step.after == null ? "" : " · " + step.before + " → " + step.after;
+		String detail = step.past
+			? "t" + step.tick + " · " + (step.prayer == null || step.prayer.isEmpty() ? "no protection prayer up" : prayerName(step.prayer) + " up")
+			: "t" + step.tick + hitpoints;
+		words.add(label(detail, small(), step.past ? Stone.YELLOW : Stone.MUTED), BorderLayout.CENTER);
+		line.add(words, BorderLayout.CENTER);
+		if (step.hit != null)
+		{
+			JPanel pill = clear(new BorderLayout());
+			pill.add(new Stone.Pill(step.hit, true, small()), BorderLayout.NORTH);
+			line.add(pill, BorderLayout.EAST);
+		}
+		if (step.past)
+		{
+			line.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(Stone.YELLOW), new EmptyBorder(3, 4, 3, 4)));
+		}
+		return left(line);
+	}
+
+	/** A blocked hit stays compact in the narrow Hit column, with the full meaning on hover. */
+	static JComponent recapHit(String hit)
+	{
+		if (hit.matches("[1-9][0-9]*"))
+		{
+			return new Stone.Pill(hit, true, small());
+		}
+		JLabel value = label("blocked".equals(hit) ? "–" : hit, small(), Stone.MUTED);
+		if ("blocked".equals(hit))
+		{
+			value.setToolTipText("Blocked: the attack did no damage.");
+		}
+		return value;
 	}
 
 	/** A row of the recap's table, its columns at fixed widths so that they line up from row to row, on a tint or none. */
@@ -990,8 +1211,8 @@ final class WaveCards
 		cell(row, c, 3, what, 1);
 		c.insets = new Insets(0, 0, 0, 0);
 		c.anchor = GridBagConstraints.NORTHEAST;
-		cell(row, c, 4, fixed(hit, 36), 0);
-		row.setBorder(lined(last, new EmptyBorder(3, 3, 3, 2)));
+		cell(row, c, 4, fixed(hit, 26), 0);
+		row.setBorder(lined(last, new EmptyBorder(3, 3, 3, 4)));
 		return left(row);
 	}
 
@@ -1144,6 +1365,108 @@ final class WaveCards
 	 * The run's mistakes wave by wave: a bar for each wave with its count over it and its number under it, green for a
 	 * clean wave, amber for one or two mistakes and red for more, as the designs colour them.
 	 */
+	/**
+	 * The wave in a strip (the design review's 8, Stefan's choice of 2026-10-31): its ticks from the start to its last
+	 * across the width, and on it each mistake where it fell, in its attack's colour, the game's blue for magic, green for
+	 * ranged and red for melee; orange for a special, a blast or the sand, and an idle stretch as long as it lasted in
+	 * grey. Under it the start and the wave's time. So the eye sees at once whether the mistakes came together, and when.
+	 */
+	static final class WaveStrip extends JComponent
+	{
+		static final Color MAGIC = new Color(0x4d8bff);
+		static final Color RANGED = new Color(0x38c246);
+		static final Color MELEE = new Color(0xe23b2b);
+		private static final int BAR = 16;
+
+		private final List<Row> rows;
+		private final int last;
+		private final String time;
+
+		WaveStrip(List<Row> rows, int last, String time)
+		{
+			this.rows = rows;
+			this.last = last;
+			this.time = time;
+			setFont(small());
+			setPreferredSize(new Dimension(190, BAR + getFontMetrics(small()).getHeight() + 2));
+			setMaximumSize(new Dimension(Integer.MAX_VALUE, getPreferredSize().height));
+			setToolTipText("<html>Each mistake where it fell in the wave, in its attack's colour:<br>blue magic, green ranged, red melee;"
+				+ "<br>orange a special, a blast or the sand; grey an idle stretch.</html>");
+		}
+
+		/** A mistake's colour on the strip, by its attack's style or, for no attack's, by what it was. */
+		static Color colourOf(Row row)
+		{
+			if ("magic".equals(row.style))
+			{
+				return MAGIC;
+			}
+			if ("ranged".equals(row.style))
+			{
+				return RANGED;
+			}
+			if ("melee".equals(row.style))
+			{
+				return MELEE;
+			}
+			return "hourglass".equals(row.icon) ? Stone.DIM : Stone.ORANGE;
+		}
+
+		@Override
+		protected void paintComponent(Graphics g)
+		{
+			Graphics2D g2 = (Graphics2D) g.create();
+			g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_GASP);
+			int width = getWidth();
+			Stone.paintWell(g2, width, BAR);
+			int inner = Math.max(1, width - 4);
+			// The idle stretches first, under the marks, as long as they lasted.
+			for (Row row : rows)
+			{
+				if ("hourglass".equals(row.icon) && row.badge.matches("[0-9]+t"))
+				{
+					int ticks = Integer.parseInt(row.badge.substring(0, row.badge.length() - 1));
+					int from = 2 + inner * row.tick / Math.max(1, last);
+					int to = 2 + inner * Math.min(last, row.tick + ticks) / Math.max(1, last);
+					g2.setColor(Stone.DIM);
+					g2.fillRect(from, 5, Math.max(2, to - from), BAR - 10);
+				}
+			}
+			// Marks that land within a few pixels of each other, such as a Manticore's three orbs, share the mark's height,
+			// one above another in their order, so that each colour shows.
+			Map<Integer, List<Row>> spots = new LinkedHashMap<>();
+			for (Row row : rows)
+			{
+				if (!"hourglass".equals(row.icon))
+				{
+					int x = Math.min(2 + inner * row.tick / Math.max(1, last), width - 4);
+					spots.computeIfAbsent(x / 4, k -> new ArrayList<>()).add(row);
+				}
+			}
+			for (List<Row> spot : spots.values())
+			{
+				int x = Math.min(2 + inner * spot.get(0).tick / Math.max(1, last), width - 4);
+				int tall = BAR - 6;
+				g2.setColor(Stone.OUTLINE);
+				g2.fillRect(x - 2, 2, 5, BAR - 4);
+				for (int i = 0; i < spot.size(); i++)
+				{
+					int top = 3 + tall * i / spot.size();
+					int bottom = 3 + tall * (i + 1) / spot.size();
+					g2.setColor(colourOf(spot.get(i)));
+					g2.fillRect(x - 1, top, 3, Math.max(1, bottom - top));
+				}
+			}
+			g2.setFont(getFont());
+			FontMetrics fm = g2.getFontMetrics();
+			int base = BAR + 1 + fm.getAscent();
+			g2.setColor(Stone.MUTED);
+			g2.drawString("start", 0, base);
+			g2.drawString(time, width - fm.stringWidth(time), base);
+			g2.dispose();
+		}
+	}
+
 	private static final class RunChart extends JComponent
 	{
 		private final int[] waves;

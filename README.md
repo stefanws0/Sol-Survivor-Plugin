@@ -33,7 +33,8 @@ The site is made for a desktop or laptop browser, beside the game, not for a pho
 Fresh from the Plugin Hub, the panel starts with a **Getting started** card: the three steps from the game to a plan,
 and **Try a sample wave**, which opens wave 7 on the site with the plan it found, so that you can look round before
 you play. In the arena the card moves on: the first step is ticked, the sample goes, and it steps aside during a wave
-and while Minimus offers. It goes once you have opened a wave from the game, or on **Hide**.
+and while Minimus offers. It goes once you have opened a wave from the game, or on **Hide**. Beside it, **In the
+game** folds open onto what the plugin draws in the arena, each with its switch (see In the game).
 
 The first time you walk into the Colosseum with the plugin, one line in your chat box says where **Arena now** is, and
 on a browser new to the site, the first wave you open there comes with a short tour of its own: three steps on the
@@ -60,7 +61,7 @@ work. Expect your computer to notice.
 
 ## The panel
 
-<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6: the Modifier pick, its heading alone until Minimus offers; the wave's row with Arena now, a line saying it opened the arena and copied its link, and the wave's NPCs by their faces, with how many are left and the reinforcements still to come, and the modifiers held by their pictures; and Past waves folded into its heading, as it is in the arena">
+<img src="images/panel.png" width="242" align="right" alt="The Sol Survivor panel in RuneLite during wave 6, on its Wave tab beside Past and Screen: the Modifier pick, its heading alone until Minimus offers; the wave's row with Arena now and a line saying it opened the arena and copied its link; This wave, each NPC by its face with how many are left and the reinforcements to come; and the modifiers held by their pictures">
 
 It opens by itself as you enter the Colosseum, and from the sun in RuneLite's sidebar at any time. It wears the Sol
 Survivor site's stone look, and each part of it shows only when it is about the moment you are in. The row at the top
@@ -102,7 +103,7 @@ which opens the site's leaderboard, and **Remove my times**.
 
 ## After each wave: the wave report
 
-<img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, and four mistakes, each with the face of what did it, its damage and its tick, over Watch wave 5 and All mistakes">
+<img src="images/wave-report.png" width="242" align="right" alt="The wave report for wave 5 in the panel: 84 damage taken, 76 of 79 attacks prayed on time, no idle ticks, a strip of the wave marking when each mistake happened, and four mistakes in three groups, each with the face of what did it, how often, its damage and its ticks, over Watch wave 5 and All mistakes">
 
 As a wave ends, the panel shows its report. Nothing shows while the wave is under way: the report waits for its end.
 Out of the arena it folds to a line, with **Open** to see it whole. The panel's card gives the damage you took, the attacks you prayed on time and your idle ticks, and the first five
@@ -126,7 +127,7 @@ report in chat** puts one line in your chat box as the wave ends.
 
 ## After a death: the death report
 
-<img src="images/death-recap.png" width="242" align="right" alt="The death report for wave 6, with Home at its top: the hit that killed and the one before it that got past the prayer, then the last 8 ticks with hitpoints, prayer, what happened and what each hit did, Watch from tick 28 and Watch the run, and the wave's report as a line to open">
+<img src="images/death-recap.png" width="242" align="right" alt="The death report for wave 6, with Home at its top: what did it, the hit that killed after an attack that got past the prayer; How it happened, the four hits in order with the hitpoints each left, the one past the prayer marked; Every tick, 28 to 35; Watch from tick 28 and Watch the run; and the wave's report as a line to open">
 
 When you die, the panel opens on the death report as you come out of the arena, and keeps the rest out of the way. It
 starts with what did it: the hit that took your last hitpoints and any attack that got past your prayer in the ticks
@@ -140,16 +141,25 @@ at the top opens the death report again until you go back into the arena.
 
 ## In the game
 
-Each of these is off until you switch it on, under **On the game screen** in the settings. They show only what is in
-the arena: none of them reads a plan, picks a target or marks a tile to stand on.
+Most of these are on from the start, so that you see what the plugin offers; if you already have one from another
+plugin, switch ours off. The panel's **In the game** lists them all, each with a switch that takes effect at once,
+and the settings hold each one's colours, places and sizes. They show only what is in the arena: none of them reads a plan, picks a target or marks a tile to stand on.
 
-- **Wave box**: the panel's list of the wave's NPCs on the game's screen, by their faces, with Doom's stacks, for the
-  wave under way, the next wave or both. A rule splits the NPCs at the wave's start from the reinforcements that join
-  later. Hold Alt and drag it to move it.
+- **Wave box**: the panel's list of the wave's NPCs on the game's screen, by their faces, for the wave under way, the
+  next wave or both. Each count comes first, coloured by how many: yellow for one, orange for two, red for three or
+  more. Reinforcements that join later read "+1". Hold Alt and drag it to move it.
+- **Tick counter** and **Wave timer**: the tick counter runs as soon as you are in the arena, and **Tick counter
+  reset hotkey** restarts it. Counting **Up from 0** it also restarts at 0 when you confirm Minimus's modifier;
+  **Loop 1 to N** repeats to **Loop length** (2–10, default 5), and only your hotkey restarts it; **Loop colours**
+  can give each position its own colour, on the number or the whole box, from **Tick loop colours**. The wave timer shows
+  the time since you confirmed the modifier, in minutes and seconds, and stops at the wave's end. Each moves with Alt
+  and drag; **Combine them** puts both in one box, stacked or on two labelled rows. No tick, spawn, reinforcement or
+  attack is marked, and both clocks stay hidden on Sol Heredit's wave. The modifier confirmation may differ from tick
+  0 in the site's wave logs.
 - **Modifiers above the chatbox**: the modifiers you hold in a row of their pictures, with their tiers, just above
-  the chatbox. Hold Alt and drag it to move it.
-- **Doom by the hitpoints orb**: Doom's stacks against its limit, as "4/10", just left of your hitpoints orb, red on
-  the last stack.
+  the chatbox, at the **Size** you choose, from 100% to 300%. Hold Alt and drag it to move it.
+- **Doom stacks**: Doom's stacks against its limit, as "4/10", red on the last stack: just left of your hitpoints orb,
+  or in a box of their own that you move by holding Alt and dragging.
 - **My attack range**: outlines the tiles you can hit from where you stand, with your weapon's range at its attack
   style, Myopia's cut taken off, and only those in your line of sight.
 - **Highlight NPCs in range**: outlines the NPCs you can hit from where you stand, as RuneLite's Attack Ranges and
@@ -159,6 +169,10 @@ the arena: none of them reads a plan, picks a target or marks a tile to stand on
 - **Names on Minimus's offers**: writes each offer's name under its picture when Minimus makes his offers, with the
   tier taking it brings, such as Frailty III, as the Fortis Colosseum plugin does, the tier white for I, blue for II
   and purple for III.
+- **NPC hitpoints** (1.1): each NPC's hitpoints in a small box over its head, as "172/250" over a thin bar, red at a
+  quarter or fewer and a heal in pink for a moment. They are counted from the hitsplats and kept to what the game's own
+  health bar shows; "~" means only the bar gave them, as when the plugin was switched on mid-wave or a Minotaur healed
+  itself. The Fremennik warband and Sol Heredit get none.
 - **Hide the pillars**: stops the game drawing the arena's four pillars, so that you can see past them. They still
   block your path and your line of sight, so where each stood stays marked flat on the floor, a faint square you
   cannot walk onto. Switching it in the arena reloads the scene for a moment.
@@ -245,7 +259,8 @@ took, each Manticore's orb order once it has shown it, and when each NPC last at
 so far: each NPC's health bar as you last saw it, your Doom stacks this wave, and the molten sand on the floor. With
 **Include gear and stats** on, it also holds your worn gear, the weapons in your inventory, your combat levels, your
 prayer points and which of the stronger prayers you have unlocked, from which the site works out how quickly you kill
-each NPC.
+each NPC. With **Send my tile markers** on, Arena now's link also holds the tiles you marked in the arena with Ground
+Markers, with their colours and labels, which the site draws on its map.
 
 **What a Modifier pick link holds:** Minimus's three offers, the modifiers you hold and the wave they come before; each
 wave of the run you finished, with its time, whether you took damage, the modifiers you held and the game's glory and
@@ -255,7 +270,12 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
 
 - **Copy link hotkey**: copies the arena's link as it is now, without opening the browser, so that the game keeps its
   focus mid-wave.
+- **Open Arena now hotkey**: opens the arena's link in your browser and copies it, just like **Arena now** in the
+  panel. Unset by default; the browser opens only when you press your chosen key. Copy link hotkey stays copy-only.
 - **Include gear and stats**: on by default.
+- **Send my tile markers**: off by default. Puts the arena's tiles you marked with RuneLite's Ground Markers, and those
+  of the packs the Tile Packs plugin draws, with their colours and labels, in Arena now's link, and the site draws them
+  on its map. A label goes into a short link you make of the page.
 - **Messages in chat**: on by default. Puts the plugin's messages in your chat box: what each button did, or why it
   could not, the hint as you first enter and the leaderboard's answers. Off, they show only in the panel.
 - **Open panel on entering**: on by default. Opens the panel as you enter the Colosseum, and RuneLite's sidebar with
@@ -291,18 +311,20 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
     than as one line.
   - **Doom against its limit**: on by default. Shows Doom's stacks as "4 of 10", red on the last, from the game's own
     count.
-- **On the game screen**: everything the plugin draws in the game, all off by default (see In the game).
-  - **Wave box**: Off, This wave, Next wave or Both.
-  - **Modifiers above the chatbox**.
-  - **Doom by the hitpoints orb**.
-  - **Volatility reminder**.
-  - **Names on Minimus's offers**.
-  - **My attack range** and **Highlight NPCs in range**.
-  - **Range colour**: the colour of the range's outline and of the NPCs in it.
-  - **Hide the pillars**.
-  - **Hidden pillars' colour**: the colour of the square left on the floor where each hidden pillar stands; set its
-    opacity to 0 for none.
-- **Loot**: Minimus's loot, both off by default.
+- **On the game screen**: what the plugin draws in the game (see In the game). Most of it is on by default, so that
+  you see what the plugin offers: switch off any you already have from another plugin.
+  - **Wave box**: Off, This wave, Next wave or Both; Both by default.
+  - **Volatility reminder**, **Names on Minimus's offers** and **NPC hitpoints**: each on by default.
+- **Modifiers above the chatbox**, **Doom**, **Attack range**, **Pillars** and **Tick counter and wave timer**, each
+  folded shut until you open it: a feature's switch, with its own settings under it. Each switch is on by default but
+  for **My attack range** and **Hide the pillars**, and the tick counter and wave timer share one box.
+  - **Modifiers above the chatbox**: its switch, and **Size**, from 100% to 300%.
+  - **Doom**: **Doom stacks**, and **Doom's place**: by the hitpoints orb, or a movable box.
+  - **Attack range**: **My attack range**, **Highlight NPCs in range** and **Range colour**.
+  - **Pillars**: **Hide the pillars**, and **Hidden pillars' colour**; set its opacity to 0 for none.
+  - **Tick counter and wave timer**: both switches, how the counter counts, its loop's length, whether **Tick loop
+    colours** colour it, its reset hotkey, and whether and how the two share one box.
+- **Loot**: Minimus's loot, both on by default.
   - **Loot totals**: on Minimus's screen between waves, the value of all your loot so far under the last wave's, and
     what it comes to with the next wave's, from the game's own values.
   - **Left-click Bank-all**: makes Bank-all the reward chest's left click, so that one click banks your loot.
@@ -314,6 +336,12 @@ wave damage counters as it ended; and your reward chest and the next wave's rewa
   or late, and every wave you open from it starts with the site's Prayer reliability on Mine: as reliable as your
   newest 60 waves show you to be, kept on the safe side, so that a few lucky waves never make the plans harder. It
   needs **Record wave log**. Switch it off to forget the waves counted. Off by default.
+
+## Report a problem
+
+Report a bad plan or a bug from the site's report form: **Send report** goes privately to the planner's Discord,
+while **Open as a GitHub issue** opens a draft for you to review and submit publicly with a GitHub account. The wave
+log is not attached to the GitHub draft. You can also [open a bug report here](https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=bug-report.md).
 
 ## Credits
 

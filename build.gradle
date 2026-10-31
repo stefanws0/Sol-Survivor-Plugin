@@ -48,7 +48,7 @@ if (coreOnly) {
 }
 
 group = 'nl.dexanddice.solsurvivor'
-version = '1.0.0'
+version = '1.1.0'
 
 tasks.withType(JavaCompile).configureEach {
 	options.encoding = 'UTF-8'
@@ -70,6 +70,22 @@ tasks.register('run', JavaExec) {
 
 	jvmArgs "-ea"
 	args "--developer-mode", "--debug"
+
+	// On a release's holding branch, such as release/1.1, the plugin's links open that branch's preview, which Workers
+	// Builds names after the branch, rather than the live site, which runs main and does not yet read what the branch
+	// sends (core/Site.java). The plugin built for the Plugin Hub never runs this task, so a player's always has the live
+	// site.
+	def branch = ''
+	try {
+		branch = providers.exec { commandLine 'git', 'rev-parse', '--abbrev-ref', 'HEAD' }.standardOutput.asText.get().trim()
+	} catch (Exception ignored) {
+		// Without git, or outside a checkout, the run has the live site.
+	}
+	if (branch.startsWith('release/')) {
+		def preview = "https://${branch.toLowerCase().replaceAll('[^a-z0-9]', '-')}-sol-survivor.stefankessel.workers.dev/"
+		systemProperty 'solsurvivor.site', preview
+		doFirst { logger.lifecycle("The plugin's links open ${preview}, ${branch}'s preview.") }
+	}
 }
 
 tasks.register('shadowJar', Jar) {

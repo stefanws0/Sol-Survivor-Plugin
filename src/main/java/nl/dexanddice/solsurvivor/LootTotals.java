@@ -12,7 +12,7 @@ import net.runelite.api.widgets.WidgetType;
 import net.runelite.client.util.Text;
 
 /**
- * "Loot totals", a setting that is off by default: two lines on Minimus's screen between waves (the user's ask of
+ * "Loot totals", a setting that is on by default: two lines on Minimus's screen between waves (the user's ask of
  * 2026-10-26, so that Fortis Colosseum's own totals can be switched off for these). The game values the last wave's loot
  * on the left and the next wave's on the right, and totals all the loot so far only at the foot of its list in the
  * screen's second tab. The plugin writes that total under the left's value, what the player would leave with now, and

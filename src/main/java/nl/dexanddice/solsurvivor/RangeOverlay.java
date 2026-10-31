@@ -28,7 +28,7 @@ import nl.dexanddice.solsurvivor.core.NpcKind;
 import nl.dexanddice.solsurvivor.core.WaveRoster;
 
 /**
- * The player's attack range on the floor and the NPCs in it, two settings that are off by default: "My attack range"
+ * The player's attack range on the floor and the NPCs in it, two settings, the first off by default and the second on: "My attack range"
  * outlines the tiles the player can hit from where they stand, their weapon's range with Myopia's cut (core.WeaponRange)
  * and in their line of sight, which RuneLite's WorldArea works out from the game's own collision data; "Highlight NPCs
  * in range" outlines the NPCs they can hit, any of whose tiles is in that range and in sight, as RuneLite's Attack Ranges

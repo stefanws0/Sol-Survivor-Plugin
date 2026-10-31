@@ -8,7 +8,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 import org.junit.Test;
@@ -100,6 +102,66 @@ public class StatePayloadTest
 		// Without one, the link is as it was.
 		assertEquals(start, StatePayload.withTriangle(start, null));
 		assertEquals(StatePayload.linkOfJson("https://solsurvivor.app/", start), StatePayload.linkOfJson("https://solsurvivor.app/", start, null));
+	}
+
+	@Test
+	public void thePlayersTileMarkersComeAfterTheRestOfTheLink() throws Exception
+	{
+		// wave4-markers.json is wave4-start.json with the markers of points as Ground Markers saves them, which the site's
+		// tests open (test/link/pluginFixtures.test.ts): a red "A" west of the north-west pillar, the start tile marked in
+		// Ground Markers' own yellow, and a green label longer than a link holds, cut to its 40 characters.
+		String start = fixture("wave4-start.json");
+		List<TileMarker> markers = new ArrayList<>();
+		markers.add(TileMarker.of(7216, 23, 43, 0, 0, 0xFFFF0000, "A"));
+		markers.add(TileMarker.of(7216, 23, 36, 0, 0, null, " "));
+		markers.add(TileMarker.of(7216, 21, 26, 0, 0, 0xFF00FF00, "stall at the SW pillar for the reinforcement shaman"));
+		assertEquals(fixture("wave4-markers.json"), StatePayload.withMarkers(start, markers));
+		String link = StatePayload.linkOfJson("https://solsurvivor.app/", StatePayload.withMarkers(start, markers));
+		assertEquals(fixture("wave4-markers.json"), unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
+		// Without any, the link is as it was.
+		assertEquals(start, StatePayload.withMarkers(start, null));
+		assertEquals(start, StatePayload.withMarkers(start, new ArrayList<>()));
+	}
+
+	@Test
+	public void aMarkerOffTheArenaOrOnAnotherPlaneIsLeftOut()
+	{
+		// Another region, the lobby's; another plane than the player's; and a tile of the arena's region off its grid.
+		assertNull(TileMarker.of(ArenaGeometry.LOBBY_REGION_ID, 23, 43, 0, 0, null, null));
+		assertNull(TileMarker.of(7216, 23, 43, 1, 0, null, null));
+		assertNull(TileMarker.of(7216, 60, 43, 0, 0, null, null));
+		assertNotNull(TileMarker.of(7216, 23, 43, 1, 1, null, null));
+	}
+
+	@Test
+	public void aMarkerTooFaintToSeeInTheGameIsLeftOut()
+	{
+		assertNull(TileMarker.of(7216, 23, 43, 0, 0, 0x01000000, null));
+		assertNull(TileMarker.of(7216, 23, 43, 0, 0, 0x0FFFFFFF, null));
+		assertNotNull(TileMarker.of(7216, 23, 43, 0, 0, 0x10FFFFFF, null));
+	}
+
+	@Test
+	public void aTileMarkedTwiceKeepsItsFirstMarker()
+	{
+		List<TileMarker> markers = new ArrayList<>();
+		markers.add(TileMarker.of(7216, 23, 43, 0, 0, 0xFFFF0000, "mine"));
+		markers.add(TileMarker.of(7216, 23, 36, 0, 0, null, null));
+		markers.add(TileMarker.of(7216, 23, 43, 0, 0, 0xFF00FFFF, "A"));
+		assertEquals("[(7,8) #ff0000 mine, (7,15) #ffff00]", TileMarker.distinct(markers).toString());
+	}
+
+	@Test
+	public void aLinkHoldsAtMostAHundredMarkers()
+	{
+		String start = "{\"v\":1}";
+		List<TileMarker> markers = new ArrayList<>();
+		for (int i = 0; i < 150; i++)
+		{
+			markers.add(TileMarker.of(7216, 16 + i % 34, 51 - i / 34, 0, 0, null, null));
+		}
+		String json = StatePayload.withMarkers(start, markers);
+		assertEquals(TileMarker.MAX_MARKERS, json.split("#ffff00").length - 1);
 	}
 
 	@Test

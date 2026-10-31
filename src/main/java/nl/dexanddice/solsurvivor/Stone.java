@@ -478,6 +478,11 @@ final class Stone
 				g2.setColor(pressed ? YELLOW : f.text);
 				g2.drawString(t, x + iw + gap, y);
 			}
+			if (isFocusPainted() && hasFocus())
+			{
+				g2.setColor(YELLOW);
+				g2.drawRect(2, 2, getWidth() - 5, getHeight() - 5);
+			}
 			g2.dispose();
 		}
 	}
@@ -684,6 +689,19 @@ final class Stone
 			g.setStroke(new BasicStroke(Math.max(1.2f, n / 11f)));
 			g.drawRoundRect(1, n / 6, n - 3, n * 2 / 3, 3, 3);
 			g.fillPolygon(new int[]{n * 5 / 12, n * 3 / 4, n * 5 / 12}, new int[]{n / 3, n / 2, n * 2 / 3}, 3);
+		});
+	}
+
+	/** Three dots in the panel's icon style, for a visible more-actions menu. */
+	static ImageIcon more(int size, Color color)
+	{
+		return draw(size, (g, n) ->
+		{
+			g.setColor(color);
+			for (int x : new int[] {1, n / 2 - 1, n - 3})
+			{
+				g.fillOval(x, n / 2 - 1, 2, 2);
+			}
 		});
 	}
 

@@ -19,9 +19,9 @@ import org.junit.Test;
 
 /**
  * The settings 1.0 promises to keep (the 1.0 plan of 2026-10-26): a key renamed resets the setting for every player who
- * changed it, so each key a release shipped stays as it is, and a new one is added beside them. Everything the plugin
- * draws on the game's screen or sends to the site is off until the player switches it on. The sections in the order of
- * the UX review of 2026-10-27 (F7).
+ * changed it, so each key a release shipped stays as it is, and a new one is added beside them. What the plugin sends
+ * to the site is off until the player switches it on; most of what it draws on the game's screen is on, so that a player
+ * sees what it offers (Stefan's choice, 2026-10-30). The sections in the order of the UX review of 2026-10-27 (F7).
  */
 public class SolSurvivorConfigTest
 {
@@ -59,25 +59,120 @@ public class SolSurvivorConfigTest
 	}
 
 	@Test
-	public void whatDrawsOnTheScreenOrSendsToTheSiteIsOffUntilSwitchedOn()
+	public void whatSendsToTheSiteIsOffAndMostOfTheGameScreenIsOn()
 	{
-		assertEquals(SolSurvivorConfig.WaveBox.OFF, defaults.waveBox());
-		assertFalse(defaults.doomByOrb());
-		assertFalse(defaults.offerNames());
-		assertFalse(defaults.hidePillars());
-		assertFalse(defaults.modifiersBar());
-		assertFalse(defaults.volatilityReminder());
-		assertFalse(defaults.lootTotals());
-		assertFalse(defaults.leftClickBankAll());
-		assertFalse(defaults.myRange());
-		assertFalse(defaults.highlightInRange());
 		assertFalse(defaults.uploadPastRuns());
 		assertFalse(defaults.shareWaveLogs());
 		assertFalse(defaults.leaderboard());
+		// On, so that a player with another plugin for the same thing sees this one offers it too.
+		assertEquals(SolSurvivorConfig.WaveBox.BOTH, defaults.waveBox());
+		assertTrue(defaults.modifiersBar());
+		assertTrue(defaults.doomByOrb());
+		assertTrue(defaults.offerNames());
+		assertTrue(defaults.npcHitpoints());
+		assertTrue(defaults.highlightInRange());
+		assertTrue(defaults.tickCounter());
+		assertTrue(defaults.waveTimer());
+		assertTrue(defaults.combineWaveTimers());
+		assertTrue(defaults.lootTotals());
+		assertTrue(defaults.leftClickBankAll());
+		assertTrue(defaults.volatilityReminder());
+		// Off: an outline that covers the floor, and a change to how the arena looks.
+		assertFalse(defaults.myRange());
+		assertFalse(defaults.hidePillars());
 		// The panel's own cards show from the start: they draw nothing in the game and send nothing.
 		assertTrue(defaults.trackMistakes());
 		assertTrue(defaults.deathRecap());
 		assertTrue(defaults.showWaveNpcs());
+	}
+
+	@Test
+	public void thePanelsInTheGameSwitchesAreSettingsOfTheirOwn() throws Exception
+	{
+		Set<String> seen = new HashSet<>();
+		for (String[] feature : SolSurvivorPanel.IN_GAME)
+		{
+			assertTrue("Twice in the panel: " + feature[0], seen.add(feature[0]));
+			Method m = SolSurvivorConfig.class.getMethod(feature[0]);
+			assertEquals(feature[0], m.getAnnotation(ConfigItem.class).keyName());
+			// Named as in the settings, so that a player finds it there too; the one too long for the panel's line, shortened.
+			if (!feature[0].equals("highlightInRange"))
+			{
+				assertEquals(m.getAnnotation(ConfigItem.class).name(), feature[1]);
+			}
+			assertTrue(feature[0], m.getReturnType() == boolean.class || m.getReturnType() == SolSurvivorConfig.WaveBox.class);
+		}
+	}
+
+	@Test
+	public void clocksCountUpFromZeroInOneStackedBoxUntilThePlayerChoosesOtherwise() throws Exception
+	{
+		assertEquals(SolSurvivorConfig.TickCounterCounts.UP_FROM_ZERO, defaults.tickCounterCounts());
+		assertEquals(5, defaults.tickLoopLength());
+		assertEquals(net.runelite.client.config.Keybind.NOT_SET, defaults.tickResetHotkey());
+		assertEquals(SolSurvivorConfig.CombinedTimerLayout.STACKED, defaults.combinedTimerLayout());
+		assertEquals(SolSurvivorConfig.LargeTimerNumber.TICK, defaults.largeTimerNumber());
+		assertEquals(SolSurvivorConfig.LoopColours.OFF, defaults.loopColours());
+		net.runelite.client.config.Range range = SolSurvivorConfig.class.getMethod("tickLoopLength")
+			.getAnnotation(net.runelite.client.config.Range.class);
+		assertEquals(2, range.min());
+		assertEquals(10, range.max());
+		Set<Integer> positions = new HashSet<>();
+		for (Method method : SolSurvivorConfig.class.getMethods())
+		{
+			ConfigItem item = method.getAnnotation(ConfigItem.class);
+			if (item != null && SolSurvivorConfig.screenSection.equals(item.section()))
+			{
+				assertTrue("Two screen settings at " + item.position(), positions.add(item.position()));
+			}
+		}
+	}
+
+	/**
+	 * RuneLite cannot hide a setting while another is off, so each feature's settings share a shut section, its switch
+	 * first and what only matters with it on under it (Stefan's choice, 2026-10-30), with no two at one position.
+	 */
+	@Test
+	public void eachFeatureKeepsItsSettingsInItsOwnSectionWithItsSwitchFirst()
+	{
+		Map<String, List<String>> expected = new TreeMap<>();
+		expected.put(SolSurvivorConfig.screenSection, Arrays.asList("waveBox", "volatilityReminder", "offerNames", "npcHitpoints"));
+		expected.put(SolSurvivorConfig.modifiersBarSection, Arrays.asList("modifiersBar", "modifiersBarSize", "modifiersBarTiers"));
+		expected.put(SolSurvivorConfig.doomSection, Arrays.asList("doomByOrb", "doomPlace"));
+		expected.put(SolSurvivorConfig.rangeSection, Arrays.asList("myRange", "highlightInRange", "rangeColour"));
+		expected.put(SolSurvivorConfig.pillarsSection, Arrays.asList("hidePillars", "hiddenPillarsColour"));
+		expected.put(SolSurvivorConfig.clocksSection, Arrays.asList("tickCounter", "tickCounterCounts", "tickLoopLength",
+			"loopColours", "tickResetHotkey", "waveTimer", "combineWaveTimers", "combinedTimerLayout", "largeTimerNumber"));
+		Map<String, Map<Integer, String>> found = new TreeMap<>();
+		for (Method method : SolSurvivorConfig.class.getMethods())
+		{
+			ConfigItem item = method.getAnnotation(ConfigItem.class);
+			if (item != null && expected.containsKey(item.section()))
+			{
+				String was = found.computeIfAbsent(item.section(), k -> new TreeMap<>()).put(item.position(), item.keyName());
+				assertNull("Two settings at " + item.position() + " in " + item.section(), was);
+			}
+		}
+		for (Map.Entry<String, List<String>> e : expected.entrySet())
+		{
+			assertEquals(e.getValue(), new ArrayList<>(found.get(e.getKey()).values()));
+		}
+		assertEquals(SolSurvivorConfig.DoomPlace.BY_ORB, defaults.doomPlace());
+	}
+
+	@Test
+	public void openingTheBrowserHasNoDefaultHotkeyAndTheGeneralSettingsHaveSeparatePositions()
+	{
+		assertEquals(net.runelite.client.config.Keybind.NOT_SET, defaults.openArenaHotkey());
+		Set<Integer> positions = new HashSet<>();
+		for (Method method : SolSurvivorConfig.class.getMethods())
+		{
+			ConfigItem item = method.getAnnotation(ConfigItem.class);
+			if (item != null && item.section().isEmpty() && !item.hidden())
+			{
+				assertTrue("Two general settings at " + item.position(), positions.add(item.position()));
+			}
+		}
 	}
 
 	@Test
@@ -114,8 +209,11 @@ public class SolSurvivorConfigTest
 				shut.add(section.name());
 			}
 		}
-		assertEquals(Arrays.asList("Sending to the site", "Mistake tracker", "Waves and modifiers", "On the game screen", "Loot",
-			"Safe / Fast / Easy", "Prayer reliability"), names);
-		assertEquals(Arrays.asList("Mistake tracker", "Waves and modifiers", "Safe / Fast / Easy", "Prayer reliability"), shut);
+		assertEquals(Arrays.asList("Sending to the site", "Mistake tracker", "Waves and modifiers", "On the game screen",
+			"Modifiers above the chatbox", "Doom",
+			"Attack range", "Pillars", "Tick counter and wave timer", "Tick loop colours", "Loot", "Safe / Fast / Easy",
+			"Prayer reliability"), names);
+		assertEquals(Arrays.asList("Mistake tracker", "Waves and modifiers", "Modifiers above the chatbox", "Doom", "Attack range", "Pillars",
+			"Tick counter and wave timer", "Tick loop colours", "Safe / Fast / Easy", "Prayer reliability"), shut);
 	}
 }

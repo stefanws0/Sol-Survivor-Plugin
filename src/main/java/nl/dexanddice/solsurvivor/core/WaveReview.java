@@ -74,15 +74,57 @@ public final class WaveReview
 		private final Integer damage;
 		private final int ticks;
 		private final String icon;
+		private final String summary;
+		private final String group;
+		private final String style;
 
 		Mistake(int tick, Kind kind, String text, Integer damage, int ticks, String icon)
 		{
+			this(tick, kind, text, damage, ticks, icon, kind == Kind.IDLE ? "Idle with the weapon ready" : text);
+		}
+
+		Mistake(int tick, Kind kind, String text, Integer damage, int ticks, String icon, String summary)
+		{
+			this(tick, kind, text, damage, ticks, icon, summary, kind + ":" + summary);
+		}
+
+		Mistake(int tick, Kind kind, String text, Integer damage, int ticks, String icon, String summary, String group)
+		{
+			this(tick, kind, text, damage, ticks, icon, summary, group, null);
+		}
+
+		Mistake(int tick, Kind kind, String text, Integer damage, int ticks, String icon, String summary, String group, String style)
+		{
+			this.style = style;
 			this.tick = tick;
 			this.kind = kind;
 			this.text = text;
 			this.damage = damage;
 			this.ticks = ticks;
 			this.icon = icon;
+			this.summary = summary;
+			this.group = group;
+		}
+
+		/**
+		 * The style of the attack it was about, "magic", "ranged" or "melee", for an attack past the prayer or a flick a
+		 * tick off; null for the other kinds, a special, a blast, the sand or an idle stretch.
+		 */
+		public String getStyle()
+		{
+			return style;
+		}
+
+		/** A stable description of this kind and attacker, for grouping the short report without changing its full detail. */
+		public String getSummary()
+		{
+			return summary;
+		}
+
+		/** The kind and recorded attacker, stable even when the attacker's directional name changes as the player moves. */
+		public String getGroup()
+		{
+			return group;
 		}
 
 		/**
@@ -138,7 +180,7 @@ public final class WaveReview
 		private final String text;
 		private final String hit;
 
-		RecapLine(int tick, Integer hitpoints, String prayer, String text, String hit)
+		public RecapLine(int tick, Integer hitpoints, String prayer, String text, String hit)
 		{
 			this.tick = tick;
 			this.hitpoints = hitpoints;
@@ -827,17 +869,20 @@ public final class WaveReview
 			switch (a.prayed)
 			{
 				case WRONG:
-					out.add(new Mistake(a.checked, Kind.PAST_PRAYER, a.text() + ", with " + PRAYER_NAMES.get(a.prayer) + " up", a.damage, 0, iconOf(a.npcId)));
+					out.add(new Mistake(a.checked, Kind.PAST_PRAYER, a.text() + ", with " + PRAYER_NAMES.get(a.prayer) + " up", a.damage, 0,
+						iconOf(a.npcId), a.name + ": attacks past your prayer", Kind.PAST_PRAYER + ":" + a.index, a.style));
 					break;
 				case NONE:
-					out.add(new Mistake(a.checked, Kind.PAST_PRAYER, a.text() + ", with no protection prayer up", a.damage, 0, iconOf(a.npcId)));
+					out.add(new Mistake(a.checked, Kind.PAST_PRAYER, a.text() + ", with no protection prayer up", a.damage, 0,
+						iconOf(a.npcId), a.name + ": attacks past your prayer", Kind.PAST_PRAYER + ":" + a.index, a.style));
 					break;
 				case LATE:
-					out.add(new Mistake(a.checked, Kind.LATE_FLICK, a.text() + ": " + PRAYER_NAMES.get(a.style) + " a tick late", a.damage, 0, iconOf(a.npcId)));
+					out.add(new Mistake(a.checked, Kind.LATE_FLICK, a.text() + ": " + PRAYER_NAMES.get(a.style) + " a tick late", a.damage, 0,
+						iconOf(a.npcId), a.name + ": prayer a tick off", Kind.LATE_FLICK + ":" + a.index, a.style));
 					break;
 				case EARLY:
 					out.add(new Mistake(a.checked, Kind.LATE_FLICK, a.text() + ": " + PRAYER_NAMES.get(a.style) + " off a tick early", a.damage, 0,
-						iconOf(a.npcId)));
+						iconOf(a.npcId), a.name + ": prayer a tick off", Kind.LATE_FLICK + ":" + a.index, a.style));
 					break;
 				default:
 					break;
@@ -847,7 +892,7 @@ public final class WaveReview
 		{
 			if (h.attack != null && h.attack.special)
 			{
-				out.add(new Mistake(h.tick, Kind.SPECIAL, h.text(), h.damage, 0, iconOf(h.attack.npcId)));
+				out.add(new Mistake(h.tick, Kind.SPECIAL, h.text(), h.damage, 0, iconOf(h.attack.npcId), h.text(), Kind.SPECIAL + ":" + h.attack.index));
 			}
 			else if (h.attack == null && h.otherKind != null)
 			{

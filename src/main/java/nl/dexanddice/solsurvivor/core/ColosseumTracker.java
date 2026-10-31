@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * and health bar, the hits that dealt the player damage this wave (Doom's stacks), the molten sand on the floor, and the
  * modifiers taken; capture() turns that and the NPCs and player of a tick into an ArenaState.
  *
- * It only reads: nothing here acts on the game. What the plugin draws, each overlay off until the player switches it on,
+ * It only reads: nothing here acts on the game. What the plugin draws, each overlay one the player can switch off,
  * is facts the game shows: the wave's NPCs and the player's own range (SolSurvivorPlugin).
  */
 public final class ColosseumTracker
@@ -314,10 +314,16 @@ public final class ColosseumTracker
 	 */
 	public void onPlayerHit(int amount, int type)
 	{
-		if (waveStarted && amount > 0 && !NOT_DAMAGE.contains(type))
+		if (waveStarted && isDamage(amount, type))
 		{
 			damageTaken++;
 		}
+	}
+
+	/** Whether a hitsplat of `amount` and `type` is damage: an amount above 0, not a heal, a drain or the like (NOT_DAMAGE). */
+	public static boolean isDamage(int amount, int type)
+	{
+		return amount > 0 && !NOT_DAMAGE.contains(type);
 	}
 
 	/**

@@ -17,8 +17,9 @@ import java.util.zip.Deflater;
  * the NPCs' health bars, Doom's stacks; and the molten sand on the floor), and with the player's gear the `prayer`
  * values and the `equipment`; with the player's setting for it, the place of the dot on the site's Safe / Fast / Easy
  * triangle (`triangle`, withTriangle); and with theirs for that, their prayer over the waves the plugin counted, which
- * sets the site's Prayer reliability (`prayerRecord`, withPrayerRecord); and on the plugin's first link, a mark that
- * says so (`first`, withFirst). The site keeps its own kill table and solver settings.
+ * sets the site's Prayer reliability (`prayerRecord`, withPrayerRecord); on the plugin's first link, a mark that
+ * says so (`first`, withFirst); and with the player's setting for it, their own tile markers from Ground Markers
+ * and Tile Packs (`markers`, withMarkers). The site keeps its own kill table and solver settings.
  *
  * The JSON is written by hand, ASCII only and in a fixed order, so that a state always gives the same link and the
  * tests can compare links whole.
@@ -502,8 +503,53 @@ public final class StatePayload
 	 */
 	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle, PrayerRecord prayer, boolean first)
 	{
-		String json = toJson(state, equipment);
+		return link(siteUrl, state, equipment, triangle, prayer, first, null);
+	}
+
+	/**
+	 * The whole link, with the player's gear when `equipment` is not null, the place they set for the site's triangle when
+	 * `triangle` is not null (withTriangle), their prayer over the waves counted when `prayer` is not null
+	 * (withPrayerRecord), the mark of the plugin's first link when `first` (withFirst), and their own tile markers when
+	 * `markers` holds any (withMarkers).
+	 */
+	public static String link(String siteUrl, ArenaState state, Equipment equipment, TriangleDot triangle, PrayerRecord prayer, boolean first, List<TileMarker> markers)
+	{
+		String json = withMarkers(toJson(state, equipment), markers);
 		return linkOfJson(siteUrl, first ? withFirst(json) : json, triangle, prayer);
+	}
+
+	/**
+	 * A payload's JSON with the player's own tile markers, `markers`, after the rest: each [x, y, colour] or, with a label,
+	 * [x, y, colour, label], at most TileMarker.MAX_MARKERS of them, the first. The site draws them on its map in their
+	 * colours with their labels. The JSON as it was when `markers` is null or empty. Only Arena now's links take them: the
+	 * wave log keeps its payloads without, as it keeps them without the triangle.
+	 */
+	public static String withMarkers(String json, List<TileMarker> markers)
+	{
+		if (markers == null || markers.isEmpty())
+		{
+			return json;
+		}
+		// toJson's JSON is one object, so its last character closes it.
+		StringBuilder b = new StringBuilder(json.substring(0, json.lastIndexOf('}')));
+		b.append(",\"markers\":[");
+		for (int i = 0; i < Math.min(markers.size(), TileMarker.MAX_MARKERS); i++)
+		{
+			TileMarker m = markers.get(i);
+			if (i > 0)
+			{
+				b.append(',');
+			}
+			b.append('[').append(m.getTile().getX()).append(',').append(m.getTile().getY()).append(',');
+			string(b, m.getColour());
+			if (m.getLabel() != null)
+			{
+				b.append(',');
+				string(b, m.getLabel());
+			}
+			b.append(']');
+		}
+		return b.append("]}").toString();
 	}
 
 	/**
