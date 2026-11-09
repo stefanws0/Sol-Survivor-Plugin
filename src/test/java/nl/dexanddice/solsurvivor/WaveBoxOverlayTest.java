@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -11,6 +12,7 @@ import java.lang.reflect.Proxy;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import net.runelite.client.ui.FontManager;
 import nl.dexanddice.solsurvivor.core.Modifier;
@@ -22,6 +24,10 @@ public class WaveBoxOverlayTest
 {
 	private final AtomicReference<SolSurvivorConfig.WaveBox> mode = new AtomicReference<>(SolSurvivorConfig.WaveBox.BOTH);
 	private final AtomicReference<WaveView> view = new AtomicReference<>();
+	private final AtomicBoolean styles = new AtomicBoolean(true);
+	private final SolSurvivorConfig defaults = new SolSurvivorConfig()
+	{
+	};
 	private final SolSurvivorPlugin plugin = new SolSurvivorPlugin()
 	{
 		@Override
@@ -44,6 +50,11 @@ public class WaveBoxOverlayTest
 				case "waveBox": return mode.get();
 				case "markDead": return true;
 				case "doomLimit": return true;
+				case "quietOnSol": return true;
+				case "waveBoxStyleColours": return styles.get();
+				case "waveBoxMagicColour": return defaults.waveBoxMagicColour();
+				case "waveBoxRangedColour": return defaults.waveBoxRangedColour();
+				case "waveBoxMeleeColour": return defaults.waveBoxMeleeColour();
 				default: return null;
 			}
 		});
@@ -57,6 +68,41 @@ public class WaveBoxOverlayTest
 		assertNotEquals(WaveBoxOverlay.countColour(1), WaveBoxOverlay.countColour(2));
 		assertNotEquals(WaveBoxOverlay.countColour(2), WaveBoxOverlay.countColour(3));
 		assertEquals(WaveBoxOverlay.countColour(3), WaveBoxOverlay.countColour(7));
+	}
+
+	@Test
+	public void eachNameIsTintedByHowItsNpcAttacks()
+	{
+		// The shaman blue, the Javelin green and the melee NPCs red (Stefan's request, 2026-11-08); the Shockwave
+		// Colossus attacks with magic, so it shares the shaman's tint.
+		assertEquals(defaults.waveBoxMagicColour(), WaveBoxOverlay.styleColour("shaman", defaults));
+		assertEquals(defaults.waveBoxMagicColour(), WaveBoxOverlay.styleColour("shockwave", defaults));
+		assertEquals(defaults.waveBoxMagicColour(), WaveBoxOverlay.styleColour("seer", defaults));
+		assertEquals(defaults.waveBoxRangedColour(), WaveBoxOverlay.styleColour("javelin", defaults));
+		assertEquals(defaults.waveBoxRangedColour(), WaveBoxOverlay.styleColour("archer", defaults));
+		assertEquals(defaults.waveBoxMeleeColour(), WaveBoxOverlay.styleColour("jaguar", defaults));
+		assertEquals(defaults.waveBoxMeleeColour(), WaveBoxOverlay.styleColour("minotaur", defaults));
+		assertEquals(defaults.waveBoxMeleeColour(), WaveBoxOverlay.styleColour("berserker", defaults));
+		// More than one style: no tint.
+		assertNull(WaveBoxOverlay.styleColour("manticore", defaults));
+		assertNull(WaveBoxOverlay.styleColour("warband", defaults));
+		assertNull(WaveBoxOverlay.styleColour(null, defaults));
+		// Light tints, so that the names stay easy to read on the box's dark ground.
+		for (java.awt.Color c : new java.awt.Color[] {defaults.waveBoxMagicColour(), defaults.waveBoxRangedColour(),
+			defaults.waveBoxMeleeColour()})
+		{
+			assertTrue(c.toString(), c.getRed() + c.getGreen() + c.getBlue() > 3 * 180);
+		}
+	}
+
+	@Test
+	public void theBoxDrawsWithTheTintsOnOrOff()
+	{
+		List<WaveRoster.Line> roster = WaveRoster.thisWave(5, held, new WaveRoster.Alive(), false, true, 0, false);
+		view.set(new WaveView(5, true, roster, 6, roster, Collections.emptyList(), null, held, 4, 10));
+		Dimension tinted = render();
+		styles.set(false);
+		assertEquals(tinted, render());
 	}
 
 	@Test

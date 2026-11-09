@@ -26,7 +26,9 @@ import java.util.Map;
  * holds either, is the Colosseum's reward chest as it stands between waves (ChestItem): `next`, what clearing the next
  * wave adds, from the game's InventoryID.COLOSSEUM_REWARDS_FUTURE, and `held`, the chest so far, from
  * InventoryID.COLOSSEUM_REWARDS, each item by its name and how many. What the two containers hold is read from their
- * names and is to be checked in game; the site lets the player change what it fills in.
+ * names and is to be checked in game; the site lets the player change what it fills in. `potions`, from 1.4, is the
+ * doses of each potion in the inventory (Potions), and each wave of `run` its `drunk`, the doses gone in it, which the
+ * site's verdict on the chest weighs; a wave the plugin did not count has none.
  */
 public final class PickPayload
 {
@@ -55,13 +57,21 @@ public final class PickPayload
 		return toJson(wave, modifiers, offers, run, Collections.emptyList(), Collections.emptyList());
 	}
 
+	/** The payload's JSON without the potions: see the other. */
+	public static String toJson(Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
+		List<ChestItem> next, List<ChestItem> held)
+	{
+		return toJson(wave, modifiers, offers, run, next, held, null);
+	}
+
 	/**
 	 * The payload's JSON: the next wave, the modifiers held with their tiers (ColosseumTracker.modifiers), the offers, the
 	 * run's waves finished so far (ColosseumTracker.getRun), left out when there are none, and the reward chest, the next
-	 * wave's reward and the chest so far, left out when the game holds neither.
+	 * wave's reward and the chest so far, left out when the game holds neither, and the potions' doses carried
+	 * (Potions.doses), left out when null.
 	 */
 	public static String toJson(Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
-		List<ChestItem> next, List<ChestItem> held)
+		List<ChestItem> next, List<ChestItem> held, Map<String, Integer> potions)
 	{
 		StringBuilder b = new StringBuilder();
 		b.append("{\"v\":").append(VERSION).append(",\"kind\":");
@@ -106,7 +116,13 @@ public final class PickPayload
 				b.append(",\"damage\":").append(w.getDamage());
 				b.append(",\"modifiers\":");
 				modifiersJson(b, w.getModifiers());
-				b.append(",\"glory\":").append(w.getGlory()).append('}');
+				b.append(",\"glory\":").append(w.getGlory());
+				if (w.getDrunk() != null)
+				{
+					b.append(",\"drunk\":");
+					dosesJson(b, w.getDrunk());
+				}
+				b.append('}');
 			}
 			b.append(']');
 		}
@@ -117,6 +133,11 @@ public final class PickPayload
 			b.append(",\"held\":");
 			itemsJson(b, held);
 			b.append('}');
+		}
+		if (potions != null)
+		{
+			b.append(",\"potions\":");
+			dosesJson(b, potions);
 		}
 		b.append('}');
 		return b.toString();
@@ -137,6 +158,25 @@ public final class PickPayload
 			b.append('[');
 			StatePayload.string(b, item.getName());
 			b.append(',').append(item.getQuantity()).append(']');
+		}
+		b.append(']');
+	}
+
+	/** Potions' doses as the pick link writes them: [["Saradomin brew",14],["Super restore",20]]. */
+	private static void dosesJson(StringBuilder b, Map<String, Integer> doses)
+	{
+		b.append('[');
+		boolean first = true;
+		for (Map.Entry<String, Integer> e : doses.entrySet())
+		{
+			if (!first)
+			{
+				b.append(',');
+			}
+			first = false;
+			b.append('[');
+			StatePayload.string(b, e.getKey());
+			b.append(',').append(e.getValue()).append(']');
 		}
 		b.append(']');
 	}
@@ -171,9 +211,16 @@ public final class PickPayload
 		return link(siteUrl, wave, modifiers, offers, run, Collections.emptyList(), Collections.emptyList());
 	}
 
-	/** The whole link: the site's address, losing any hash it had and ending in a slash, "#pick=" and the payload. */
+	/** The whole link without the potions: see the other. */
 	public static String link(String siteUrl, Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
 		List<ChestItem> next, List<ChestItem> held)
+	{
+		return link(siteUrl, wave, modifiers, offers, run, next, held, null);
+	}
+
+	/** The whole link: the site's address, losing any hash it had and ending in a slash, "#pick=" and the payload. */
+	public static String link(String siteUrl, Integer wave, Map<Modifier, Integer> modifiers, List<Modifier> offers, List<RunWave> run,
+		List<ChestItem> next, List<ChestItem> held, Map<String, Integer> potions)
 	{
 		String base = siteUrl.trim();
 		int hash = base.indexOf('#');
@@ -185,7 +232,7 @@ public final class PickPayload
 		{
 			base += "/";
 		}
-		String json = toJson(wave, modifiers, offers, run, next, held);
+		String json = toJson(wave, modifiers, offers, run, next, held, potions);
 		return base + PICK_HASH + Base64.getUrlEncoder().withoutPadding().encodeToString(json.getBytes(StandardCharsets.US_ASCII));
 	}
 }

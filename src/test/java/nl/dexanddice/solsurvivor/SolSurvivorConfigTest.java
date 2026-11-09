@@ -70,13 +70,17 @@ public class SolSurvivorConfigTest
 		assertTrue(defaults.doomByOrb());
 		assertTrue(defaults.offerNames());
 		assertTrue(defaults.npcHitpoints());
+		assertTrue(defaults.hitForecast());
 		assertTrue(defaults.highlightInRange());
+		assertEquals(SolSurvivorConfig.InRangeStyle.BOLD_TILE, defaults.inRangeStyle());
+		assertTrue(defaults.npcColours());
 		assertTrue(defaults.tickCounter());
 		assertTrue(defaults.waveTimer());
 		assertTrue(defaults.combineWaveTimers());
 		assertTrue(defaults.lootTotals());
 		assertTrue(defaults.leftClickBankAll());
 		assertTrue(defaults.volatilityReminder());
+		assertTrue(defaults.waveBoxStyleColours());
 		// Off: an outline that covers the floor, and a change to how the arena looks.
 		assertFalse(defaults.myRange());
 		assertFalse(defaults.hidePillars());
@@ -84,6 +88,18 @@ public class SolSurvivorConfigTest
 		assertTrue(defaults.trackMistakes());
 		assertTrue(defaults.deathRecap());
 		assertTrue(defaults.showWaveNpcs());
+	}
+
+	@Test
+	public void thePanelKnowsWhichSwitchesAFreshInstallHasOff() throws Exception
+	{
+		// The Screen tab's preset reads "Default" by this list, so it must stay the defaults' own.
+		for (String[] feature : SolSurvivorPanel.IN_GAME)
+		{
+			Object value = SolSurvivorConfig.class.getMethod(feature[0]).invoke(defaults);
+			boolean on = value instanceof Boolean ? (Boolean) value : value != SolSurvivorConfig.WaveBox.OFF;
+			assertEquals(feature[0], !on, SolSurvivorPanel.OFF_AS_INSTALLED.contains(feature[0]));
+		}
 	}
 
 	@Test
@@ -101,6 +117,31 @@ public class SolSurvivorConfigTest
 				assertEquals(m.getAnnotation(ConfigItem.class).name(), feature[1]);
 			}
 			assertTrue(feature[0], m.getReturnType() == boolean.class || m.getReturnType() == SolSurvivorConfig.WaveBox.class);
+		}
+	}
+
+	@Test
+	public void eachInTheGameSwitchReadsItsOwnSetting()
+	{
+		// A key with no case in the plugin's reader always read off, so its switch could not be turned on (Frem and orb
+		// colours, found in RuneLite on 2026-11-04). Each feature alone switched on reads on, and every other one off.
+		for (String[] only : SolSurvivorPanel.IN_GAME)
+		{
+			SolSurvivorConfig config = (SolSurvivorConfig) java.lang.reflect.Proxy.newProxyInstance(
+				SolSurvivorConfig.class.getClassLoader(), new Class<?>[]{SolSurvivorConfig.class},
+				(proxy, method, args) ->
+				{
+					boolean on = method.getName().equals(only[0]);
+					if (method.getReturnType() == SolSurvivorConfig.WaveBox.class)
+					{
+						return on ? SolSurvivorConfig.WaveBox.BOTH : SolSurvivorConfig.WaveBox.OFF;
+					}
+					return method.getReturnType() == boolean.class ? (Object) on : null;
+				});
+			for (String[] feature : SolSurvivorPanel.IN_GAME)
+			{
+				assertEquals(only[0] + " on, " + feature[0], feature == only, SolSurvivorPlugin.inGame(config, feature[0]));
+			}
 		}
 	}
 
@@ -136,10 +177,15 @@ public class SolSurvivorConfigTest
 	public void eachFeatureKeepsItsSettingsInItsOwnSectionWithItsSwitchFirst()
 	{
 		Map<String, List<String>> expected = new TreeMap<>();
-		expected.put(SolSurvivorConfig.screenSection, Arrays.asList("waveBox", "volatilityReminder", "offerNames", "npcHitpoints"));
+		expected.put(SolSurvivorConfig.screenSection, Arrays.asList("waveBox", "volatilityReminder", "offerNames", "npcHitpoints", "hitForecast",
+			"quietOnSol", "npcArrows"));
 		expected.put(SolSurvivorConfig.modifiersBarSection, Arrays.asList("modifiersBar", "modifiersBarSize", "modifiersBarTiers"));
 		expected.put(SolSurvivorConfig.doomSection, Arrays.asList("doomByOrb", "doomPlace"));
-		expected.put(SolSurvivorConfig.rangeSection, Arrays.asList("myRange", "highlightInRange", "rangeColour"));
+		expected.put(SolSurvivorConfig.rangeSection, Arrays.asList("myRange", "highlightInRange", "inRangeStyle", "rangeColour"));
+		expected.put(SolSurvivorConfig.npcColoursSection, Arrays.asList("npcColours", "fremArcherColour", "fremSeerColour",
+			"fremBerserkerColour", "orbColour"));
+		expected.put(SolSurvivorConfig.waveBoxColoursSection, Arrays.asList("waveBoxStyleColours", "waveBoxMagicColour",
+			"waveBoxRangedColour", "waveBoxMeleeColour"));
 		expected.put(SolSurvivorConfig.pillarsSection, Arrays.asList("hidePillars", "hiddenPillarsColour"));
 		expected.put(SolSurvivorConfig.clocksSection, Arrays.asList("tickCounter", "tickCounterCounts", "tickLoopLength",
 			"loopColours", "tickResetHotkey", "waveTimer", "combineWaveTimers", "combinedTimerLayout", "largeTimerNumber"));
@@ -210,10 +256,10 @@ public class SolSurvivorConfigTest
 			}
 		}
 		assertEquals(Arrays.asList("Sending to the site", "Mistake tracker", "Waves and modifiers", "On the game screen",
-			"Modifiers above the chatbox", "Doom",
-			"Attack range", "Pillars", "Tick counter and wave timer", "Tick loop colours", "Loot", "Safe / Fast / Easy",
-			"Prayer reliability"), names);
-		assertEquals(Arrays.asList("Mistake tracker", "Waves and modifiers", "Modifiers above the chatbox", "Doom", "Attack range", "Pillars",
-			"Tick counter and wave timer", "Tick loop colours", "Safe / Fast / Easy", "Prayer reliability"), shut);
+			"Wave box name colours", "Modifiers above the chatbox", "Doom",
+			"Attack range", "Frem and orb colours", "Pillars", "Tick counter and wave timer", "Tick loop colours", "Loot",
+			"Safe / Fast / Easy", "Prayer reliability"), names);
+		assertEquals(Arrays.asList("Mistake tracker", "Waves and modifiers", "Wave box name colours", "Modifiers above the chatbox", "Doom", "Attack range",
+			"Frem and orb colours", "Pillars", "Tick counter and wave timer", "Tick loop colours", "Safe / Fast / Easy", "Prayer reliability"), shut);
 	}
 }

@@ -32,7 +32,8 @@ public final class WaveClock
 		running = false;
 		wave = 0;
 		endMillis = -1;
-		if (number >= 1 && !sol)
+		// Sol Heredit's wave is timed too, for a player who keeps the clocks there (View.timerVisible's `quiet`).
+		if (number >= 1)
 		{
 			wave = number;
 			startMillis = millis;
@@ -81,18 +82,13 @@ public final class WaveClock
 	}
 
 	/**
-	 * A wave's start message. Sol Heredit's wave hides both clocks. A wave whose pick the plugin missed, as when it was
+	 * A wave's start message. Sol Heredit's wave hides both clocks, unless Quiet on Sol Heredit's wave is off. A wave whose pick the plugin missed, as when it was
 	 * switched on mid-run, starts its timer here instead, so the timer is never left blank for a whole wave.
 	 */
 	public void onWaveStarted(int number, long millis)
 	{
 		sol = number > ColosseumTracker.LAST_WAVE;
-		if (sol)
-		{
-			running = false;
-			wave = 0;
-		}
-		else if (number != wave)
+		if (number != wave)
 		{
 			wave = number;
 			startMillis = millis;
@@ -123,7 +119,7 @@ public final class WaveClock
 
 	private void publish()
 	{
-		view = new View(wave, running, startMillis, endMillis, sol || resetTick < 0 ? -1 : now - resetTick, sol);
+		view = new View(wave, running, startMillis, endMillis, resetTick < 0 ? -1 : now - resetTick, sol);
 	}
 
 	/** The facts an overlay may draw, with no timing marks or changes of colour. */
@@ -151,13 +147,28 @@ public final class WaveClock
 		/** The tick counter shows in the arena from its first tick, but never on Sol Heredit's wave. */
 		public boolean counterVisible()
 		{
-			return ticks >= 0 && !sol;
+			return counterVisible(true);
+		}
+
+		/**
+		 * The tick counter shows in the arena from its first tick; on Sol Heredit's wave only with `quiet` off (Quiet on
+		 * Sol Heredit's wave, idea 362).
+		 */
+		public boolean counterVisible(boolean quiet)
+		{
+			return ticks >= 0 && !(sol && quiet);
 		}
 
 		/** The wave timer shows from a pick or a wave's start, waves 1 to 11. */
 		public boolean timerVisible()
 		{
-			return wave >= 1 && wave <= ColosseumTracker.LAST_WAVE;
+			return timerVisible(true);
+		}
+
+		/** The wave timer shows from a pick or a wave's start, waves 1 to 11, and on Sol Heredit's with `quiet` off. */
+		public boolean timerVisible(boolean quiet)
+		{
+			return wave >= 1 && (wave <= ColosseumTracker.LAST_WAVE || !quiet);
 		}
 
 		public String title()

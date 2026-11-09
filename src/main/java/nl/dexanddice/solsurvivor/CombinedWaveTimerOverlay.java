@@ -21,8 +21,8 @@ class CombinedWaveTimerOverlay extends WaveClockOverlay
 	{
 		panelComponent.getChildren().clear();
 		WaveClock.View view = plugin.waveClock();
-		boolean counter = view.counterVisible();
-		boolean timer = view.timerVisible();
+		boolean counter = view.counterVisible(config.quietOnSol());
+		boolean timer = view.timerVisible(config.quietOnSol());
 		if (!combined() || !plugin.inArena() || !(counter || timer))
 		{
 			return null;

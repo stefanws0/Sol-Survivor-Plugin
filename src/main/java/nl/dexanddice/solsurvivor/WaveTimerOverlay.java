@@ -19,7 +19,7 @@ class WaveTimerOverlay extends WaveClockOverlay
 	{
 		panelComponent.getChildren().clear();
 		WaveClock.View view = plugin.waveClock();
-		if (!config.waveTimer() || combined() || !plugin.inArena() || !view.timerVisible())
+		if (!config.waveTimer() || combined() || !plugin.inArena() || !view.timerVisible(config.quietOnSol()))
 		{
 			return null;
 		}

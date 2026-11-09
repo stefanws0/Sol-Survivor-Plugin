@@ -2,6 +2,7 @@ package nl.dexanddice.solsurvivor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -23,6 +24,8 @@ import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import nl.dexanddice.solsurvivor.core.GridTile;
+import nl.dexanddice.solsurvivor.core.ProfitRecord;
+import nl.dexanddice.solsurvivor.core.RunProfit;
 import nl.dexanddice.solsurvivor.core.WaveLog;
 import nl.dexanddice.solsurvivor.core.WaveReview;
 import nl.dexanddice.solsurvivor.core.WaveRoster;
@@ -104,7 +107,7 @@ public class SolSurvivorPanelTest
 		arena(panel, true);
 		assertTrue(button(panel, "Arena now").isEnabled());
 		// Sol Heredit's wave is under way, but the site plans waves 1 to 11.
-		panel.showState(true, false, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
+		panel.showState(true, true, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
 		assertFalse(button(panel, "Arena now").isEnabled());
 		assertTrue(button(panel, "Arena now").getToolTipText().contains("Sol Heredit"));
 	}
@@ -131,7 +134,10 @@ public class SolSurvivorPanelTest
 		assertEquals(0, shows(cards.reportPage, "Watch needs Upload past runs"));
 		arena(panel, false);
 		cards.showReview(report(5), null, false);
-		assertTrue(button(cards.reportCard, "Watch wave 5").isPrimary());
+		// On, Watch is the report page's main button; on the card between waves it stays plain, and the card unringed, as
+		// Minimus's pick is the one lit card then.
+		assertFalse(button(cards.reportCard, "Watch wave 5").isPrimary());
+		assertTrue(button(cards.reportPage, "Watch wave 5").isPrimary());
 		assertEquals(0, shows(cards.reportCard, "Watch needs Upload past runs"));
 	}
 
@@ -216,14 +222,22 @@ public class SolSurvivorPanelTest
 	}
 
 	@Test
-	public void duringAWaveThePickIsItsHeadAloneAndTheReportWaits()
+	public void duringAWaveThePickGoesAndTheReportWaits()
 	{
 		SolSurvivorPanel panel = panel();
 		arena(panel, true);
 		panel.cards.showReview(null, null, false);
-		assertEquals(1, shows(panel, "Opens when Minimus makes his offers."));
+		assertEquals(0, shows(panel, "Modifier pick"));
 		assertEquals(0, shows(panel, "Open the pick"));
 		assertEquals(0, shows(panel, "Comes when the wave ends"));
+		// Sol Heredit's too, though Arena now has nothing to open in it.
+		panel.showState(true, true, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
+		assertEquals(0, shows(panel, "Modifier pick"));
+
+		// Between waves, its head alone until Minimus offers.
+		arena(panel, false);
+		assertEquals(1, shows(panel, "Opens when Minimus makes his offers."));
+		assertEquals(0, shows(panel, "Open the pick"));
 
 		panel.showState(true, false, 7, "Wave 7 next", "Between waves", Arrays.asList(new SolSurvivorPanel.Offer("myopia", "Myopia"),
 			new SolSurvivorPanel.Offer("frailty", "Frailty"), new SolSurvivorPanel.Offer("blasphemy", "Blasphemy")), "", runs(false));
@@ -276,15 +290,19 @@ public class SolSurvivorPanelTest
 		on[7] = false;
 		lobby(panel);
 		panel.showInGame(on);
+		panel.showLooks(SolSurvivorConfig.InRangeStyle.BOLD_TILE, true);
 		// On its own tab, Screen, open, with how many are on; the Wave tab shows first.
 		assertEquals(SolSurvivorPanel.Tab.WAVE, panel.shownTab());
-		assertEquals(0, shows(panel, "12 of 13 on"));
+		assertEquals(0, shows(panel, "13 of 14 on"));
 		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
 		assertEquals(SolSurvivorPanel.Tab.SCREEN, panel.shownTab());
-		assertEquals(1, shows(panel, "12 of 13 on"));
+		assertEquals(1, shows(panel, "13 of 14 on"));
 		assertEquals(1, shows(panel, "Wave box"));
 		assertEquals(1, shows(panel, "My attack range"));
 
+		// On is lit green, so that the column reads without the dots; Off is a plain button.
+		assertTrue(button(panel, "Off") != null && !button(panel, "Off").isLit());
+		assertTrue(button(panel, "On").isLit());
 		button(panel, "Off").doClick();
 		assertEquals(Collections.singletonList("myRange=true"), pressed);
 
@@ -292,7 +310,108 @@ public class SolSurvivorPanelTest
 		arena(panel, true);
 		assertEquals(SolSurvivorPanel.Tab.WAVE, panel.shownTab());
 		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
-		assertEquals(1, shows(panel, "12 of 13 on"));
+		assertEquals(1, shows(panel, "13 of 14 on"));
+	}
+
+	@Test
+	public void eachFeatureHasItsIconAndItsChoiceFoldsOutUnderIt()
+	{
+		List<String> pressed = new ArrayList<>();
+		SolSurvivorPanel panel = new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(
+			SolSurvivorPanelTest.class.getClassLoader(), new Class<?>[] {SolSurvivorPanel.Actions.class}, (p, m, a) ->
+			{
+				if (m.getName().equals("setInGame") || m.getName().equals("setLook"))
+				{
+					pressed.add(m.getName() + ":" + Arrays.toString(a));
+				}
+				return null;
+			}));
+		// Every feature, and every look of NPCs in range, has its drawn icon (design B2 of 2026-11-08).
+		for (String[] feature : SolSurvivorPanel.IN_GAME)
+		{
+			assertNotNull(feature[0], FeatureIcons.of(feature[0]));
+			assertEquals(FeatureIcons.SIZE, FeatureIcons.of(feature[0]).getIconWidth());
+		}
+		for (SolSurvivorConfig.InRangeStyle look : SolSurvivorConfig.InRangeStyle.values())
+		{
+			assertNotNull(look.name(), FeatureIcons.look(look));
+		}
+
+		boolean[] on = new boolean[SolSurvivorPanel.IN_GAME.length];
+		Arrays.fill(on, true);
+		lobby(panel);
+		panel.showInGame(on);
+		panel.showLooks(SolSurvivorConfig.InRangeStyle.BOLD_TILE, false);
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		// Under NPCs in range, its four looks, the one set lit; a press sets another at once.
+		assertEquals(1, shows(panel, "Look"));
+		assertTrue(button(panel, "Tile").isPrimary());
+		assertFalse(button(panel, "Arrow").isPrimary());
+		button(panel, "Arrow").doClick();
+		assertEquals(Collections.singletonList("setLook:[Arrow]"), pressed);
+		// Under NPC hitpoints, Your hit on its way's switch, off here.
+		assertEquals(1, shows(panel, "Your hit on its way"));
+		button(panel, "Off").doClick();
+		assertEquals("setInGame:[hitForecast, true]", pressed.get(1));
+		// No NEW tags until New in this update says so.
+		assertEquals(0, named(panel, "new"));
+		panel.showWhatsNew(false, true);
+		assertEquals(2, named(panel, "new"));
+
+		// A feature switched off folds its choice away.
+		for (int i = 0; i < on.length; i++)
+		{
+			on[i] = !"highlightInRange".equals(SolSurvivorPanel.IN_GAME[i][0]) && !"npcHitpoints".equals(SolSurvivorPanel.IN_GAME[i][0]);
+		}
+		panel.showInGame(on);
+		assertEquals(0, shows(panel, "Your hit on its way"));
+		assertEquals(0, shows(panel, "Brackets"));
+	}
+
+	/** Another plugin that draws the same gets an "also" mark beside our switch, whose tooltip names its setting (idea 375). */
+	@Test
+	public void anOverlayAnotherPluginAlsoDrawsIsMarked() throws IOException
+	{
+		SolSurvivorPanel panel = panel();
+		boolean[] on = new boolean[SolSurvivorPanel.IN_GAME.length];
+		Arrays.fill(on, true);
+		lobby(panel);
+		panel.showInGame(on);
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		assertEquals(0, named(panel, "also"));
+		Map<String, String[]> marks = Overlaps.find(Arrays.asList(Overlaps.FORTIS, Overlaps.HP_TRACKER), (group, key) -> null);
+		panel.showOverlaps(marks);
+		assertEquals(marks.size(), named(panel, "also"));
+		draw(panel, "build/panel-overlaps.png");
+		panel.showOverlaps(Collections.emptyMap());
+		assertEquals(0, named(panel, "also"));
+	}
+
+	@Test
+	public void newInThisUpdateShowsItsSettingsWithTheirChoicesUntilHidden()
+	{
+		List<String> pressed = new ArrayList<>();
+		SolSurvivorPanel panel = new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(
+			SolSurvivorPanelTest.class.getClassLoader(), new Class<?>[] {SolSurvivorPanel.Actions.class}, (p, m, a) ->
+			{
+				pressed.add(m.getName() + (a == null ? "" : Arrays.toString(a)));
+				return null;
+			}));
+		lobby(panel);
+		panel.showLooks(SolSurvivorConfig.InRangeStyle.BOLD_TILE, true);
+		assertEquals(0, shows(panel, "New in this update"));
+		panel.showWhatsNew(true, true);
+		assertEquals(SolSurvivorPanel.Tab.WAVE, panel.shownTab());
+		assertEquals(1, shows(panel, "New in this update"));
+		assertEquals(1, shows(panel, "In range look"));
+		assertEquals(1, shows(panel, "Your hit on its way"));
+		button(panel, "Outline").doClick();
+		assertTrue(pressed.contains("setLook[Outline]"));
+		// Its own Hide, not Getting started's, which is not shown.
+		shownButton(panel, "Hide").doClick();
+		assertTrue(pressed.contains("hideWhatsNew"));
+		panel.showWhatsNew(false, false);
+		assertEquals(0, shows(panel, "New in this update"));
 	}
 
 	@Test
@@ -317,7 +436,7 @@ public class SolSurvivorPanelTest
 		assertEquals("All", SolSurvivorPanel.presetOf(on));
 		button(panel, "Minimal").doClick();
 		// Each drawing feature but the wave box goes off; Hide the pillars and Left-click Bank-all stay as they are.
-		assertEquals(10, pressed.size());
+		assertEquals(11, pressed.size());
 		assertTrue(pressed.contains("npcHitpoints=false"));
 		assertFalse(pressed.contains("waveBox=false"));
 		assertFalse(pressed.stream().anyMatch(x -> x.startsWith("hidePillars") || x.startsWith("leftClickBankAll")));
@@ -326,6 +445,28 @@ public class SolSurvivorPanelTest
 		assertEquals("Minimal", SolSurvivorPanel.presetOf(minimal));
 		minimal[5] = true;
 		assertNull(SolSurvivorPanel.presetOf(minimal));
+	}
+
+	@Test
+	public void aFreshInstallsSwitchesReadAsTheDefaultNotAsThePlayersOwn()
+	{
+		SolSurvivorPanel panel = panel();
+		boolean[] installed = new boolean[SolSurvivorPanel.IN_GAME.length];
+		for (int i = 0; i < installed.length; i++)
+		{
+			installed[i] = !SolSurvivorPanel.OFF_AS_INSTALLED.contains(SolSurvivorPanel.IN_GAME[i][0]);
+		}
+		lobby(panel);
+		panel.showInGame(installed);
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		assertNull(SolSurvivorPanel.presetOf(installed));
+		assertEquals(1, shows(panel, "Default"));
+		assertEquals(0, shows(panel, "Your own"));
+		// One switch from it, it is the player's own.
+		installed[5] = !installed[5];
+		panel.showInGame(installed);
+		assertEquals(0, shows(panel, "Default"));
+		assertEquals(1, shows(panel, "Your own"));
 	}
 
 	@Test
@@ -559,6 +700,95 @@ public class SolSurvivorPanelTest
 		draw(panel, "build/panel-death.png");
 	}
 
+	/**
+	 * Ideas and bugs sits at the foot of Wave and Past outside the arena, never on Screen or in the arena, and its buttons
+	 * open the public tracker's two forms. Draws it to build/panel-feedback.png, to look at.
+	 */
+	@Test
+	public void ideasAndBugsOpenThePublicTrackersFormsOutsideTheArena() throws IOException
+	{
+		List<String> opened = new ArrayList<>();
+		SolSurvivorPanel panel = new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(
+			SolSurvivorPanelTest.class.getClassLoader(), new Class<?>[] {SolSurvivorPanel.Actions.class}, (p, m, a) ->
+			{
+				if (m.getName().equals("openFeedback"))
+				{
+					opened.add((String) a[0]);
+				}
+				return null;
+			}));
+		lobby(panel);
+		assertEquals(1, shows(panel, "Suggest a feature"));
+		draw(panel, "build/panel-feedback.png");
+		shownButton(panel, "Suggest a feature").doClick();
+		shownButton(panel, "Report a bug").doClick();
+		assertEquals(Arrays.asList(
+			"https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=feature-idea.md",
+			"https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=bug-report.md"), opened);
+
+		panel.showTab(SolSurvivorPanel.Tab.PAST);
+		assertEquals(1, shows(panel, "Report a bug"));
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		assertEquals(0, shows(panel, "Report a bug"));
+		panel.showTab(SolSurvivorPanel.Tab.PAST);
+		arena(panel, false);
+		assertEquals(0, shows(panel, "Report a bug"));
+		lobby(panel);
+		assertEquals(1, shows(panel, "Report a bug"));
+	}
+
+	/** Profit tops the Past tab with "Track profit" on: the session, its last run and every run since the reset. */
+	@Test
+	public void profitShowsTheSessionTheLastRunAndSinceTheReset() throws IOException
+	{
+		SolSurvivorPanel panel = panel();
+		lobby(panel);
+		panel.showTab(SolSurvivorPanel.Tab.PAST);
+		panel.showProfit(true, ProfitRecord.empty(), ProfitRecord.empty());
+		assertTrue(showsText(panel, "Each run shows here as you leave the arena"));
+		assertTrue(showsText(panel, "No runs counted yet."));
+		draw(panel, "build/panel-profit-none.png");
+
+		ProfitRecord session = ProfitRecord.empty()
+			.with(new RunProfit(2_340_000, 410_000, 0, false, 12))
+			.with(new RunProfit(0, 260_000, 7_500, true, 8));
+		ProfitRecord allTime = ProfitRecord.of("v1;23,6,41200000,9800000").with(session.getLast());
+		panel.showProfit(true, session, allTime);
+		assertTrue(showsText(panel, "+1.66M"));
+		assertTrue(showsText(panel, "This session: 2 runs, 1 death, loot 2.34M, supplies 670K, death fees 7,500."));
+		assertTrue(showsText(panel, "Last run, died on wave 8: -267K (supplies 260K, death fee 7,500, the chest lost)."));
+		assertTrue(showsText(panel, "Total: +31.13M over 24 runs, 7 deaths."));
+		draw(panel, "build/panel-profit.png");
+
+		panel.showProfit(false, session, allTime);
+		assertFalse(showsText(panel, "This session"));
+	}
+
+	/** Whether a label whose words hold `text` shows, it and every parent up to the panel visible. */
+	private static boolean showsText(Container root, String text)
+	{
+		for (Component c : root.getComponents())
+		{
+			if (c instanceof JLabel && ((JLabel) c).getText() != null && ((JLabel) c).getText().contains(text))
+			{
+				Component up = c;
+				while (up != null && up.isVisible() && !(up instanceof SolSurvivorPanel))
+				{
+					up = up.getParent();
+				}
+				if (up instanceof SolSurvivorPanel && up.isVisible())
+				{
+					return true;
+				}
+			}
+			if (c instanceof Container && showsText((Container) c, text))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private static WaveCards.Row row(String style, String icon)
 	{
 		return new WaveCards.Row(10, "x", "5", icon, true, "x", "x", style);
@@ -689,6 +919,45 @@ public class SolSurvivorPanelTest
 	}
 
 	/** The button with the words `text` under `root`. */
+	/** How many shown components carry the name `name`, as the NEW tags do. */
+	private static int named(Container root, String name)
+	{
+		int n = 0;
+		for (Component c : all(root))
+		{
+			if (name.equals(c.getName()) && visibleUpTo(c, root))
+			{
+				n++;
+			}
+		}
+		return n;
+	}
+
+	private static boolean visibleUpTo(Component c, Container root)
+	{
+		for (Component up = c; up != null && up != root; up = up.getParent())
+		{
+			if (!up.isVisible())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** The first button saying `text` that is shown. */
+	private static Stone.Button shownButton(Container root, String text)
+	{
+		for (Component c : all(root))
+		{
+			if (c instanceof Stone.Button && text.equals(((Stone.Button) c).getText()) && visibleUpTo(c, root))
+			{
+				return (Stone.Button) c;
+			}
+		}
+		throw new AssertionError("No shown button " + text);
+	}
+
 	private static Stone.Button button(Container root, String text)
 	{
 		for (Component c : all(root))

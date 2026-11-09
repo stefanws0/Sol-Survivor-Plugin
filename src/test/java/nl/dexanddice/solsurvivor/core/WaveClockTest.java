@@ -122,6 +122,21 @@ public class WaveClockTest
 	}
 
 	@Test
+	public void quietOffKeepsBothClocksOnSolsWave()
+	{
+		clock.onTick(10);
+		clock.onModifierChosen(12, 100, 0, true);
+		clock.onWaveStarted(12, 1_000);
+		clock.onTick(120);
+		assertTrue(clock.view().counterVisible(false));
+		assertTrue(clock.view().timerVisible(false));
+		assertFalse(clock.view().counterVisible(true));
+		assertFalse(clock.view().timerVisible(true));
+		assertEquals("Wave 12", clock.view().title());
+		assertEquals("0:04", clock.view().time(4_000));
+	}
+
+	@Test
 	public void loopLengthsAreBoundedEvenWhenAnImportedSettingBypassesTheSettingsPanel()
 	{
 		clock.onTick(0);

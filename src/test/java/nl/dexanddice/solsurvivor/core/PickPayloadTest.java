@@ -147,6 +147,76 @@ public class PickPayloadTest
 			Collections.emptyList(), Collections.emptyList()).endsWith("[\"myopia\",1]]}"));
 	}
 
+	/**
+	 * The potions ride in the pick link: each wave's doses drunk, counted from the run's first tick in the arena to the
+	 * wave's end and then wave to wave, so the sip between waves 1 and 2 counts with wave 2; and the doses carried now. A
+	 * wave the plugin first saw part-way has none, as its count would be short. The JSON is compared whole with
+	 * src/test/resources/fixtures/pick-potions.json, which the site's tests read too.
+	 */
+	@Test
+	public void thePotionsDrunkEachWaveAndCarried()
+	{
+		ColosseumTracker tracker = new ColosseumTracker();
+		ModifierLevels none = m -> 0;
+		Map<String, Integer>[] inventory = new Map[1];
+		inventory[0] = doses("Saradomin brew(4)", 6, "Super restore(4)", 6, "Divine ranging potion(4)", 1, "Amulet of glory(4)", 1);
+		java.util.function.Supplier<Map<String, Integer>> carried = () -> inventory[0];
+
+		tracker.onRunTick(none, 0, 0, carried);
+		tracker.onGameMessage("Wave: 1", 100);
+		tracker.onRunTick(none, 0, 0, carried);
+		inventory[0] = doses("Saradomin brew(4)", 5, "Saradomin brew(2)", 1, "Super restore(4)", 6, "Divine ranging potion(3)", 1, "Amulet of glory(4)", 1);
+		tracker.onGameMessage("Wave 1 completed!", 200);
+		tracker.onRunTick(none, 600, 0, carried);
+		// A sip of restore between the waves, and six doses of brew and a restore in wave 2.
+		inventory[0] = doses("Saradomin brew(4)", 5, "Saradomin brew(2)", 1, "Super restore(4)", 5, "Super restore(3)", 1, "Divine ranging potion(3)", 1,
+			"Amulet of glory(4)", 1);
+		tracker.onRunTick(none, 600, 0, carried);
+		tracker.onGameMessage("Wave: 2", 300);
+		tracker.onRunTick(none, 600, 0, carried);
+		inventory[0] = doses("Saradomin brew(4)", 4, "Super restore(4)", 5, "Super restore(2)", 1, "Divine ranging potion(3)", 1, "Amulet of glory(4)", 1);
+		tracker.onGameMessage("Wave 2 completed!", 420);
+		tracker.onRunTick(none, 1660, 0, carried);
+		tracker.onModifierOptions(Modifier.DOOM.getId(), Modifier.BLASPHEMY.getId(), Modifier.FRAILTY.getId(), 0);
+
+		assertEquals(doses("Saradomin brew(2)", 1, "Divine ranging potion(1)", 1), tracker.getRun().get(0).getDrunk());
+		assertEquals(doses("Saradomin brew(3)", 2, "Super restore(2)", 1), tracker.getRun().get(1).getDrunk());
+		String json = PickPayload.toJson(tracker.getWave(), tracker.modifiers(none), tracker.getOptions(), tracker.getRun(),
+			Collections.emptyList(), Collections.emptyList(), inventory[0]);
+		try
+		{
+			assertEquals(fixture("pick-potions.json"), json);
+		}
+		catch (IOException e)
+		{
+			throw new AssertionError(e);
+		}
+
+		// Seen first part-way through a wave, that wave has no count, and the next wave counts from its end.
+		ColosseumTracker late = new ColosseumTracker();
+		inventory[0] = doses("Saradomin brew(4)", 4);
+		late.onGameMessage("Wave: 5", 100);
+		late.onRunTick(none, 0, 0);
+		late.onRunTick(none, 0, 0, carried);
+		inventory[0] = doses("Saradomin brew(4)", 3);
+		late.onGameMessage("Wave 5 completed!", 200);
+		late.onRunTick(none, 0, 0, carried);
+		assertNull(late.getRun().get(0).getDrunk());
+		// Without the doses, as from the tests' older ticks, no wave is counted.
+		assertNull(new RunWave(1, 100, false, 0, Collections.emptyMap(), 0).getDrunk());
+	}
+
+	/** Potions by their doses from items and how many of each, as the inventory holds them. */
+	private static Map<String, Integer> doses(Object... items)
+	{
+		List<ChestItem> list = new java.util.ArrayList<>();
+		for (int i = 0; i < items.length; i += 2)
+		{
+			list.add(new ChestItem((String) items[i], (Integer) items[i + 1]));
+		}
+		return Potions.doses(list);
+	}
+
 	/** A wave the plugin did not see start has no ticks and no hits; a new run's wave 1 forgets the last run. */
 	@Test
 	public void aWaveSeenPartWayAndANewRun()

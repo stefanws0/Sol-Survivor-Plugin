@@ -72,6 +72,8 @@ final class WaveCards
 	private static final ImageIcon PLAY_OFF_ICON = Stone.play(8, Stone.MUTED);
 	/** Yellow, as the text of the primary button it sits on, as Arena now's icon. */
 	private static final ImageIcon WATCH_ICON = Stone.replay(12, Stone.YELLOW);
+	/** Orange, as the words of the plain button it sits on: the report card's Watch between waves. */
+	private static final ImageIcon WATCH_PLAIN_ICON = Stone.replay(12, Stone.ORANGE);
 	private static final ImageIcon WATCH_OFF_ICON = Stone.replay(12, Stone.MUTED);
 	/** What every Watch needs, under the buttons while it is off. */
 	private static final String UPLOAD_OFF = "Watch needs Upload past runs, in the settings.";
@@ -535,7 +537,7 @@ final class WaveCards
 		}
 		else if (line.getNote() != null && !"warband".equals(line.getNote()) && !"Quartet".equals(line.getNote()))
 		{
-			html = name + " <font color='#8a7b62'>" + escape(line.getNote()) + "</font>";
+			html = name + " <font color='#bcab8b'>" + escape(line.getNote()) + "</font>";
 		}
 		else
 		{
@@ -543,7 +545,7 @@ final class WaveCards
 		}
 		row.add(label(wrapHtml(html, toCome ? 100 : 128), small(), dead ? Stone.DIM : toCome ? Stone.MUTED : Stone.TEXT), BorderLayout.CENTER);
 		JLabel right = dead ? new JLabel(Icons.of("skull", 12, 0.8f)) : label(toCome ? "to come" : line.getCount() + " left", small(),
-			toCome ? Stone.DIM : Stone.YELLOW);
+			toCome ? Stone.MUTED : Stone.YELLOW);
 		right.setVerticalAlignment(JLabel.TOP);
 		row.add(right, BorderLayout.EAST);
 		row.setBorder(lined(last, new EmptyBorder(3, 3, 3, 3)));
@@ -669,7 +671,6 @@ final class WaveCards
 		{
 			if (outside)
 			{
-				reportCard.setGlow(null);
 				reportCard.add(left(reportLine(r)));
 			}
 			else
@@ -729,10 +730,13 @@ final class WaveCards
 	 * pictures with what each cost, the first few of them, and the buttons to the site and to the report's own page. On
 	 * that page, the whole report: the figures, the prayer against the wave's attacks, every mistake by tick with a button
 	 * to watch it, the kinds the settings leave out, and the run's mistakes wave by wave.
+	 *
+	 * The card is neither ringed nor holds a main button: between waves Minimus's pick is the panel's one lit card, the
+	 * decision with a clock on it, and the report a look back (the design pass of 2026-10-31, Stefan's choice of
+	 * 2026-11-01). Watch is the main button on the report's own page.
 	 */
 	private void buildCard(Report r)
 	{
-		reportCard.setGlow(Stone.GOLD);
 		reportCard.add(left(reportHead(r)));
 		reportCard.add(SolSurvivorPanel.gap(5));
 		reportCard.add(left(stats(r)));
@@ -756,7 +760,7 @@ final class WaveCards
 			}
 			if (shown < groups.size())
 			{
-				JLabel more = label("and " + (groups.size() - shown) + " more in the full report", small(), Stone.DIM);
+				JLabel more = label("and " + (groups.size() - shown) + " more in the full report", small(), Stone.MUTED);
 				more.setBorder(new EmptyBorder(3, 4, 3, 4));
 				well.add(left(more));
 			}
@@ -765,7 +769,7 @@ final class WaveCards
 		Stone.Button full = new Stone.Button("All mistakes", null, false, small(), 7, 6);
 		full.setToolTipText("Opens the whole report in the panel: your prayer, every mistake with a button to watch it, and the run's waves.");
 		full.addActionListener(e -> open(reportPage));
-		reportCard.add(left(buttons(reviewButton(r), full)));
+		reportCard.add(left(buttons(reviewButton(r, false), full)));
 		addUploadOff(reportCard);
 	}
 
@@ -815,14 +819,19 @@ final class WaveCards
 		if (!upload)
 		{
 			card.add(SolSurvivorPanel.gap(4));
-			card.add(left(label(wrap(UPLOAD_OFF, 200), small(), Stone.DIM)));
+			card.add(left(label(wrap(UPLOAD_OFF, 200), small(), Stone.MUTED)));
 		}
 	}
 
-	/** The report's Watch, which plays the wave back on the site: the card's main button while it can. */
-	private Stone.Button reviewButton(Report r)
+	/**
+	 * The report's Watch, which plays the wave back on the site: with `main`, its page's main button while it can, else
+	 * secondary, as on the card between waves.
+	 */
+	private Stone.Button reviewButton(Report r, boolean main)
 	{
-		Stone.Button review = new Stone.Button("Watch wave " + r.wave, upload ? WATCH_ICON : WATCH_OFF_ICON, upload, small(), 7, 6);
+		boolean primary = main && upload;
+		Stone.Button review = new Stone.Button("Watch wave " + r.wave, primary ? WATCH_ICON : upload ? WATCH_PLAIN_ICON : WATCH_OFF_ICON,
+			primary, small(), 7, 6);
 		review.setToolTipText("Uploads this run and opens it on the Sol Survivor site at this wave, to play it back. Needs Upload past runs, in the settings.");
 		review.addActionListener(e -> actions.watchAt(r.id, null));
 		return review;
@@ -931,13 +940,13 @@ final class WaveCards
 		Stone.Button copy = new Stone.Button("Copy report", null, false, small(), 7, 6);
 		copy.setToolTipText("Copies this report as text.");
 		copy.addActionListener(e -> actions.copyReport(r.id));
-		JPanel foot = buttons(reviewButton(r), copy);
+		JPanel foot = buttons(reviewButton(r, true), copy);
 		foot.setBorder(new EmptyBorder(8, 0, 0, 0));
 		reportPage.add(left(foot));
 		addUploadOff(reportPage);
 		reportPage.add(SolSurvivorPanel.gap(6));
 		reportPage.add(left(label(wrap("Counted from the wave log once the wave ended. Nothing here is shown while a wave is under way.", 210),
-			small(), Stone.DIM)));
+			small(), Stone.MUTED)));
 	}
 
 	/** A mistake on the report's page: its tick, its picture, what happened, its badge, and a button to watch it. */
@@ -948,7 +957,7 @@ final class WaveCards
 		GridBagConstraints c = new GridBagConstraints();
 		c.anchor = GridBagConstraints.NORTHWEST;
 		c.insets = new Insets(0, 0, 0, 4);
-		cell(line, c, 0, fixed(label("t" + m.tick, small(), Stone.DIM), 26), 0);
+		cell(line, c, 0, fixed(label("t" + m.tick, small(), Stone.MUTED), 26), 0);
 		JLabel face = new JLabel(m.icon == null ? null : Icons.of(m.icon, 16));
 		face.setPreferredSize(new Dimension(16, 16));
 		cell(line, c, 1, face, 0);
@@ -1031,13 +1040,13 @@ final class WaveCards
 			}
 			Stone.Well well = new Stone.Well(null, 2, 2, 2, 2);
 			well.setLayout(new BoxLayout(well, BoxLayout.Y_AXIS));
-			well.add(recapRow(label("Tick", small(), Stone.DIM), label("HP", small(), Stone.DIM), new JLabel(), label("What happened", small(), Stone.DIM),
-				label("Hit", small(), Stone.DIM), null, false));
+			well.add(recapRow(label("Tick", small(), Stone.MUTED), label("HP", small(), Stone.MUTED), new JLabel(),
+				label("What happened", small(), Stone.MUTED), label("Hit", small(), Stone.MUTED), null, false));
 			for (int i = 0; i < r.lines.size(); i++)
 			{
 				WaveReview.RecapLine l = r.lines.get(i);
 				Integer hp = l.getHitpoints();
-				JLabel tick = label(String.valueOf(l.getTick()), small(), Stone.DIM);
+				JLabel tick = label(String.valueOf(l.getTick()), small(), Stone.MUTED);
 				JLabel hitpoints = label(hp == null ? "?" : String.valueOf(hp), small(), hpColour(hp, r.maxHitpoints));
 				JLabel prayer = l.getPrayer() == null || l.getPrayer().isEmpty() ? label("–", small(), Stone.DIM)
 					: new JLabel(Icons.of("prayer-" + l.getPrayer(), 14));

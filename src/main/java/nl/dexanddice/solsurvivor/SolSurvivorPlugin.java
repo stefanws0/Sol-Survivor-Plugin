@@ -62,12 +62,16 @@ import net.runelite.api.events.NpcDespawned;
 import net.runelite.api.events.NpcSpawned;
 import net.runelite.api.events.ScriptPostFired;
 import net.runelite.api.events.ScriptPreFired;
+import net.runelite.api.events.StatChanged;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
+import net.runelite.api.gameval.ItemID;
 import net.runelite.api.gameval.NpcID;
 import net.runelite.api.gameval.SpotanimID;
 import net.runelite.api.gameval.SpriteID;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.callback.RenderCallbackManager;
 import net.runelite.client.chat.ChatMessageManager;
@@ -75,6 +79,8 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.PluginChanged;
+import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.game.ItemEquipmentStats;
 import net.runelite.client.game.ItemManager;
@@ -85,6 +91,7 @@ import net.runelite.client.plugins.PluginManager;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.Filepath;
 import net.runelite.client.util.HotkeyListener;
@@ -104,9 +111,14 @@ import nl.dexanddice.solsurvivor.core.ModifierLevels;
 import nl.dexanddice.solsurvivor.core.NpcHitpoints;
 import nl.dexanddice.solsurvivor.core.OrbStyle;
 import nl.dexanddice.solsurvivor.core.PickPayload;
+import nl.dexanddice.solsurvivor.core.Potions;
 import nl.dexanddice.solsurvivor.core.PluginVersion;
 import nl.dexanddice.solsurvivor.core.PrayerFlicks;
 import nl.dexanddice.solsurvivor.core.PrayerRecord;
+import nl.dexanddice.solsurvivor.core.ChargeCosts;
+import nl.dexanddice.solsurvivor.core.DeathFee;
+import nl.dexanddice.solsurvivor.core.ProfitRecord;
+import nl.dexanddice.solsurvivor.core.RunProfit;
 import nl.dexanddice.solsurvivor.core.ReplayLink;
 import nl.dexanddice.solsurvivor.core.Site;
 import nl.dexanddice.solsurvivor.core.RunLogWriter;
@@ -227,6 +239,9 @@ public class SolSurvivorPlugin extends Plugin
 	@Inject
 	private PluginManager pluginManager;
 
+	/** Whether this start is a fresh install's, whose small boxes may get their fixed-client places on its first login. */
+	private boolean placeLayout;
+
 	/** RuneLite's own, for the site's answers, as its plugin guide asks. */
 	@Inject
 	private Gson gson;
@@ -254,6 +269,9 @@ public class SolSurvivorPlugin extends Plugin
 	private RangeOverlay rangeOverlay;
 
 	@Inject
+	private NpcColoursOverlay npcColoursOverlay;
+
+	@Inject
 	private DoomOverlay doomOverlay;
 
 	@Inject
@@ -261,6 +279,9 @@ public class SolSurvivorPlugin extends Plugin
 
 	@Inject
 	private DoomBoxOverlay doomBoxOverlay;
+
+	@Inject
+	private NpcArrowsOverlay npcArrowsOverlay;
 
 	@Inject
 	private ModifiersBarOverlay modifiersBarOverlay;
@@ -318,6 +339,33 @@ public class SolSurvivorPlugin extends Plugin
 	private PrayerRecord prayerRecord = PrayerRecord.empty();
 	/** The id of the last wave log whose turn to be counted came, so that each is counted once (countFlicks). */
 	private int flicksCounted;
+	/**
+	 * The run under way's profit, with "Track profit" on (core.RunProfit): from the first tick in the arena to leaving it;
+	 * null out of the arena. On the client thread only.
+	 */
+	private RunProfit.Tracker profitRun;
+	/** Whether the last run ended in a death, whose chest the game may still show but no one can claim. */
+	private boolean chestLost;
+	/**
+	 * Whether the last run's death fee is still the estimate: the grave's own fee takes its place as the player opens
+	 * the gravestone in the lobby (graveFee).
+	 */
+	private boolean feeEstimated;
+	/**
+	 * Whether one of the player's own hitsplats landed on an NPC this tick, and whether one did damage, for a melee weapon's
+	 * charges (core.ChargeCosts.Counting).
+	 */
+	private boolean hitThisTick;
+	private boolean damagedThisTick;
+	/** The player's Hitpoints experience when last seen, for the hit forecast; below 0 until the game first sends it. */
+	private int hitpointsXp = -1;
+	/** The projectiles from the player already counted, by identity, for a ranged or magic weapon's charges. */
+	private final Set<Projectile> ownProjectiles = Collections.newSetFromMap(new IdentityHashMap<>());
+	/** The runs' profit this session, and since the player last reset it, which the account's settings keep. */
+	private ProfitRecord profitSession = ProfitRecord.empty();
+	private ProfitRecord profitAllTime = ProfitRecord.empty();
+	/** What the panel's Profit card shows, so that it is drawn again only when that changes. */
+	private List<Object> shownProfit;
 
 	/**
 	 * What the panel's wave card and the wave box show on this tick. Written on the client thread each tick, which the
@@ -501,6 +549,12 @@ public class SolSurvivorPlugin extends Plugin
 			}
 
 			@Override
+			public void resetProfit()
+			{
+				clientThread.invokeLater(SolSurvivorPlugin.this::resetProfit);
+			}
+
+			@Override
 			public void hideGettingStarted()
 			{
 				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.GETTING_STARTED_DONE, true);
@@ -513,11 +567,49 @@ public class SolSurvivorPlugin extends Plugin
 				Object value = "waveBox".equals(key) ? (on ? SolSurvivorConfig.WaveBox.BOTH : SolSurvivorConfig.WaveBox.OFF) : on;
 				configManager.setConfiguration(SolSurvivorConfig.GROUP, key, value);
 			}
+
+			@Override
+			public void setLook(SolSurvivorConfig.InRangeStyle look)
+			{
+				configManager.setConfiguration(SolSurvivorConfig.GROUP, "inRangeStyle", look);
+			}
+
+			@Override
+			public void openFeedback(String url)
+			{
+				LinkBrowser.browse(url);
+			}
+
+			@Override
+			public void hideWhatsNew()
+			{
+				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.WHATS_NEW_SEEN, SolSurvivorConfig.WHATS_NEW);
+			}
 		});
+		// A fresh install may place its boxes for the fixed client on its first login (placeFirstLayout); a player who had
+		// the plugin before keeps the places they have, so the chance is spent at once.
+		if (!config.layoutPlaced())
+		{
+			placeLayout = !config.gettingStartedDone()
+				&& configManager.getConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.WHATS_NEW_SEEN) == null;
+			if (!placeLayout)
+			{
+				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LAYOUT_PLACED, true);
+			}
+		}
+		// A fresh install, which has not yet been through Getting started, takes the settings as they are now: New in this
+		// update's card is for a player who had the plugin before them.
+		if (!config.gettingStartedDone() && config.whatsNewSeen() < SolSurvivorConfig.WHATS_NEW)
+		{
+			configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.WHATS_NEW_SEEN, SolSurvivorConfig.WHATS_NEW);
+		}
 		// The first-run cards as the settings are now, before the panel first shows: updatePanel keeps them so after.
 		panel.showGettingStarted(!config.gettingStartedDone(), config.openOnEntering(), false);
 		panel.showSends(config.uploadPastRuns(), config.shareWaveLogs(), config.leaderboard());
 		panel.showInGame(inGame());
+		clientThread.invokeLater(this::findOverlaps);
+		panel.showLooks(config.inRangeStyle(), config.hitForecast());
+		panel.showWhatsNew(false, config.whatsNewSeen() < SolSurvivorConfig.WHATS_NEW);
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
 			.icon(SolSurvivorPanel.icon())
@@ -536,24 +628,28 @@ public class SolSurvivorPlugin extends Plugin
 		overlayManager.add(waveTimerOverlay);
 		overlayManager.add(combinedWaveTimerOverlay);
 		overlayManager.add(rangeOverlay);
+		overlayManager.add(npcColoursOverlay);
 		overlayManager.add(doomOverlay);
 		overlayManager.add(doomBoxOverlay);
 		overlayManager.add(npcHitpointsOverlay);
 		overlayManager.add(modifiersBarOverlay);
 		overlayManager.add(volatilityOverlay);
 		overlayManager.add(pillarOverlay);
+		overlayManager.add(npcArrowsOverlay);
 		renderCallbackManager.register(pillarHider);
 		if (config.hidePillars())
 		{
 			clientThread.invokeLater(this::rebuildArena);
 		}
 		prayerRecord = PrayerRecord.of(config.prayerRecord());
+		clientThread.invokeLater(this::loadProfit);
 		// Switched on while logged in: the account's saved waves come back now, not at its next login.
 		clientThread.invokeLater(() ->
 		{
 			if (client.getGameState() == GameState.LOGGED_IN)
 			{
 				openRuns();
+				placeFirstLayout();
 			}
 		});
 	}
@@ -585,12 +681,14 @@ public class SolSurvivorPlugin extends Plugin
 		overlayManager.remove(waveTimerOverlay);
 		overlayManager.remove(combinedWaveTimerOverlay);
 		overlayManager.remove(rangeOverlay);
+		overlayManager.remove(npcColoursOverlay);
 		overlayManager.remove(doomOverlay);
 		overlayManager.remove(doomBoxOverlay);
 		overlayManager.remove(npcHitpointsOverlay);
 		overlayManager.remove(modifiersBarOverlay);
 		overlayManager.remove(volatilityOverlay);
 		overlayManager.remove(pillarOverlay);
+		overlayManager.remove(npcArrowsOverlay);
 		renderCallbackManager.unregister(pillarHider);
 		if (config.hidePillars())
 		{
@@ -598,6 +696,11 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		clientToolbar.removeNavigation(navButton);
 		prayerRecord = PrayerRecord.empty();
+		profitRun = null;
+		chestLost = false;
+		profitSession = ProfitRecord.empty();
+		profitAllTime = ProfitRecord.empty();
+		shownProfit = null;
 		panel = null;
 		// shutDown runs on Swing's thread, and the client thread writes the tracker, the wave log and the rest on each
 		// tick, so they are cleared there, never under a tick in flight.
@@ -658,6 +761,64 @@ public class SolSurvivorPlugin extends Plugin
 		else if (state == GameState.LOGGED_IN)
 		{
 			openRuns();
+			placeFirstLayout();
+		}
+	}
+
+	/**
+	 * A fresh install's first login (idea 363): in the fixed client, the small boxes start at the top centre, each one the
+	 * player has not placed (FixedLayout). Once only, fixed or not, so that a box never moves after the player has seen it.
+	 */
+	private void placeFirstLayout()
+	{
+		if (!placeLayout)
+		{
+			return;
+		}
+		placeLayout = false;
+		configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LAYOUT_PLACED, true);
+		if (client.isResized())
+		{
+			return;
+		}
+		for (Overlay box : Arrays.asList(tickCounterOverlay, waveTimerOverlay, combinedWaveTimerOverlay, doomBoxOverlay))
+		{
+			if (box.getPreferredPosition() == null && box.getPreferredLocation() == null
+				&& !FixedLayout.placedByPlayer(box.getName(), configManager::getConfiguration))
+			{
+				box.setPreferredPosition(FixedLayout.SMALL_BOXES);
+				overlayManager.saveOverlay(box);
+			}
+		}
+	}
+
+	/** A plugin installed, removed, started or stopped, which can add or take away an "also" mark. */
+	@Subscribe
+	public void onPluginChanged(PluginChanged e)
+	{
+		clientThread.invokeLater(this::findOverlaps);
+	}
+
+	/**
+	 * In the game's "also" marks (idea 375): which of our features another enabled plugin draws too, by reading that
+	 * plugin's settings, never writing them (Overlaps).
+	 */
+	private void findOverlaps()
+	{
+		List<String> enabled = new ArrayList<>();
+		for (Plugin p : pluginManager.getPlugins())
+		{
+			PluginDescriptor descriptor = p.getClass().getAnnotation(PluginDescriptor.class);
+			if (descriptor != null && p != this && pluginManager.isPluginEnabled(p))
+			{
+				enabled.add(descriptor.name());
+			}
+		}
+		Map<String, String[]> marks = Overlaps.find(enabled, configManager::getConfiguration);
+		SolSurvivorPanel p = panel;
+		if (p != null)
+		{
+			SwingUtilities.invokeLater(() -> p.showOverlaps(marks));
 		}
 	}
 
@@ -668,13 +829,17 @@ public class SolSurvivorPlugin extends Plugin
 		boolean[] on = new boolean[features.length];
 		for (int i = 0; i < features.length; i++)
 		{
-			on[i] = inGame(features[i][0]);
+			on[i] = inGame(config, features[i][0]);
 		}
 		return on;
 	}
 
-	/** Whether In the game's feature `key` is on; the wave box is, whichever wave it shows. */
-	private boolean inGame(String key)
+	/**
+	 * Whether In the game's feature `key` is on in `config`; the wave box is, whichever wave it shows. Every key of
+	 * SolSurvivorPanel.IN_GAME needs its case here, or its switch reads off whatever the setting holds
+	 * (SolSurvivorConfigTest holds each to its setting).
+	 */
+	static boolean inGame(SolSurvivorConfig config, String key)
 	{
 		switch (key)
 		{
@@ -694,6 +859,8 @@ public class SolSurvivorPlugin extends Plugin
 				return config.highlightInRange();
 			case "myRange":
 				return config.myRange();
+			case "npcColours":
+				return config.npcColours();
 			case "tickCounter":
 				return config.tickCounter();
 			case "waveTimer":
@@ -729,6 +896,12 @@ public class SolSurvivorPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged e)
 	{
+		// Another plugin's setting that an "also" mark reads, or a plugin switched on or off in RuneLite's own group.
+		if (Overlaps.GROUPS.contains(e.getGroup()))
+		{
+			clientThread.invokeLater(this::findOverlaps);
+			return;
+		}
 		if (!SolSurvivorConfig.GROUP.equals(e.getGroup()))
 		{
 			return;
@@ -784,8 +957,9 @@ public class SolSurvivorPlugin extends Plugin
 			});
 			return;
 		}
-		if ("uploadPastRuns".equals(e.getKey()) || "openOnEntering".equals(e.getKey())
-			|| SolSurvivorConfig.GETTING_STARTED_DONE.equals(e.getKey()) || isInGame(e.getKey()))
+		if ("uploadPastRuns".equals(e.getKey()) || "openOnEntering".equals(e.getKey()) || "trackProfit".equals(e.getKey())
+			|| SolSurvivorConfig.GETTING_STARTED_DONE.equals(e.getKey()) || isInGame(e.getKey())
+			|| SolSurvivorConfig.WHATS_NEW_SEEN.equals(e.getKey()) || "inRangeStyle".equals(e.getKey()) || "hitForecast".equals(e.getKey()))
 		{
 			clientThread.invokeLater(this::updatePanel);
 			return;
@@ -906,6 +1080,21 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			volatilityOverlay.died((NPC) e.getActor());
 		}
+		else if (e.getActor() == client.getLocalPlayer() && profitRun != null)
+		{
+			// The grave keeps all but the 3 most valuable items, 4 with Protect Item, at a quarter of the fee until the
+			// player has cleared 100 waves, and half for an ironman (core.DeathFee).
+			int kept = 3 + (prayerOn(Prayer.PROTECT_ITEM) ? 1 : 0);
+			boolean discounted = client.getVarpValue(VarPlayerID.TOTAL_COLOSSEUM_WAVES_COMPLETED) < DeathFee.DISCOUNT_WAVES;
+			profitRun.onDeath(kept, discounted, client.getVarbitValue(VarbitID.IRONMAN) != 0);
+		}
+	}
+
+	/** Another account, or the first login: its own profit record. */
+	@Subscribe
+	public void onRuneScapeProfileChanged(RuneScapeProfileChanged e)
+	{
+		loadProfit();
 	}
 
 	/**
@@ -967,13 +1156,57 @@ public class SolSurvivorPlugin extends Plugin
 		else if (actor instanceof NPC)
 		{
 			int index = ((NPC) actor).getIndex();
+			hitThisTick |= e.getHitsplat().isMine();
+			damagedThisTick |= e.getHitsplat().isMine() && amount > 0;
 			tracker.onNpcHit(index, amount, type);
 			npcHitpoints.onHit(index, amount, type, client.getTickCount());
+			if (e.getHitsplat().isMine() && ColosseumTracker.isDamage(amount, type))
+			{
+				npcHitpoints.onMyHit(index, amount, client.getTickCount());
+			}
 			if (config.recordWaveLog())
 			{
 				waveLog.onNpcHit(index, amount, type);
 			}
 		}
+	}
+
+	/**
+	 * The player's Hitpoints experience went up: an attack was thrown, whose hit the NPC hitpoints' tag forecasts on the NPC
+	 * the player attacks (core.NpcHitpoints.onHitpointsXp) until its hitsplat lands. A weapon that hits several NPCs at
+	 * once gives one drop for them all, which cannot be split, so none is forecast for it.
+	 */
+	@Subscribe
+	public void onStatChanged(StatChanged e)
+	{
+		if (e.getSkill() != Skill.HITPOINTS)
+		{
+			return;
+		}
+		int was = hitpointsXp;
+		hitpointsXp = e.getXp();
+		if (was < 0 || hitpointsXp <= was || !inColosseum || !config.hitForecast())
+		{
+			return;
+		}
+		Player player = client.getLocalPlayer();
+		Actor target = player == null ? null : player.getInteracting();
+		String weapon = weaponName();
+		if (target instanceof NPC && !hitsSeveral(weapon))
+		{
+			npcHitpoints.onHitpointsXp(((NPC) target).getIndex(), hitpointsXp - was, client.getTickCount());
+		}
+	}
+
+	/** Whether `weapon` hits several NPCs with one attack: the chinchompas and the Venator bow. */
+	static boolean hitsSeveral(String weapon)
+	{
+		if (weapon == null)
+		{
+			return false;
+		}
+		String name = weapon.toLowerCase();
+		return name.contains("chinchompa") || name.contains("venator bow");
 	}
 
 	/**
@@ -1055,11 +1288,29 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			openOnEntering();
 			sayOnFirstEntering();
+			if (config.trackProfit())
+			{
+				profitRun = new RunProfit.Tracker(carried(), chestLost ? new HashMap<>() : chest());
+				chestLost = false;
+			}
 		}
 		if (!inColosseum)
 		{
+			graveFee();
 			return;
 		}
+		feeEstimated = false;
+		if (profitRun != null)
+		{
+			String weapon = weaponName();
+			if (attacked(ChargeCosts.counting(weapon)))
+			{
+				profitRun.onAttack(weapon);
+			}
+			profitRun.onTick(carried(), chest());
+		}
+		hitThisTick = false;
+		damagedThisTick = false;
 
 		// Every tick, rather than on graphic events, which do not fire for a Manticore out of view behind a pillar. Each
 		// NPC's health bar too, while the game shows it, which the tracker keeps for the link once it hides and which keeps
@@ -1117,9 +1368,10 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		recordWaveLog(tick);
 		sandTick(tick);
-		// The run's waves finished, for the pick link, with the game's glory and wave damage counters beside them.
+		// The run's waves finished, for the pick link, with the game's glory and wave damage counters beside them, and the
+		// potions drunk in each.
 		tracker.onRunTick(m -> readLevel(m.getLevelVarbit()), client.getVarpValue(ColosseumCounter.CURRENT_GLORY.getId()),
-			client.getVarpValue(ColosseumCounter.WAVE_DAMAGE_TAKEN.getId()));
+			client.getVarpValue(ColosseumCounter.WAVE_DAMAGE_TAKEN.getId()), this::potionDoses);
 		waveView = waveView(tick);
 		updateRange();
 		updatePanel();
@@ -1169,8 +1421,15 @@ public class SolSurvivorPlugin extends Plugin
 		Integer next = underWay ? Integer.valueOf(wave + 1) : wave;
 		boolean known = WaveRoster.knows(next);
 		int doom = held.getOrDefault(Modifier.DOOM, 0);
-		return new WaveView(wave, underWay, thisWave, known ? next : null,
-			known ? WaveRoster.nextWave(next, held) : Collections.<WaveRoster.Line>emptyList(), WaveRoster.nextWaveLater(known ? next : null),
+		List<WaveRoster.Line> nextWave = known ? WaveRoster.nextWave(next, held) : Collections.<WaveRoster.Line>emptyList();
+		List<WaveRoster.Line> nextLater = WaveRoster.nextWaveLater(known ? next : null);
+		if (config.mostFirst())
+		{
+			thisWave = WaveRoster.mostFirst(thisWave);
+			nextWave = WaveRoster.mostFirst(nextWave);
+			nextLater = WaveRoster.mostFirst(nextLater);
+		}
+		return new WaveView(wave, underWay, thisWave, known ? next : null, nextWave, nextLater,
 			known ? WaveRoster.nextWaveThen(next, held) : null,
 			held, readLevel(ColosseumCounter.DOOM_STACKS.getId()), WaveRoster.doomLimit(doom));
 	}
@@ -1906,10 +2165,9 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * The prayers on, by their names in the wave log. Eagle Eye and Deadeye, Mystic Might and Mystic Vigour, and Piety and
-	 * Zeal share a slot in the prayer book, which Client.isPrayerActive does not tell apart; RuneLite's own prayer plugin
-	 * settles which one is meant by whether the newer prayer is unlocked, and so does this.
+	 * Zeal share a slot in the prayer book; which one the slot holds is settled by whether the newer prayer is unlocked, as
+	 * RuneLite's own prayer plugin does, and only that one is read.
 	 */
-	@SuppressWarnings("deprecation")
 	private List<String> activePrayers()
 	{
 		boolean deadeye = readLevel(VarbitID.PRAYER_DEADEYE_UNLOCKED) != 0;
@@ -1924,12 +2182,21 @@ public class SolSurvivorPlugin extends Plugin
 			{
 				continue;
 			}
-			if (client.isPrayerActive(prayer))
+			if (prayerOn(prayer))
 			{
 				out.add(WaveLog.prayerName(prayer.name()));
 			}
 		}
 		return out;
+	}
+
+	/**
+	 * Whether a prayer is on, read from its own varbit: Client.isPrayerActive is deprecated, because it reads the prayer
+	 * book's slot and so cannot tell the prayers that share one apart.
+	 */
+	private boolean prayerOn(Prayer prayer)
+	{
+		return client.getVarbitValue(prayer.getVarbit()) != 0;
 	}
 
 	private void leave()
@@ -1940,6 +2207,7 @@ public class SolSurvivorPlugin extends Plugin
 		saveLog();
 		countFlicks();
 		reviewLog();
+		finishProfit();
 		waveView = WaveView.NONE;
 		seenProjectiles.clear();
 		volatilityOverlay.clear();
@@ -2052,6 +2320,183 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			client.setGameState(GameState.LOADING);
 		}
+	}
+
+	/**
+	 * What the player carries, the inventory and what they wear together, by canonical item id, for the run's profit.
+	 * On the client thread.
+	 */
+	private Map<Integer, Integer> carried()
+	{
+		Map<Integer, Integer> items = new HashMap<>();
+		addItems(items, client.getItemContainer(InventoryID.INV));
+		addItems(items, client.getItemContainer(InventoryID.WORN));
+		// The rune pouch's runes, which the game keeps in varbits rather than a container: each slot's rune by the
+		// game's enum of the pouch's runes, and how many.
+		int[][] pouch = {
+			{VarbitID.RUNE_POUCH_TYPE_1, VarbitID.RUNE_POUCH_QUANTITY_1},
+			{VarbitID.RUNE_POUCH_TYPE_2, VarbitID.RUNE_POUCH_QUANTITY_2},
+			{VarbitID.RUNE_POUCH_TYPE_3, VarbitID.RUNE_POUCH_QUANTITY_3},
+			{VarbitID.RUNE_POUCH_TYPE_4, VarbitID.RUNE_POUCH_QUANTITY_4}};
+		ItemContainer inventory = client.getItemContainer(InventoryID.INV);
+		boolean hasPouch = false;
+		for (int id : RUNE_POUCHES)
+		{
+			hasPouch |= inventory != null && inventory.contains(id);
+		}
+		// The varbits keep the pouch's runes wherever the pouch is, in the bank too: they count only with it carried.
+		for (int[] slot : hasPouch ? pouch : new int[0][])
+		{
+			int type = client.getVarbitValue(slot[0]);
+			int quantity = client.getVarbitValue(slot[1]);
+			if (type > 0 && quantity > 0)
+			{
+				int id = client.getEnum(EnumID.RUNEPOUCH_RUNE).getIntValue(type);
+				if (id > 0)
+				{
+					items.merge(itemManager.canonicalize(id), quantity, Integer::sum);
+				}
+			}
+		}
+		return items;
+	}
+
+	/**
+	 * Whether the player attacked this tick with a weapon whose charges are counted so: a new projectile from the player,
+	 * once a tick, which counts a cast whose target died before it landed; or a hit of theirs, or one that did damage.
+	 */
+	private boolean attacked(ChargeCosts.Counting counting)
+	{
+		Player player = client.getLocalPlayer();
+		boolean fired = false;
+		Set<Projectile> live = Collections.newSetFromMap(new IdentityHashMap<>());
+		for (Projectile p : client.getProjectiles())
+		{
+			if (player != null && p.getSourceActor() == player)
+			{
+				live.add(p);
+				fired |= !ownProjectiles.contains(p);
+			}
+		}
+		ownProjectiles.clear();
+		ownProjectiles.addAll(live);
+		switch (counting)
+		{
+			case PROJECTILE:
+				return fired;
+			case DAMAGE:
+				return damagedThisTick;
+			case HIT:
+				return hitThisTick;
+			default:
+				return false;
+		}
+	}
+
+	/** The rune pouches, the divine one and each locked one too, whose runes count as carried. */
+	private static final int[] RUNE_POUCHES = {ItemID.BH_RUNE_POUCH, ItemID.BH_RUNE_POUCH_TROUVER, ItemID.DIVINE_RUNE_POUCH,
+		ItemID.DIVINE_RUNE_POUCH_TROUVER};
+
+	/** The worn weapon's name, or null for none, for the charges an attack uses up. On the client thread. */
+	private String weaponName()
+	{
+		ItemContainer worn = client.getItemContainer(InventoryID.WORN);
+		Item weapon = worn == null ? null : worn.getItem(EquipmentInventorySlot.WEAPON.getSlotIdx());
+		return weapon == null || weapon.getId() <= 0 ? null : itemManager.getItemComposition(weapon.getId()).getName();
+	}
+
+	/** The reward chest so far as the game holds it, by canonical item id; empty when the game has not sent it. */
+	private Map<Integer, Integer> chest()
+	{
+		Map<Integer, Integer> items = new HashMap<>();
+		addItems(items, client.getItemContainer(InventoryID.COLOSSEUM_REWARDS));
+		return items;
+	}
+
+	private void addItems(Map<Integer, Integer> items, ItemContainer container)
+	{
+		if (container == null)
+		{
+			return;
+		}
+		for (Item item : container.getItems())
+		{
+			if (item != null && item.getId() > 0 && item.getQuantity() > 0)
+			{
+				items.merge(itemManager.canonicalize(item.getId()), item.getQuantity(), Integer::sum);
+			}
+		}
+	}
+
+	/**
+	 * The run's profit as the player leaves the arena, at the Grand Exchange's prices now, added to the session's and the
+	 * account's records; the account's goes to its settings. On the client thread, before the tracker forgets the wave.
+	 */
+	private void finishProfit()
+	{
+		RunProfit.Tracker run = profitRun;
+		profitRun = null;
+		if (run == null)
+		{
+			return;
+		}
+		chestLost = run.isDied();
+		RunProfit profit = run.finish(itemManager::getItemPrice, id -> itemManager.getItemPriceWithSource(id, false),
+			id -> itemManager.getItemComposition(id).isStackable(), tracker.getWave());
+		if (!profit.counts())
+		{
+			return;
+		}
+		profitSession = profitSession.with(profit);
+		profitAllTime = profitAllTime.with(profit);
+		feeEstimated = profit.isDied();
+		configManager.setRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PROFIT_RECORD, profitAllTime.toText());
+	}
+
+	/**
+	 * After a death, the grave's own fee in place of the estimate, read from the gravestone's "Fee: 9,000 coins" as the
+	 * player opens it in the lobby (Stefan's gravestone of 2026-11-04: how the game values an untradeable item for the
+	 * fee is nowhere written, so the estimate cannot always match). Read once, as the gravestone first shows: discarding
+	 * items lowers the fee after. On the client thread.
+	 */
+	private void graveFee()
+	{
+		if (!feeEstimated)
+		{
+			return;
+		}
+		Widget fee = client.getWidget(InterfaceID.GravestoneGeneric.FEE);
+		if (fee == null || fee.isHidden() || fee.getText() == null)
+		{
+			return;
+		}
+		String digits = Text.removeTags(fee.getText()).replaceAll("[^0-9]", "");
+		if (digits.isEmpty() || digits.length() > 9)
+		{
+			return;
+		}
+		feeEstimated = false;
+		long paid = Long.parseLong(digits);
+		profitSession = profitSession.withLastDeathFee(paid);
+		profitAllTime = profitAllTime.withLastDeathFee(paid);
+		configManager.setRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PROFIT_RECORD, profitAllTime.toText());
+		updatePanel();
+	}
+
+	/** The account's profit record from its settings, or none before a login. On the client thread. */
+	private void loadProfit()
+	{
+		profitAllTime = ProfitRecord.of(configManager.getRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PROFIT_RECORD));
+		updatePanel();
+	}
+
+	/** Profit's Reset: the session's and the account's records start again from nothing. On the client thread. */
+	private void resetProfit()
+	{
+		profitSession = ProfitRecord.empty();
+		profitAllTime = ProfitRecord.empty();
+		configManager.unsetRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.PROFIT_RECORD);
+		updatePanel();
 	}
 
 	private boolean isInColosseum()
@@ -2468,7 +2913,7 @@ public class SolSurvivorPlugin extends Plugin
 			}
 			Integer wave = tracker.getWave();
 			String link = PickPayload.link(SITE, wave, tracker.modifiers(m -> readLevel(m.getLevelVarbit())), offers, tracker.getRun(),
-				chestItems(InventoryID.COLOSSEUM_REWARDS_FUTURE), chestItems(InventoryID.COLOSSEUM_REWARDS));
+				chestItems(InventoryID.COLOSSEUM_REWARDS_FUTURE), chestItems(InventoryID.COLOSSEUM_REWARDS), potionDoses());
 			LinkBrowser.browse(link);
 			copy(link, wave == null
 				? "Opened the modifier pick with Minimus's offers, and copied its link. The plugin has not seen a wave yet: set the "
@@ -2476,6 +2921,15 @@ public class SolSurvivorPlugin extends Plugin
 				: "Opened the modifier pick with Minimus's offers for wave " + wave + ", and copied its link.",
 				"Opened the modifier pick on the site.");
 		});
+	}
+
+	/**
+	 * The doses of each potion in the inventory (core.Potions), for the run's waves' `drunk` and the pick link's `potions`.
+	 * Called on the client thread.
+	 */
+	private Map<String, Integer> potionDoses()
+	{
+		return Potions.doses(chestItems(InventoryID.INV));
 	}
 
 	/**
@@ -2845,6 +3299,16 @@ public class SolSurvivorPlugin extends Plugin
 		// The board's row only out of the arena: neither a wave nor the time between two is for managing it.
 		String boardRow = colosseum ? null : board != null ? board : BoardEntry.isKey(config.leaderboardKey()) ? "" : null;
 		boolean boardOpen = !(colosseum && tracker.isWaveStarted());
+		// The Profit card, with "Track profit" on: the session's runs and every run since the last reset.
+		boolean profitShown = config.trackProfit();
+		ProfitRecord session = profitSession;
+		ProfitRecord allTime = profitAllTime;
+		List<Object> profit = Arrays.asList(profitShown, session.toText(), allTime.toText());
+		if (!profit.equals(shownProfit))
+		{
+			shownProfit = profit;
+			SwingUtilities.invokeLater(() -> p.showProfit(profitShown, session, allTime));
+		}
 		// The cards, each in its moment ("Plugin 1.0: what the panel shows when", 2026-10-26): the wave's list in the
 		// arena; nothing of the report during a wave, which is the wave's (the UX review of 2026-10-27, F13); the report of
 		// the last wave reviewed between waves, and out of the arena after a run as a line, until the player is back in the
@@ -2853,11 +3317,9 @@ public class SolSurvivorPlugin extends Plugin
 		WaveView view = colosseum ? waveView : WaveView.NONE;
 		List<Object> waveCard = Arrays.asList(view, config.showWaveNpcs(), config.markDead(), config.showNextWave(), config.showModifiers(),
 			config.doomLimit());
+		// Whether a wave is under way, which the panel shows Arena now and the pick by (showState). The title and state say
+		// as much, so the check below that skips an unchanged panel covers it.
 		boolean during = colosseum && tracker.isWaveStarted();
-		// Arena now has a wave to open only while one it plans is under way: before a wave and between two the arena holds
-		// no NPCs, and Sol Heredit's is not planned (the UX review of 2026-10-27, F1). The title and state say as much, so
-		// the check below that skips an unchanged panel covers it.
-		boolean live = during && wave != null && wave <= ColosseumTracker.LAST_WAVE;
 		boolean tracking = config.trackMistakes() && config.recordWaveLog();
 		boolean newRun = colosseum && wave == null;
 		WaveCards.Report report = tracking && !during && !newRun ? reportOf(lastReview) : null;
@@ -2880,8 +3342,14 @@ public class SolSurvivorPlugin extends Plugin
 		boolean gettingStarted = !config.gettingStartedDone() && !during && offers.isEmpty();
 		boolean opensItself = config.openOnEntering();
 		boolean[] inGame = inGame();
+		// New in this update, for a player who had the plugin before its settings came: its card as Getting started's is
+		// shown, never with it, and its NEW tags on the Screen tab until it is hidden.
+		boolean newTags = config.whatsNewSeen() < SolSurvivorConfig.WHATS_NEW;
+		boolean whatsNew = newTags && config.gettingStartedDone() && !during && offers.isEmpty();
+		SolSurvivorConfig.InRangeStyle look = config.inRangeStyle();
+		boolean forecast = config.hitForecast();
 		List<Object> firstRun = Arrays.asList(upload, share, leaderboard, gettingStarted, opensItself, during, colosseum,
-			Arrays.toString(inGame));
+			Arrays.toString(inGame), newTags, whatsNew, look, forecast);
 		if (!firstRun.equals(shownFirstRun))
 		{
 			shownFirstRun = firstRun;
@@ -2891,6 +3359,8 @@ public class SolSurvivorPlugin extends Plugin
 				p.showSends(upload, share, leaderboard);
 				p.showSendsRow(!during);
 				p.showInGame(inGame);
+				p.showLooks(look, forecast);
+				p.showWhatsNew(whatsNew, newTags);
 			});
 		}
 		if (colosseum == shownInColosseum && title.equals(shownTitle) && state.equals(shownState)
@@ -2927,7 +3397,7 @@ public class SolSurvivorPlugin extends Plugin
 		shownBoardOpen = boardOpen;
 		SwingUtilities.invokeLater(() ->
 		{
-			p.showState(colosseum, live, colosseum ? wave : null, title, state, offers, note, runs);
+			p.showState(colosseum, during, colosseum ? wave : null, title, state, offers, note, runs);
 			p.showSharing(sharing);
 			p.showBoard(boardRow, sharing, boardOpen);
 		});

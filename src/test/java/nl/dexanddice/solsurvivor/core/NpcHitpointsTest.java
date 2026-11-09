@@ -151,4 +151,95 @@ public class NpcHitpointsTest
 		hitpoints.onHit(1, 1, DAMAGE, 2);
 		assertTrue(hitpoints.reading(1, 2).low());
 	}
+
+	@Test
+	public void aThrownHitIsForecastFromItsHitpointsExperienceUntilItLands()
+	{
+		hitpoints.onSpawned(1, NpcKind.SHAMAN_ID);
+		// 41 damage gives 54.67 Hitpoints experience, which the client shows as 54 or 55.
+		hitpoints.onHitpointsXp(1, 55, 10);
+		NpcHitpoints.Reading reading = hitpoints.reading(1, 10);
+		assertEquals(125, reading.hitpoints);
+		assertEquals(41, reading.incoming);
+		assertEquals(84, reading.after());
+		hitpoints.onHit(1, 41, DAMAGE, 12);
+		hitpoints.onMyHit(1, 41, 12);
+		reading = hitpoints.reading(1, 12);
+		assertEquals(84, reading.hitpoints);
+		assertEquals(0, reading.incoming);
+	}
+
+	@Test
+	public void theForecastDividesOutTheNpcsBonusExperience()
+	{
+		assertEquals(41, NpcHitpoints.forecast(55, 0));
+		// The Minotaur's +10%: 41 damage gives 60.13.
+		assertEquals(41, NpcHitpoints.forecast(60, 10));
+		hitpoints.onSpawned(1, NpcKind.MINOTAUR_ID);
+		hitpoints.onHitpointsXp(1, 60, 4);
+		assertEquals(41, hitpoints.reading(1, 4).incoming);
+	}
+
+	@Test
+	public void aHitThatKillsLeavesNothing()
+	{
+		hitpoints.onSpawned(1, NpcKind.SHAMAN_ID);
+		hitpoints.onHit(1, 100, DAMAGE, 3);
+		hitpoints.onHitpointsXp(1, 33, 5);
+		NpcHitpoints.Reading reading = hitpoints.reading(1, 5);
+		assertEquals(25, reading.incoming);
+		assertEquals(0, reading.after());
+	}
+
+	@Test
+	public void aSpecialsSplatsTakeItsForecastOffBetweenThem()
+	{
+		hitpoints.onSpawned(1, NpcKind.MANTICORE_ID);
+		hitpoints.onHitpointsXp(1, 80, 1);
+		assertEquals(60, hitpoints.reading(1, 1).incoming);
+		hitpoints.onMyHit(1, 30, 2);
+		assertEquals(30, hitpoints.reading(1, 2).incoming);
+		hitpoints.onMyHit(1, 15, 3);
+		assertEquals(15, hitpoints.reading(1, 3).incoming);
+		hitpoints.onMyHit(1, 15, 3);
+		assertEquals(0, hitpoints.reading(1, 3).incoming);
+	}
+
+	@Test
+	public void aForecastThatOverstatedItsHitGoesATickAfterItLands()
+	{
+		// A barrage's one drop for every NPC it hit, forecast on the one attacked.
+		hitpoints.onSpawned(1, NpcKind.MANTICORE_ID);
+		hitpoints.onHitpointsXp(1, 120, 1);
+		hitpoints.onMyHit(1, 30, 3);
+		assertEquals(60, hitpoints.reading(1, 4).incoming);
+		assertEquals(0, hitpoints.reading(1, 5).incoming);
+	}
+
+	@Test
+	public void aForecastThatNeverLandsGoesAfterItsTicks()
+	{
+		hitpoints.onSpawned(1, NpcKind.MANTICORE_ID);
+		hitpoints.onHitpointsXp(1, 40, 1);
+		assertEquals(30, hitpoints.reading(1, NpcHitpoints.FORECAST_TICKS).incoming);
+		assertEquals(0, hitpoints.reading(1, 1 + NpcHitpoints.FORECAST_TICKS).incoming);
+	}
+
+	@Test
+	public void aHitThrownOnTheTickAnEarlierOneLandsWaitsForItsOwn()
+	{
+		hitpoints.onSpawned(1, NpcKind.MANTICORE_ID);
+		hitpoints.onHitpointsXp(1, 40, 1);
+		hitpoints.onHitpointsXp(1, 20, 3);
+		hitpoints.onMyHit(1, 30, 3);
+		assertEquals(15, hitpoints.reading(1, 3).incoming);
+	}
+
+	@Test
+	public void nothingIsForecastOnAnNpcThePluginDoesNotCount()
+	{
+		hitpoints.onSpawned(1, FREM_BERSERKER_ID);
+		hitpoints.onHitpointsXp(1, 40, 1);
+		assertNull(hitpoints.reading(1, 1));
+	}
 }

@@ -2,6 +2,7 @@ package nl.dexanddice.solsurvivor.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -366,6 +367,19 @@ public final class WaveRoster
 		{
 			out.add(who.line(null, count, false));
 		}
+	}
+
+	/**
+	 * The lines with the most first, as "Most first" lists them (Fortis Colosseum's open request #25, Stefan's choice of
+	 * 2026-11-02): the living by how many are left, then those still to come, then the dead at the foot. Lines with as
+	 * many keep the order the roster gives them, so that the list never shuffles between two ticks that change nothing.
+	 */
+	public static List<Line> mostFirst(List<Line> lines)
+	{
+		List<Line> out = new ArrayList<>(lines);
+		out.sort(Comparator.comparingInt((Line l) -> l.isDead() ? 2 : l.isToCome() ? 1 : 0)
+			.thenComparing(Comparator.comparingInt(Line::getCount).reversed()));
+		return out;
 	}
 
 	/**

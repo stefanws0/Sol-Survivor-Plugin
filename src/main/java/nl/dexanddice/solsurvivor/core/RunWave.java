@@ -2,6 +2,7 @@ package nl.dexanddice.solsurvivor.core;
 
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -22,6 +23,9 @@ import java.util.Map;
  * <li>`modifiers`: the modifiers held through the wave, with their tiers.</li>
  * <li>`glory`: the game's own VarPlayerID.COLOSSEUM_CURRENT_GLORY as the wave ended, its last value before the next wave
  * starts. What it holds is unconfirmed: it is sent so that the site can check its sums against it, not to show it.</li>
+ * <li>`drunk`: the doses of each potion gone from the inventory from the end of the wave before, or the run's first tick
+ * the plugin saw, to the wave's end (Potions), for the site's verdict on the chest. Null when the plugin did not see the
+ * run from before the wave.</li>
  * </ul>
  */
 public final class RunWave
@@ -32,9 +36,16 @@ public final class RunWave
 	private final Integer damage;
 	private final Map<Modifier, Integer> modifiers;
 	private final int glory;
+	private final Map<String, Integer> drunk;
 
 	public RunWave(int wave, Integer ticks, Boolean hit, Integer damage, Map<Modifier, Integer> modifiers, int glory)
 	{
+		this(wave, ticks, hit, damage, modifiers, glory, null);
+	}
+
+	public RunWave(int wave, Integer ticks, Boolean hit, Integer damage, Map<Modifier, Integer> modifiers, int glory, Map<String, Integer> drunk)
+	{
+		this.drunk = drunk == null ? null : Collections.unmodifiableMap(new LinkedHashMap<>(drunk));
 		this.wave = wave;
 		this.ticks = ticks;
 		this.hit = hit;
@@ -49,7 +60,7 @@ public final class RunWave
 	 */
 	public RunWave withCounters(int gloryNow, int damageNow)
 	{
-		return new RunWave(wave, ticks, hit, damage == null ? null : Math.max(damage, damageNow), modifiers, gloryNow);
+		return new RunWave(wave, ticks, hit, damage == null ? null : Math.max(damage, damageNow), modifiers, gloryNow, drunk);
 	}
 
 	public int getWave()
@@ -80,5 +91,11 @@ public final class RunWave
 	public int getGlory()
 	{
 		return glory;
+	}
+
+	/** The doses of each potion drunk in the wave, or null when the plugin did not count them. */
+	public Map<String, Integer> getDrunk()
+	{
+		return drunk;
 	}
 }

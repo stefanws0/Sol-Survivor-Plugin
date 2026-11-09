@@ -42,7 +42,9 @@ final class Stone
 	static final Color BEVEL_DARK = new Color(0x211c15);
 	static final Color OUTLINE = new Color(0x0e0c09);
 	static final Color TEXT = new Color(0xece0c3);
+	/** Words that carry information beside the text: 4.7 to 5.6:1 on a row's face. */
 	static final Color MUTED = new Color(0xbcab8b);
+	/** Only for what is done, dead or cannot be used now: 2.6 to 3.0:1 on a row's face, too faint for a line to read. */
 	static final Color DIM = new Color(0x8a7b62);
 	static final Color ORANGE = new Color(0xff981f);
 	static final Color YELLOW = new Color(0xffff00);
@@ -83,6 +85,12 @@ final class Stone
 	/** Buttons that cannot be used now go flat, as the game greys out an option it won't take. */
 	static final Face OFF = new Face(0x372f24, 0x372f24, 0x463c2e, 0x261f17, DIM);
 	static final Face PRIMARY_OFF = new Face(0x50301d, 0x50301d, 0x6a4128, 0x2e1a10, new Color(0x9a8160));
+	/**
+	 * A switch that is on, lit the game's green, so that a column of them reads at a glance without its dots (the design
+	 * pass of 2026-10-31); a switch that is off keeps the plain button's face. Neither is the red-brown of a main button.
+	 */
+	static final Face SWITCH_ON = new Face(0x2f5a1f, 0x1f3f14, 0x4f8a35, 0x0f2209, TEXT);
+	static final Face SWITCH_ON_HOVER = new Face(0x3a6c27, 0x264b19, 0x4f8a35, 0x0f2209, Color.WHITE);
 
 	private Stone()
 	{
@@ -389,10 +397,16 @@ final class Stone
 
 		private Button(String text, Icon icon, boolean primary, Font font, int padX, int padY, Dimension size)
 		{
+			this(text, icon, primary ? PRIMARY : BUTTON, primary ? PRIMARY_HOVER : BUTTON_HOVER, primary ? PRIMARY_OFF : OFF, font, padX, padY,
+				size);
+		}
+
+		private Button(String text, Icon icon, Face face, Face hover, Face off, Font font, int padX, int padY, Dimension size)
+		{
 			super(text, icon);
-			this.face = primary ? PRIMARY : BUTTON;
-			this.hover = primary ? PRIMARY_HOVER : BUTTON_HOVER;
-			this.off = primary ? PRIMARY_OFF : OFF;
+			this.face = face;
+			this.hover = hover;
+			this.off = off;
 			this.size = size;
 			this.padX = padX;
 			this.padY = padY;
@@ -412,10 +426,30 @@ final class Stone
 			setIconTextGap(5);
 		}
 
+		/**
+		 * A switch saying On or Off, with `icon` before the word: lit green while on (SWITCH_ON), a plain button while off,
+		 * and as wide either way, so that a column of them lines up.
+		 */
+		static Button toggle(boolean on, Icon icon, Font font, int padX, int padY)
+		{
+			FontMetrics fm = new JLabel().getFontMetrics(font);
+			int words = Math.max(fm.stringWidth("On"), fm.stringWidth("Off"));
+			int iw = icon == null ? 0 : icon.getIconWidth() + 5;
+			int h = Math.max(fm.getAscent(), icon == null ? 0 : icon.getIconHeight());
+			return new Button(on ? "On" : "Off", icon, on ? SWITCH_ON : BUTTON, on ? SWITCH_ON_HOVER : BUTTON_HOVER, OFF, font, padX, padY,
+				new Dimension(words + iw + 2 * padX, h + 2 * padY));
+		}
+
 		/** Whether it is its row's main action, in the site's orange, rather than a secondary one in stone. */
 		boolean isPrimary()
 		{
 			return face == PRIMARY;
+		}
+
+		/** Whether it is a switch that is on, lit green. */
+		boolean isLit()
+		{
+			return face == SWITCH_ON;
 		}
 
 		@Override

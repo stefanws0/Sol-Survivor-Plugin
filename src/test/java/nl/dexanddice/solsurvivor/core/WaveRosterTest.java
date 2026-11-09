@@ -140,4 +140,19 @@ public class WaveRosterTest
 		assertEquals("Red Flag", Modifier.RED_FLAG.getName());
 		assertEquals(Collections.singletonList("Doom I"), Collections.singletonList(Modifier.DOOM.getName(1)));
 	}
+
+	@Test
+	public void mostFirstPutsTheLargestCountsTopThenThoseToComeThenTheDead()
+	{
+		WaveRoster.Line javelin = new WaveRoster.Line("Javelin Colossus", "Javelin", "javelin", null, 1, false);
+		WaveRoster.Line jaguar = new WaveRoster.Line("Jaguar warrior", "Jaguar", "jaguar", null, 2, false);
+		WaveRoster.Line manticore = new WaveRoster.Line("Manticore", "Manticore", "manticore", null, 0, false);
+		WaveRoster.Line shaman = new WaveRoster.Line("Serpent shaman", "Shaman", "shaman", "reinforcement", 1, true);
+		WaveRoster.Line shockwave = new WaveRoster.Line("Shockwave Colossus", "Shockwave", "shockwave", null, 1, false);
+		WaveRoster.Line warband = new WaveRoster.Line("The warband of three", "Warband", "warband", null, 3, false);
+		List<WaveRoster.Line> lines = Arrays.asList(javelin, manticore, shaman, jaguar, shockwave, warband);
+		assertEquals(Arrays.asList(warband, jaguar, javelin, shockwave, shaman, manticore), WaveRoster.mostFirst(lines));
+		// The roster's own list is left as it was.
+		assertEquals(javelin, lines.get(0));
+	}
 }

@@ -19,7 +19,7 @@ class TickCounterOverlay extends WaveClockOverlay
 	{
 		panelComponent.getChildren().clear();
 		WaveClock.View view = plugin.waveClock();
-		if (!config.tickCounter() || combined() || !plugin.inArena() || !view.counterVisible())
+		if (!config.tickCounter() || combined() || !plugin.inArena() || !view.counterVisible(config.quietOnSol()))
 		{
 			return null;
 		}

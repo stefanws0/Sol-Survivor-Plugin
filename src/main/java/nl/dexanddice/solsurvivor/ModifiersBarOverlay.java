@@ -23,7 +23,9 @@ import nl.dexanddice.solsurvivor.core.Modifier;
  * and gaps from 100% to 300% (the user's ask of 2026-10-30), the tiers in the game's larger font from 150%. Its Tiers
  * setting (the design review's 7, 2026-10-31) writes each tier on a dark plate in the slot's corner, where on the bare
  * picture a red tier was lost on a red picture such as Frailty's, or the modifier's name and tier under its slot, each
- * slot then as wide as its name. Facts only: what the game's own list holds.
+ * slot then as wide as its name. Each tier is written in the colour the offers on Minimus's screen give it, white for
+ * I, blue for II and purple for III (OfferNames, the user's ask of 2026-11-08), and the name beside it in the game's
+ * yellow. Facts only: what the game's own list holds.
  */
 class ModifiersBarOverlay extends Overlay
 {
@@ -96,7 +98,7 @@ class ModifiersBarOverlay extends Overlay
 				graphics.drawLine(slot - plateWidth, slot - plateHeight, slot - plateWidth, slot - 1);
 				TextComponent words = new TextComponent();
 				words.setText(tier);
-				words.setColor(Stone.YELLOW);
+				words.setColor(OfferNames.tierColour(e.getValue()));
 				words.setFont(graphics.getFont());
 				words.setPosition(new Point(slot - pad - 1 - metrics.stringWidth(tier), slot - inset));
 				words.render(graphics);
@@ -104,8 +106,9 @@ class ModifiersBarOverlay extends Overlay
 			graphics.translate(-(x + (width - slot) / 2), 0);
 			if (under)
 			{
+				// The name measured bare and drawn with its tier's colour tag, which the text component reads.
 				TextComponent words = new TextComponent();
-				words.setText(name);
+				words.setText(tier.isEmpty() ? name : modifier.getName() + " <col=" + OfferNames.tierColourTag(e.getValue()) + ">" + tier);
 				words.setColor(Stone.YELLOW);
 				words.setFont(graphics.getFont());
 				words.setPosition(new Point(x + (width - metrics.stringWidth(name)) / 2, slot + inset + metrics.getAscent()));

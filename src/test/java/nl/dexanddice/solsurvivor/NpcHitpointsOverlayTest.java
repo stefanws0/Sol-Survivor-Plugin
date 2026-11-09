@@ -57,6 +57,38 @@ public class NpcHitpointsOverlayTest
 		assertTrue("pink heal", has(image, 240, 320, new Color(0xff6fcf)));
 	}
 
+	@Test
+	public void theTagShowsAHitOnItsWay() throws IOException
+	{
+		NpcHitpoints hitpoints = new NpcHitpoints();
+		hitpoints.onSpawned(1, NpcKind.SHAMAN_ID);
+		hitpoints.onHit(1, 40, DAMAGE, 1);
+		hitpoints.onHitpointsXp(1, 55, 2);
+		hitpoints.onSpawned(2, NpcKind.SHAMAN_ID);
+		hitpoints.onHit(2, 100, DAMAGE, 1);
+		hitpoints.onHitpointsXp(2, 60, 2);
+		hitpoints.onSpawned(3, NpcKind.SHAMAN_ID);
+		hitpoints.onHit(3, 40, DAMAGE, 1);
+		hitpoints.onHitpointsXp(3, 55, 2);
+
+		BufferedImage image = new BufferedImage(300, 40, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		graphics.setColor(new Color(0x5e4d35));
+		graphics.fillRect(0, 0, image.getWidth(), image.getHeight());
+		graphics.setFont(FontManager.getRunescapeSmallFont());
+		NpcHitpointsOverlay.paint(graphics, hitpoints.reading(1, 2), 50, 30);
+		NpcHitpointsOverlay.paint(graphics, hitpoints.reading(2, 2), 150, 30);
+		NpcHitpointsOverlay.paint(graphics, hitpoints.reading(3, 2).withoutIncoming(), 250, 30);
+		graphics.dispose();
+		new File("build").mkdirs();
+		ImageIO.write(image, "png", new File("build/npc-hitpoints-forecast.png"));
+
+		assertTrue("orange for what will be left", has(image, 0, 100, Stone.ORANGE));
+		assertFalse("no red when it lives", has(image, 0, 100, new Color(0xff3c3c)));
+		assertTrue("red when it kills", has(image, 100, 200, new Color(0xff3c3c)));
+		assertFalse("no orange with the forecast off", has(image, 200, 300, Stone.ORANGE));
+	}
+
 	private static boolean has(BufferedImage image, int from, int to, Color colour)
 	{
 		for (int x = from; x < to; x++)

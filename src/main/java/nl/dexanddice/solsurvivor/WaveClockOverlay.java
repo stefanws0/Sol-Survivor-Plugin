@@ -53,7 +53,7 @@ abstract class WaveClockOverlay extends OverlayPanel
 	protected Color loopColour(WaveClock.View view)
 	{
 		if (config.tickCounterCounts() != SolSurvivorConfig.TickCounterCounts.LOOP
-			|| config.loopColours() == SolSurvivorConfig.LoopColours.OFF || !view.counterVisible())
+			|| config.loopColours() == SolSurvivorConfig.LoopColours.OFF || !view.counterVisible(config.quietOnSol()))
 		{
 			return null;
 		}

@@ -286,6 +286,18 @@ public interface SolSurvivorConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "mostFirst",
+		name = "Most first",
+		description = "Lists each wave's NPCs by how many there are, most first, in the panel and the wave box. Those still to come and the dead go to the foot.",
+		position = 7,
+		section = wavesSection
+	)
+	default boolean mostFirst()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "listWarband",
 		name = "List the warband",
 		description = "Lists the Fremennik warband's archer, seer and berserker one by one. Off, the three show as one line.",
@@ -383,10 +395,22 @@ public interface SolSurvivorConfig extends Config
 	 * (Stefan's choice, 2026-10-30). Their switches are on by default as On the game screen's are, but for My attack
 	 * range and Hide the pillars.
 	 */
+	/**
+	 * The wave box's names in the colour of how each NPC attacks, so that the wave's styles read at a glance (Stefan's
+	 * request, 2026-11-08): light tints by default, so that the names stay easy to read on the box's dark ground.
+	 */
+	@ConfigSection(
+		name = "Wave box name colours",
+		description = "The wave box's NPC names tinted by how each attacks: magic, ranged or melee.",
+		position = 13,
+		closedByDefault = true
+	)
+	String waveBoxColoursSection = "waveBoxColours";
+
 	@ConfigSection(
 		name = "Modifiers above the chatbox",
 		description = "The modifiers you hold in a row of their pictures, above the chatbox.",
-		position = 13,
+		position = 14,
 		closedByDefault = true
 	)
 	String modifiersBarSection = "modifiersBar";
@@ -394,7 +418,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Doom",
 		description = "Doom's stacks on the game's screen.",
-		position = 14,
+		position = 15,
 		closedByDefault = true
 	)
 	String doomSection = "doom";
@@ -402,15 +426,23 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Attack range",
 		description = "Your attack range and the NPCs in it, outlined on the game's screen.",
-		position = 15,
+		position = 16,
 		closedByDefault = true
 	)
 	String rangeSection = "range";
 
 	@ConfigSection(
+		name = "Frem and orb colours",
+		description = "Each Fremennik outlined in its attack style's colour, and the tile under each of Solarflare's orbs.",
+		position = 17,
+		closedByDefault = true
+	)
+	String npcColoursSection = "npcColours";
+
+	@ConfigSection(
 		name = "Pillars",
 		description = "Hiding the arena's four pillars.",
-		position = 16,
+		position = 18,
 		closedByDefault = true
 	)
 	String pillarsSection = "pillars";
@@ -418,7 +450,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Tick counter and wave timer",
 		description = "A plain tick count and the wave's time, in boxes you move with Alt and drag.",
-		position = 17,
+		position = 19,
 		closedByDefault = true
 	)
 	String clocksSection = "clocks";
@@ -581,6 +613,71 @@ public interface SolSurvivorConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "hitForecast",
+		name = "Your hit on its way",
+		description = "With NPC hitpoints on, the hitpoints your attack will leave once it lands, read from your XP drop, as \"172 \u203a 131/250\" with the hit's share of the bar in orange, red when it kills. An estimate, which can be a point out.",
+		position = 6,
+		section = screenSection
+	)
+	default boolean hitForecast()
+	{
+		return true;
+	}
+
+	/**
+	 * Wave 12 quiet mode (idea 362, Stefan's pick of 2026-11-08): on Sol Heredit's wave the wave box, the tick counter and
+	 * the wave timer have nothing for the fight, so they step aside unless this is off. Doom's stacks, the modifiers and
+	 * what is drawn on the NPCs stay.
+	 */
+	@ConfigItem(
+		keyName = "quietOnSol",
+		name = "Quiet on Sol Heredit's wave",
+		description = "Hides the wave box, the tick counter and the wave timer on Sol Heredit's wave, which they have nothing for. Switch off to keep them.",
+		position = 7,
+		section = screenSection
+	)
+	default boolean quietOnSol()
+	{
+		return true;
+	}
+
+	/** What an arrow to an NPC out of view carries (idea 359). */
+	enum NpcArrows
+	{
+		OFF("Off"), NAME_AND_DISTANCE("Name and distance"), ARROW_ONLY("Arrow only");
+
+		private final String label;
+
+		NpcArrows(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
+	/**
+	 * Arrows to NPCs out of view (idea 359, Stefan's yes of 2026-11-08): an arrow on the game view's edge towards each
+	 * living NPC the camera does not show, as the minimap already places them. Off by default. The Manticore's arrow
+	 * stays neutral, and no arrow says anything of line of sight or range (the limits Stefan accepted).
+	 */
+	@ConfigItem(
+		keyName = "npcArrows",
+		name = "Arrows to NPCs out of view",
+		description = "An arrow on the game view's edge towards each living NPC outside it, in its attack style's colour, as the minimap places them. Nothing about line of sight or range.",
+		position = 8,
+		section = screenSection
+	)
+	default NpcArrows npcArrows()
+	{
+		return NpcArrows.OFF;
+	}
+
+	@ConfigItem(
 		keyName = "myRange",
 		name = "My attack range",
 		description = "Outlines the tiles you can hit from where you stand, in your line of sight.",
@@ -595,7 +692,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "highlightInRange",
 		name = "Highlight NPCs in range",
-		description = "Outlines the NPCs you can hit from where you stand.",
+		description = "Marks the NPCs you can hit from where you stand.",
 		position = 2,
 		section = rangeSection
 	)
@@ -604,17 +701,169 @@ public interface SolSurvivorConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		keyName = "inRangeStyle",
+		name = "In range look",
+		description = "How the NPCs you can hit are marked: their tile, an outline round them, an arrow over them or corner brackets.",
+		position = 3,
+		section = rangeSection
+	)
+	default InRangeStyle inRangeStyle()
+	{
+		return InRangeStyle.BOLD_TILE;
+	}
+
+	/**
+	 * How the NPCs in range are marked, four of the five looks drawn for Stefan on 2026-11-08 (the project's
+	 * in-range-tag designs), the bold tile replacing the thin one the plugin drew before, which was hard to see on the sand.
+	 */
+	enum InRangeStyle
+	{
+		BOLD_TILE("Bold tile"),
+		OUTLINE("Outline"),
+		ARROW("Arrow"),
+		BRACKETS("Corner brackets");
+
+		private final String name;
+
+		InRangeStyle(String name)
+		{
+			this.name = name;
+		}
+
+		@Override
+		public String toString()
+		{
+			return name;
+		}
+	}
+
+	/**
+	 * Cyan by default since 2026-11-08: the gold it was before is close to the Colosseum's sand, which hid the outlines.
+	 */
 	@Alpha
 	@ConfigItem(
 		keyName = "rangeColour",
 		name = "Range colour",
 		description = "The colour of the range's outline and of the NPCs in it.",
-		position = 3,
+		position = 4,
 		section = rangeSection
 	)
 	default Color rangeColour()
 	{
-		return new Color(0xFF, 0xD2, 0x4A, 0xFF);
+		return new Color(0x3F, 0xE0, 0xFF, 0xFF);
+	}
+
+	@ConfigItem(
+		keyName = "npcColours",
+		name = "Frem and orb colours",
+		description = "Outlines each Fremennik in its attack style's colour, and the tile under each of Solarflare's orbs.",
+		position = 1,
+		section = npcColoursSection
+	)
+	default boolean npcColours()
+	{
+		return true;
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "fremArcherColour",
+		name = "Archer (ranged)",
+		description = "The Fremennik archer's outline; set its opacity to 0 for none.",
+		position = 2,
+		section = npcColoursSection
+	)
+	default Color fremArcherColour()
+	{
+		return new Color(0x3C, 0xDC, 0x3C, 0xFF);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "fremSeerColour",
+		name = "Seer (magic)",
+		description = "The Fremennik seer's outline; set its opacity to 0 for none.",
+		position = 3,
+		section = npcColoursSection
+	)
+	default Color fremSeerColour()
+	{
+		return new Color(0x3C, 0x8C, 0xFF, 0xFF);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "fremBerserkerColour",
+		name = "Berserker (melee)",
+		description = "The Fremennik berserker's outline; set its opacity to 0 for none.",
+		position = 4,
+		section = npcColoursSection
+	)
+	default Color fremBerserkerColour()
+	{
+		return new Color(0xFF, 0x3C, 0x3C, 0xFF);
+	}
+
+	@Alpha
+	@ConfigItem(
+		keyName = "orbColour",
+		name = "Solarflare's orbs",
+		description = "The outline of the tile under each of Solarflare's orbs; set its opacity to 0 for none.",
+		position = 5,
+		section = npcColoursSection
+	)
+	default Color orbColour()
+	{
+		return new Color(0xFF, 0xA0, 0x1E, 0xFF);
+	}
+
+	@ConfigItem(
+		keyName = "waveBoxStyleColours",
+		name = "Names by attack style",
+		description = "Tints each NPC's name in the wave box by how it attacks: the Serpent shaman and the Shockwave Colossus magic, the Javelin Colossus ranged, the Jaguar warrior and the Minotaur melee, and each Fremennik by its own. The Manticore, which uses all three, stays white.",
+		position = 1,
+		section = waveBoxColoursSection
+	)
+	default boolean waveBoxStyleColours()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "waveBoxMagicColour",
+		name = "Magic",
+		description = "The name of an NPC that attacks with magic: the Serpent shaman, the Shockwave Colossus and the seer.",
+		position = 2,
+		section = waveBoxColoursSection
+	)
+	default Color waveBoxMagicColour()
+	{
+		return new Color(0x8C, 0xC8, 0xFF);
+	}
+
+	@ConfigItem(
+		keyName = "waveBoxRangedColour",
+		name = "Ranged",
+		description = "The name of an NPC that attacks with ranged: the Javelin Colossus and the archer.",
+		position = 3,
+		section = waveBoxColoursSection
+	)
+	default Color waveBoxRangedColour()
+	{
+		return new Color(0x9C, 0xE6, 0x9C);
+	}
+
+	@ConfigItem(
+		keyName = "waveBoxMeleeColour",
+		name = "Melee",
+		description = "The name of an NPC that attacks with melee: the Jaguar warrior, the Minotaur and the berserker.",
+		position = 4,
+		section = waveBoxColoursSection
+	)
+	default Color waveBoxMeleeColour()
+	{
+		return new Color(0xFF, 0xA0, 0xA0);
 	}
 
 	String HIDE_PILLARS = "hidePillars";
@@ -829,7 +1078,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Tick loop colours",
 		description = "One colour for each position of the tick counter's loop, used with Loop colours on. Positions past the loop's length are not used.",
-		position = 18,
+		position = 20,
 		closedByDefault = true
 	)
 	String loopColoursSection = "loopColours";
@@ -958,7 +1207,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Loot",
 		description = "Minimus's loot between waves and the reward chest at the end.",
-		position = 19
+		position = 21
 	)
 	String lootSection = "loot";
 
@@ -985,6 +1234,24 @@ public interface SolSurvivorConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "trackProfit",
+		name = "Track profit",
+		description = "Adds up each run's profit on the panel's Past tab: the reward chest you claim, less the food, potions, ammunition and runes the run used, the rune pouch and weapon charges too, at Grand Exchange prices. A death loses the chest and costs the grave's fee, estimated.",
+		position = 3,
+		section = lootSection
+	)
+	default boolean trackProfit()
+	{
+		return true;
+	}
+
+	/**
+	 * The runs' profit since the player last reset it (core.ProfitRecord.toText), kept in each account's own settings
+	 * (RuneLite's RuneScape profile), not here: the key only names it.
+	 */
+	String PROFIT_RECORD = "profitRecord";
 
 	/**
 	 * RuneLite's wording for a setting that sends anything to a server it does not run: each such setting is off by
@@ -1087,7 +1354,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
 		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
-		position = 20,
+		position = 22,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
@@ -1149,7 +1416,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigSection(
 		name = "Prayer reliability",
 		description = "Counts your protection prayer flicks, so that the site's Prayer reliability can be your own.",
-		position = 21,
+		position = 23,
 		closedByDefault = true
 	)
 	String prayerSection = "prayer";
@@ -1178,6 +1445,24 @@ public interface SolSurvivorConfig extends Config
 	default String prayerRecord()
 	{
 		return "";
+	}
+
+	/**
+	 * Whether the plugin has had its one chance to set its boxes' first places (idea 363): set on a fresh install's first
+	 * login, after placing them for the fixed client if that is what the player plays in, and at once for a player who
+	 * had the plugin before. A box the player placed is never moved. Not shown.
+	 */
+	String LAYOUT_PLACED = "layoutPlaced";
+
+	@ConfigItem(
+		keyName = LAYOUT_PLACED,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean layoutPlaced()
+	{
+		return false;
 	}
 
 	/**
@@ -1229,5 +1514,27 @@ public interface SolSurvivorConfig extends Config
 	default boolean firstLinkOpened()
 	{
 		return false;
+	}
+
+	/**
+	 * The newest round of settings that New in this update's card has shown (SolSurvivorPanel.showWhatsNew): the card
+	 * shows while this is below WHATS_NEW, and Hide sets it to WHATS_NEW. A fresh install has it set at once, so that only
+	 * a player who had the plugin before sees the card. Round 1, 2026-11-08: In range look and Your hit on its way. A later
+	 * update that adds a setting worth a card raises WHATS_NEW and puts its settings on the card. Not shown.
+	 */
+	String WHATS_NEW_SEEN = "whatsNewSeen";
+
+	/** The round of settings New in this update holds now: see WHATS_NEW_SEEN. */
+	int WHATS_NEW = 1;
+
+	@ConfigItem(
+		keyName = WHATS_NEW_SEEN,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default int whatsNewSeen()
+	{
+		return 0;
 	}
 }

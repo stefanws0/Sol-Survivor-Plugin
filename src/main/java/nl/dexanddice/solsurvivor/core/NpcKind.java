@@ -7,13 +7,13 @@ package nl.dexanddice.solsurvivor.core;
  */
 public enum NpcKind
 {
-	SERPENT_SHAMAN(1, 125),
-	JAVELIN_COLOSSUS(2, 220),
-	JAGUAR_WARRIOR(3, 125),
-	MANTICORE(4, 250),
-	MINOTAUR(5, 225),
-	SHOCKWAVE_COLOSSUS(6, 125),
-	REINFORCEMENT_SHAMAN(7, 125);
+	SERPENT_SHAMAN(1, 125, 0),
+	JAVELIN_COLOSSUS(2, 220, 0),
+	JAGUAR_WARRIOR(3, 125, 5),
+	MANTICORE(4, 250, 0),
+	MINOTAUR(5, 225, 10),
+	SHOCKWAVE_COLOSSUS(6, 125, 0),
+	REINFORCEMENT_SHAMAN(7, 125, 0);
 
 	public static final int SHAMAN_ID = 12811;
 	public static final int JAGUAR_ID = 12810;
@@ -28,11 +28,13 @@ public enum NpcKind
 
 	private final int code;
 	private final int hitpoints;
+	private final int xpBonus;
 
-	NpcKind(int code, int hitpoints)
+	NpcKind(int code, int hitpoints, int xpBonus)
 	{
 		this.code = code;
 		this.hitpoints = hitpoints;
+		this.xpBonus = xpBonus;
 	}
 
 	/** The LoS link's type code. */
@@ -48,6 +50,16 @@ public enum NpcKind
 	public int getHitpoints()
 	{
 		return hitpoints;
+	}
+
+	/**
+	 * The bonus experience, in percent, that a hit on it gives on top of the usual, which the hit forecast divides out
+	 * (NpcHitpoints.onHitpointsXp). From each NPC's OSRS Wiki infobox, 2026-11-08: the Minotaur +10%, the Jaguar warrior
+	 * +5%, the two Colossi none, and the Manticore and the shaman list none. Unverified against a log from play.
+	 */
+	public int getXpBonus()
+	{
+		return xpBonus;
 	}
 
 	/**

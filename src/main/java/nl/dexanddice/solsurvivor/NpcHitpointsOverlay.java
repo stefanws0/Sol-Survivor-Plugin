@@ -22,7 +22,9 @@ import nl.dexanddice.solsurvivor.core.NpcHitpoints;
  * fewer and green at full health (the user's choice, 2026-10-30), a heal shows in pink for a few ticks, and "~" leads the number while only the game's health bar gives it
  * (core.NpcHitpoints). The tag wears the Doom box's ground, so the plugin's boxes on the game's screen look alike, and
  * sits above the game's own health bar and overhead icons rather than over them. Facts only, as the Doom box: nothing
- * of which NPC to attack.
+ * of which NPC to attack. With "Your hit on its way" on, a hit the player has thrown that has not landed shows as
+ * "172 › 131/250", what will be left in orange, or a red 0 when it kills, and its share of the bar in the same colour
+ * (design 2, "Arrow forecast", of the predicted hit designs of 2026-11-08, the user's choice).
  */
 class NpcHitpointsOverlay extends Overlay
 {
@@ -38,6 +40,7 @@ class NpcHitpointsOverlay extends Overlay
 	private static final Color BAR_LEFT = new Color(0x22c32e);
 	private static final Color BAR_GONE = new Color(0x5a1610);
 	private static final Color HATCH = new Color(255, 255, 255, 160);
+	private static final String ARROW = " \u203a ";
 
 	private final Client client;
 	private final SolSurvivorPlugin plugin;
@@ -70,6 +73,10 @@ class NpcHitpointsOverlay extends Overlay
 			{
 				continue;
 			}
+			if (!config.hitForecast())
+			{
+				reading = reading.withoutIncoming();
+			}
 			Point at = npc.getCanvasTextLocation(graphics, "", npc.getLogicalHeight() + ABOVE_HEAD);
 			if (at != null)
 			{
@@ -86,7 +93,10 @@ class NpcHitpointsOverlay extends Overlay
 		String number = (reading.estimated ? "~" : "") + reading.hitpoints;
 		String max = "/" + reading.max;
 		String healed = reading.healed > 0 ? " +" + reading.healed : "";
-		int words = metrics.stringWidth(number) + metrics.stringWidth(max) + metrics.stringWidth(healed);
+		String after = reading.incoming > 0 ? String.valueOf(reading.after()) : "";
+		String arrow = after.isEmpty() ? "" : ARROW;
+		int words = metrics.stringWidth(number) + metrics.stringWidth(arrow) + metrics.stringWidth(after)
+			+ metrics.stringWidth(max) + metrics.stringWidth(healed);
 		int width = Math.max(MIN_WIDTH, PAD_X + words + PAD_X);
 		int textHeight = metrics.getAscent();
 		int height = 2 + textHeight + 3 + BAR + 2;
@@ -99,6 +109,11 @@ class NpcHitpointsOverlay extends Overlay
 		int baseline = top + 2 + textHeight;
 		int cursor = left + (width - words) / 2;
 		cursor = text(graphics, number, colour(reading), cursor, baseline);
+		if (!after.isEmpty())
+		{
+			cursor = text(graphics, arrow, Stone.MUTED, cursor, baseline);
+			cursor = text(graphics, after, forecastColour(reading), cursor, baseline);
+		}
 		cursor = text(graphics, max, Stone.MUTED, cursor, baseline);
 		if (!healed.isEmpty())
 		{
@@ -118,6 +133,13 @@ class NpcHitpointsOverlay extends Overlay
 		{
 			graphics.setColor(HEAL);
 			graphics.fillRect(barLeft + before, barTop, now - before, BAR);
+		}
+		if (reading.incoming > 0)
+		{
+			// The share of the bar the hit on its way will take.
+			int rest = share(barWidth, reading.after(), reading.max);
+			graphics.setColor(forecastColour(reading));
+			graphics.fillRect(barLeft + rest, barTop, Math.max(0, now - rest), BAR);
 		}
 		if (reading.estimated)
 		{
@@ -142,6 +164,12 @@ class NpcHitpointsOverlay extends Overlay
 			return LOW;
 		}
 		return reading.hitpoints == reading.max && !reading.estimated ? Stone.GOOD : Stone.YELLOW;
+	}
+
+	/** The forecast's colour: red when the hit on its way kills, orange otherwise. */
+	static Color forecastColour(NpcHitpoints.Reading reading)
+	{
+		return reading.after() == 0 ? LOW : Stone.ORANGE;
 	}
 
 	/** Draws `words` with the game's one-pixel shadow and returns where the next words start. */

@@ -17,6 +17,7 @@ import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.ComponentConstants;
 import net.runelite.client.ui.overlay.components.LayoutableRenderableEntity;
+import nl.dexanddice.solsurvivor.core.ColosseumTracker;
 import nl.dexanddice.solsurvivor.core.WaveRoster;
 
 /**
@@ -27,7 +28,9 @@ import nl.dexanddice.solsurvivor.core.WaveRoster;
  * read "+1" in the list, with their names grey, rather than under a rule. Doom's stacks are not here: Doom has its own
  * box. Only what is in the arena or on its way, as Fortis Colosseum's own box shows it, which offers the same four
  * choices: no timers, and nothing of how to play the wave. It sits at the top left, and moves like any RuneLite box, by
- * holding Alt and dragging.
+ * holding Alt and dragging. Each name is tinted by how its NPC attacks, with Names by attack style on (Stefan's request,
+ * 2026-11-08): magic, ranged or melee in the colours the player picks, the Manticore and the warband together white, as
+ * they use more than one.
  */
 class WaveBoxOverlay extends OverlayPanel
 {
@@ -68,7 +71,7 @@ class WaveBoxOverlay extends OverlayPanel
 	{
 		SolSurvivorConfig.WaveBox mode = config.waveBox();
 		WaveView view = plugin.waveView();
-		if (mode == SolSurvivorConfig.WaveBox.OFF || !plugin.inArena() || view.wave == null)
+		if (mode == SolSurvivorConfig.WaveBox.OFF || !plugin.inArena() || view.wave == null || quiet(view.wave, config.quietOnSol()))
 		{
 			return null;
 		}
@@ -82,7 +85,7 @@ class WaveBoxOverlay extends OverlayPanel
 				{
 					continue;
 				}
-				panelComponent.getChildren().add(new Row(line, line.isToCome(), face(line.getIcon(), alpha(line, line.isToCome()))));
+				panelComponent.getChildren().add(new Row(line, line.isToCome(), face(line.getIcon(), alpha(line, line.isToCome())), tint(line)));
 			}
 			any = true;
 		}
@@ -95,16 +98,66 @@ class WaveBoxOverlay extends OverlayPanel
 			panelComponent.getChildren().add(new Band("Wave " + view.next, "next"));
 			for (WaveRoster.Line line : view.nextWave)
 			{
-				panelComponent.getChildren().add(new Row(line, false, face(line.getIcon(), 1f)));
+				panelComponent.getChildren().add(new Row(line, false, face(line.getIcon(), 1f), tint(line)));
 			}
 			// Who joins later, in the list as "+1" and faded, as the wave under way shows its reinforcements still to come.
 			for (WaveRoster.Line line : view.nextLater)
 			{
-				panelComponent.getChildren().add(new Row(line, true, face(line.getIcon(), alpha(line, true))));
+				panelComponent.getChildren().add(new Row(line, true, face(line.getIcon(), alpha(line, true)), tint(line)));
 			}
 			any = true;
 		}
 		return any ? super.render(graphics) : null;
+	}
+
+	/**
+	 * Whether the box steps aside for Sol Heredit's wave, under way or next, with Quiet on Sol Heredit's wave on (idea
+	 * 362): it has nothing to list for that fight.
+	 */
+	static boolean quiet(int wave, boolean quietOnSol)
+	{
+		return quietOnSol && wave > ColosseumTracker.LAST_WAVE;
+	}
+
+	/** The tint of a line's name by how its NPC attacks, or null for none: Names by attack style off, or more than one style. */
+	private Color tint(WaveRoster.Line line)
+	{
+		return config.waveBoxStyleColours() ? styleColour(line.getIcon(), config) : null;
+	}
+
+	/**
+	 * The colour of an NPC's attack style, by the roster's icon name: the Serpent shaman, the Shockwave Colossus and the
+	 * seer attack with magic, the Javelin Colossus and the archer with ranged, the Jaguar warrior, the Minotaur and the
+	 * berserker with melee. Null for the Manticore and the warband together, which use all three.
+	 */
+	static Color styleColour(String icon, SolSurvivorConfig config)
+	{
+		if (icon == null)
+		{
+			return null;
+		}
+		switch (icon)
+		{
+			case "shaman":
+			case "shockwave":
+			case "seer":
+				return config.waveBoxMagicColour();
+			case "javelin":
+			case "archer":
+				return config.waveBoxRangedColour();
+			case "jaguar":
+			case "minotaur":
+			case "berserker":
+				return config.waveBoxMeleeColour();
+			default:
+				return null;
+		}
+	}
+
+	/** A tinted name still to come: the tint a little darker, as an untinted one is grey rather than white. */
+	static Color toCome(Color tint)
+	{
+		return new Color(tint.getRed() * 4 / 5, tint.getGreen() * 4 / 5, tint.getBlue() * 4 / 5);
 	}
 
 	/** How many there are as a colour: yellow for one, orange for two, red for three or more, grey for none. */
@@ -224,18 +277,23 @@ class WaveBoxOverlay extends OverlayPanel
 		}
 	}
 
-	/** A line of the box: the count, coloured by how many, then the NPC's face and short name, struck when all are dead. */
+	/**
+	 * A line of the box: the count, coloured by how many, then the NPC's face and short name, tinted by its attack style,
+	 * and struck when all are dead.
+	 */
 	private static final class Row extends Piece
 	{
 		private final WaveRoster.Line line;
 		private final boolean toCome;
 		private final BufferedImage face;
+		private final Color tint;
 
-		Row(WaveRoster.Line line, boolean toCome, BufferedImage face)
+		Row(WaveRoster.Line line, boolean toCome, BufferedImage face, Color tint)
 		{
 			this.line = line;
 			this.toCome = toCome;
 			this.face = face;
+			this.tint = tint;
 		}
 
 		@Override
@@ -254,7 +312,8 @@ class WaveBoxOverlay extends OverlayPanel
 			x += FACE + GAP;
 			boolean dead = line.isDead();
 			String name = line.getShortName();
-			text(graphics, name, x, baseline, dead ? DEAD : toCome ? TO_COME : TEXT);
+			Color colour = tint == null ? (toCome ? TO_COME : TEXT) : toCome ? toCome(tint) : tint;
+			text(graphics, name, x, baseline, dead ? DEAD : colour);
 			if (dead)
 			{
 				graphics.setColor(DEAD);

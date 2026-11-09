@@ -5,6 +5,10 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
+import java.awt.RenderingHints;
+import java.awt.Shape;
+import java.awt.Stroke;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -23,7 +27,7 @@ import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.ui.overlay.Overlay;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPosition;
-import net.runelite.client.ui.overlay.OverlayUtil;
+import net.runelite.client.ui.overlay.outline.ModelOutlineRenderer;
 import nl.dexanddice.solsurvivor.core.NpcKind;
 import nl.dexanddice.solsurvivor.core.WaveRoster;
 
@@ -32,7 +36,7 @@ import nl.dexanddice.solsurvivor.core.WaveRoster;
  * outlines the tiles the player can hit from where they stand, their weapon's range with Myopia's cut (core.WeaponRange)
  * and in their line of sight, which RuneLite's WorldArea works out from the game's own collision data; "Highlight NPCs
  * in range" outlines the NPCs they can hit, any of whose tiles is in that range and in sight, as RuneLite's Attack Ranges
- * and Dynamic line of sight plugins do. Both say where the player can attack from, never where to stand or what to do.
+ * and Dynamic line of sight plugins do, in the look the player picks (SolSurvivorConfig.InRangeStyle). Both say where the player can attack from, never where to stand or what to do.
  * The tiles and the NPCs are worked out once a tick, on the client thread (update), and drawn each frame from those.
  */
 class RangeOverlay extends Overlay
@@ -41,19 +45,39 @@ class RangeOverlay extends Overlay
 	private static final int HALF_TILE = Perspective.LOCAL_TILE_SIZE / 2;
 	/** How strongly the tiles in range are filled, out of 255, under their outline. */
 	private static final int FILL_ALPHA = 28;
+	/** How strongly a bold tile under an NPC in range is filled, out of 255. */
+	private static final int BOLD_FILL_ALPHA = 80;
+	/** The model outline's width and feather in pixels, wider than NPC colours' own so that the two tell apart. */
+	private static final int OUTLINE_WIDTH = 4;
+	private static final int OUTLINE_FEATHER = 4;
+	/** How far above an NPC's head the arrow's anchor is, in local units, as the hitpoints tag's (NpcHitpointsOverlay). */
+	private static final int ABOVE_HEAD = 60;
+	/** The gap in pixels between that anchor and the arrow's tip, which leaves room for the hitpoints tag under it. */
+	private static final int ARROW_LIFT = 26;
+	/** The arrow's half width in pixels, and its height. */
+	private static final int ARROW_HALF = 9;
+	private static final int ARROW_HEIGHT = 13;
+	/** How far along each edge of the tile a corner bracket reaches, as a share of the edge. */
+	private static final double BRACKET_SHARE = 0.28;
+	private static final Color EDGE = Color.BLACK;
+	private static final Stroke THIN = new BasicStroke(1.5f);
+	private static final Stroke LINE = new BasicStroke(3, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+	private static final Stroke EDGE_LINE = new BasicStroke(6, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
 
 	private final Client client;
 	private final SolSurvivorPlugin plugin;
 	private final SolSurvivorConfig config;
+	private final ModelOutlineRenderer outlines;
 	private Set<WorldPoint> tiles = Collections.emptySet();
 	private List<NPC> npcs = Collections.emptyList();
 
 	@Inject
-	RangeOverlay(Client client, SolSurvivorPlugin plugin, SolSurvivorConfig config)
+	RangeOverlay(Client client, SolSurvivorPlugin plugin, SolSurvivorConfig config, ModelOutlineRenderer outlines)
 	{
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
+		this.outlines = outlines;
 		setPosition(OverlayPosition.DYNAMIC);
 		setLayer(OverlayLayer.ABOVE_SCENE);
 	}
@@ -128,18 +152,101 @@ class RangeOverlay extends Overlay
 		{
 			outline(graphics, colour);
 		}
-		if (config.highlightInRange())
+		if (config.highlightInRange() && !npcs.isEmpty())
 		{
+			graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			SolSurvivorConfig.InRangeStyle style = config.inRangeStyle();
 			for (NPC npc : npcs)
 			{
-				Polygon poly = npc.getCanvasTilePoly();
-				if (poly != null)
-				{
-					OverlayUtil.renderPolygon(graphics, poly, colour);
-				}
+				mark(graphics, npc, style == null ? SolSurvivorConfig.InRangeStyle.BOLD_TILE : style, colour);
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * One NPC in range, in the look picked. Each line is drawn on a black edge, so that it shows on the sand whatever
+	 * the colour, the thin gold tile drawn before having been hard to see there (Stefan, 2026-11-08).
+	 */
+	private void mark(Graphics2D graphics, NPC npc, SolSurvivorConfig.InRangeStyle style, Color colour)
+	{
+		if (style == SolSurvivorConfig.InRangeStyle.OUTLINE)
+		{
+			outlines.drawOutline(npc, OUTLINE_WIDTH, colour, OUTLINE_FEATHER);
+			return;
+		}
+		Polygon poly = npc.getCanvasTilePoly();
+		if (style == SolSurvivorConfig.InRangeStyle.ARROW)
+		{
+			if (poly != null)
+			{
+				graphics.setColor(new Color(colour.getRed(), colour.getGreen(), colour.getBlue(), Math.min(150, colour.getAlpha())));
+				graphics.setStroke(THIN);
+				graphics.draw(poly);
+			}
+			arrow(graphics, npc, colour);
+			return;
+		}
+		if (poly == null)
+		{
+			return;
+		}
+		if (style == SolSurvivorConfig.InRangeStyle.BRACKETS && poly.npoints == 4)
+		{
+			brackets(graphics, poly, colour);
+			return;
+		}
+		graphics.setColor(new Color(colour.getRed(), colour.getGreen(), colour.getBlue(), Math.min(BOLD_FILL_ALPHA, colour.getAlpha())));
+		graphics.fill(poly);
+		edged(graphics, poly, colour);
+	}
+
+	/** The shape drawn in the colour on a black line twice its width. */
+	private static void edged(Graphics2D graphics, Shape shape, Color colour)
+	{
+		graphics.setStroke(EDGE_LINE);
+		graphics.setColor(EDGE);
+		graphics.draw(shape);
+		graphics.setStroke(LINE);
+		graphics.setColor(colour);
+		graphics.draw(shape);
+	}
+
+	/** A downward arrow over the NPC's head, its tip just above where the hitpoints tag sits. */
+	private static void arrow(Graphics2D graphics, NPC npc, Color colour)
+	{
+		Point at = npc.getCanvasTextLocation(graphics, "", npc.getLogicalHeight() + ABOVE_HEAD);
+		if (at == null)
+		{
+			return;
+		}
+		int x = at.getX();
+		int tip = at.getY() - ARROW_LIFT;
+		Polygon arrow = new Polygon(new int[]{x - ARROW_HALF, x + ARROW_HALF, x}, new int[]{tip - ARROW_HEIGHT, tip - ARROW_HEIGHT, tip}, 3);
+		graphics.setStroke(EDGE_LINE);
+		graphics.setColor(EDGE);
+		graphics.draw(arrow);
+		graphics.setColor(colour);
+		graphics.fill(arrow);
+	}
+
+	/** Brackets on the tile's four corners, each reaching a share of the way along the two edges that meet there. */
+	private static void brackets(Graphics2D graphics, Polygon poly, Color colour)
+	{
+		Path2D.Double path = new Path2D.Double();
+		for (int i = 0; i < 4; i++)
+		{
+			int ax = poly.xpoints[i];
+			int ay = poly.ypoints[i];
+			int bx = poly.xpoints[(i + 1) % 4];
+			int by = poly.ypoints[(i + 1) % 4];
+			int cx = poly.xpoints[(i + 3) % 4];
+			int cy = poly.ypoints[(i + 3) % 4];
+			path.moveTo(ax + (bx - ax) * BRACKET_SHARE, ay + (by - ay) * BRACKET_SHARE);
+			path.lineTo(ax, ay);
+			path.lineTo(ax + (cx - ax) * BRACKET_SHARE, ay + (cy - ay) * BRACKET_SHARE);
+		}
+		edged(graphics, path, colour);
 	}
 
 	/**

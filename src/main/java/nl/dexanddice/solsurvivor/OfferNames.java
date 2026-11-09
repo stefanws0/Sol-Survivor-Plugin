@@ -1,5 +1,6 @@
 package nl.dexanddice.solsurvivor;
 
+import java.awt.Color;
 import java.util.List;
 import java.util.function.ToIntFunction;
 import net.runelite.api.Client;
@@ -29,6 +30,21 @@ final class OfferNames
 	 * 2026-10-26, over green, yellow and red; tier I white rather than light blue, the user's of 2026-10-27).
 	 */
 	private static final String[] TIER_COLOURS = {"ffffff", "4a8cff", "c070ff"};
+
+	/**
+	 * Tier `tier`'s colour, 1 to 3, as written on the offers, for the modifiers bar to write a tier held in the same
+	 * colours (the user's ask of 2026-11-08).
+	 */
+	static Color tierColour(int tier)
+	{
+		return new Color(Integer.parseInt(TIER_COLOURS[Math.max(1, Math.min(3, tier)) - 1], 16));
+	}
+
+	/** Tier `tier`'s colour, 1 to 3, as the hex a `<col=...>` tag takes. */
+	static String tierColourTag(int tier)
+	{
+		return TIER_COLOURS[Math.max(1, Math.min(3, tier)) - 1];
+	}
 
 	private OfferNames()
 	{

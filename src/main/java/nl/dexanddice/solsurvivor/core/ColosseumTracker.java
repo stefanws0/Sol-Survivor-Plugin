@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -107,6 +108,13 @@ public final class ColosseumTracker
 	private Integer doneWave;
 	private Integer doneTicks;
 	private Boolean doneHit;
+	/**
+	 * The potions' doses carried as the last wave of the run ended, or at the run's first tick the plugin saw, from which
+	 * the next wave's `drunk` is counted (RunWave); null before the plugin has looked. `dosesWhole` says whether they
+	 * were read before the wave under way or next began, so that its count is whole: not when read mid-wave.
+	 */
+	private Map<String, Integer> dosesBefore;
+	private boolean dosesWhole;
 
 	/** Forget the run: the player left the Colosseum, hopped or logged out. */
 	public void reset()
@@ -124,6 +132,7 @@ public final class ColosseumTracker
 		sandObjects.clear();
 		run.clear();
 		doneWave = null;
+		dosesBefore = null;
 		waveDamage = 0;
 		freshWave = false;
 		resetWave();
@@ -174,6 +183,11 @@ public final class ColosseumTracker
 		// Wave 1, or a wave the run has already finished, starts a new run.
 		if (number == 1 || (!run.isEmpty() && number <= run.get(run.size() - 1).getWave()))
 		{
+			// Doses read before a wave 1 count from there; those of a run before it do not.
+			if (!run.isEmpty())
+			{
+				dosesBefore = null;
+			}
 			run.clear();
 		}
 		wave = number;
@@ -216,6 +230,22 @@ public final class ColosseumTracker
 	 */
 	public void onRunTick(ModifierLevels levels, int glory, int damage)
 	{
+		onRunTick(levels, glory, damage, null);
+	}
+
+	/**
+	 * The same, with the potions' doses carried (`doses`, Potions.doses of the inventory, null to count none), asked for
+	 * only on the ticks that need them: the first the plugin sees of a run, and the one a finished wave joins the run on,
+	 * which takes the doses gone since the wave before as its `drunk`.
+	 */
+	public void onRunTick(ModifierLevels levels, int glory, int damage, Supplier<Map<String, Integer>> doses)
+	{
+		if (doses != null && dosesBefore == null && doneWave == null)
+		{
+			dosesBefore = doses.get();
+			// Whole only when read between waves or on a wave's first tick.
+			dosesWhole = !waveStarted || freshWave;
+		}
 		if (waveStarted && freshWave)
 		{
 			freshWave = false;
@@ -228,7 +258,15 @@ public final class ColosseumTracker
 		{
 			int done = doneWave;
 			run.removeIf(w -> w.getWave() >= done);
-			run.add(new RunWave(done, doneTicks, doneHit, doneTicks == null ? null : Math.max(waveDamage, damage), modifiers(levels), glory));
+			Map<String, Integer> drunk = null;
+			if (doses != null)
+			{
+				Map<String, Integer> now = doses.get();
+				drunk = dosesBefore != null && dosesWhole ? Potions.drunk(dosesBefore, now) : null;
+				dosesBefore = now;
+				dosesWhole = true;
+			}
+			run.add(new RunWave(done, doneTicks, doneHit, doneTicks == null ? null : Math.max(waveDamage, damage), modifiers(levels), glory, drunk));
 			doneWave = null;
 		}
 		else if (!waveStarted && !run.isEmpty())
