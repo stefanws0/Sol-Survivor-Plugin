@@ -38,9 +38,7 @@ class WaveBoxOverlay extends OverlayPanel
 	private static final Color TEXT = Color.WHITE;
 	private static final Color DEAD = new Color(0xa8a8a8);
 	private static final Color TO_COME = new Color(0xd0d0d0);
-	private static final Color ONE = new Color(0xffff00);
-	private static final Color TWO = new Color(0xff9a2e);
-	private static final Color MORE = new Color(0xff5040);
+	private static final Color COUNT = new Color(0xffff00);
 	/** The bands behind the waves' titles, darker than the box. */
 	private static final Color BAND = new Color(0, 0, 0, 80);
 	private static final String REINFORCEMENT = "reinforcement";
@@ -160,10 +158,14 @@ class WaveBoxOverlay extends OverlayPanel
 		return new Color(tint.getRed() * 4 / 5, tint.getGreen() * 4 / 5, tint.getBlue() * 4 / 5);
 	}
 
-	/** How many there are as a colour: yellow for one, orange for two, red for three or more, grey for none. */
+	/**
+	 * A count's colour: yellow for any that live, as the panel has them, and grey for none. It was yellow, orange and red
+	 * by how many, until the design updates' item 7 (2026-11-12): red beside a name then meant "three or more" on the
+	 * count and "melee" on the name under it. Colour says the attack style alone now, on the names.
+	 */
 	static Color countColour(int count)
 	{
-		return count <= 0 ? DEAD : count == 1 ? ONE : count == 2 ? TWO : MORE;
+		return count <= 0 ? DEAD : COUNT;
 	}
 
 	/** The count as a line reads it: "+1" for those still to come, the dead's "0" without the sign. */
@@ -303,7 +305,7 @@ class WaveBoxOverlay extends OverlayPanel
 			int height = height(metrics);
 			int baseline = baseline(metrics, at.y);
 			String count = count(line, toCome);
-			text(graphics, count, at.x + COUNT_WIDTH - metrics.stringWidth(count), baseline, countColour(line.getCount()));
+			text(graphics, count, at.x + COUNT_WIDTH - metrics.stringWidth(count), baseline, toCome ? TO_COME : countColour(line.getCount()));
 			int x = at.x + COUNT_WIDTH + GAP;
 			if (face != null)
 			{
@@ -317,7 +319,7 @@ class WaveBoxOverlay extends OverlayPanel
 			if (dead)
 			{
 				graphics.setColor(DEAD);
-				graphics.fillRect(x - 1, at.y + height / 2, metrics.stringWidth(name) + 2, 1);
+				graphics.fillRect(x - 1, baseline - Stone.strikeRise(graphics, metrics.getFont()), metrics.stringWidth(name) + 2, 1);
 			}
 			return drawn(height);
 		}

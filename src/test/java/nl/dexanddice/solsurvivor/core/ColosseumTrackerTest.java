@@ -88,6 +88,49 @@ public class ColosseumTrackerTest
 	}
 
 	@Test
+	public void aWaveWhoseNpcsAppearWithNoMessageIsSaidUnseenAfterTheGrace()
+	{
+		// Between waves, the arena seen empty; then the wave's NPCs with no "Wave: N".
+		tracker.onRunTick(this::level, 0, 0);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 100);
+		assertFalse(tracker.isStartUnseen(100 + ColosseumTracker.START_GRACE - 1));
+		assertTrue(tracker.isStartUnseen(100 + ColosseumTracker.START_GRACE));
+		// The message, late as it is, settles it; and a reset forgets it.
+		tracker.onGameMessage("<col=ef1020>Wave: 4</col>", 115);
+		assertFalse(tracker.isStartUnseen(130));
+	}
+
+	@Test
+	public void aWaveAnnouncedOrJoinedPartWayIsNotSaidUnseen()
+	{
+		// Announced: the message and the NPCs on one tick, in either order.
+		tracker.onRunTick(this::level, 0, 0);
+		spawn(11, NpcKind.SHAMAN_ID, 13, 20, 100);
+		tracker.onGameMessage("<col=ef1020>Wave: 4</col>", 100);
+		spawn(12, NpcKind.MANTICORE_ID, 16, 24, 100);
+		assertFalse(tracker.isStartUnseen(200));
+		// Joined part way, after a login: the NPCs were out before the plugin saw the arena empty, and so are the
+		// reinforcements that come later.
+		tracker.reset();
+		arena.clear();
+		spawn(21, NpcKind.JAGUAR_ID, 10, 10, 300);
+		tracker.onRunTick(this::level, 0, 0);
+		spawn(22, NpcKind.MINOTAUR_ID, 12, 10, 340);
+		assertFalse(tracker.isStartUnseen(400));
+		// The wave after it, which the game announces, and whose reinforcements are no new wave.
+		tracker.onNpcDespawned(21);
+		tracker.onNpcDespawned(22);
+		tracker.onGameMessage("Wave 4 completed!", 410);
+		tracker.onRunTick(this::level, 0, 0);
+		tracker.onGameMessage("<col=ef1020>Wave: 5</col>", 450);
+		spawn(31, NpcKind.JAGUAR_ID, 10, 10, 450);
+		tracker.onNpcDespawned(31);
+		tracker.onRunTick(this::level, 0, 0);
+		spawn(32, NpcKind.MINOTAUR_ID, 12, 10, 490);
+		assertFalse(tracker.isStartUnseen(600));
+	}
+
+	@Test
 	public void aWaveStartLink() throws Exception
 	{
 		startWave4();

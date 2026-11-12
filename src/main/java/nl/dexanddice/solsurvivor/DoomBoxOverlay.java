@@ -11,7 +11,7 @@ import net.runelite.client.ui.overlay.OverlayPosition;
 /**
  * Doom's stacks in a box of their own that the player places, as the tick counter is (Stefan's request of
  * 2026-10-30): the same icon and "4/10" as by the hitpoints orb (DoomOverlay), red on the last stack, starting at the
- * top left with RuneLite's other boxes and moved with Alt and drag. It shows only with Doom's place set to a movable box.
+ * top left with RuneLite's other boxes and moved with Alt and drag. It shows only with Doom position set to a movable box.
  */
 class DoomBoxOverlay extends Overlay
 {

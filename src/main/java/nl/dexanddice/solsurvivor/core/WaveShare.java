@@ -97,6 +97,18 @@ public final class WaveShare
 		return true;
 	}
 
+	/** How long after a sending that failed the log is sent again, once: long enough for a connection to come back. */
+	public static final int RETRY_SECONDS = 20;
+
+	/**
+	 * Whether a log the site answered with `status` is worth sending again: its own failures (5xx) pass, where a log it
+	 * refused for what it holds, or for the minute's or the day's limit, would be refused again so soon (4xx).
+	 */
+	public static boolean again(int status)
+	{
+		return status >= 500;
+	}
+
 	/** The text gzipped, as the body the site takes. */
 	public static byte[] gzip(String json)
 	{

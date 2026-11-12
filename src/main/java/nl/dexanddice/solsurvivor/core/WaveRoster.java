@@ -370,7 +370,7 @@ public final class WaveRoster
 	}
 
 	/**
-	 * The lines with the most first, as "Most first" lists them (Fortis Colosseum's open request #25, Stefan's choice of
+	 * The lines with the most first, as "Sort by count" lists them (Fortis Colosseum's open request #25, Stefan's choice of
 	 * 2026-11-02): the living by how many are left, then those still to come, then the dead at the foot. Lines with as
 	 * many keep the order the roster gives them, so that the list never shuffles between two ticks that change nothing.
 	 */

@@ -5,9 +5,13 @@ import java.awt.Dimension;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
 import net.runelite.client.ui.overlay.components.LineComponent;
+import nl.dexanddice.solsurvivor.core.EarlierSettings;
 import nl.dexanddice.solsurvivor.core.WaveClock;
 
-/** Both clock readings in one movable box, stacked or in the same labelled rows as RuneLite's wave boxes. */
+/**
+ * Both clock readings in one movable box: the tick counter large, the wave timer small beneath it, unless the player
+ * chose another look in an earlier release.
+ */
 class CombinedWaveTimerOverlay extends WaveClockOverlay
 {
 	@Inject
@@ -35,7 +39,8 @@ class CombinedWaveTimerOverlay extends WaveClockOverlay
 		{
 			title(view);
 		}
-		if (config.combinedTimerLayout() == SolSurvivorConfig.CombinedTimerLayout.ROWS)
+		// The labelled rows, and the time large, are an earlier release's choices, kept for a player who made them.
+		if (EarlierSettings.clockInRows(plugin::earlier))
 		{
 			if (counter)
 			{
@@ -56,7 +61,7 @@ class CombinedWaveTimerOverlay extends WaveClockOverlay
 		{
 			number(time(view), 30f);
 		}
-		else if (config.largeTimerNumber() == SolSurvivorConfig.LargeTimerNumber.TIME)
+		else if (EarlierSettings.timeLarge(plugin::earlier))
 		{
 			number(time(view), 30f);
 			number("Tick " + ticks(view), 13f, tick);

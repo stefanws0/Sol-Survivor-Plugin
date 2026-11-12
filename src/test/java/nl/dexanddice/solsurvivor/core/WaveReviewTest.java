@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -236,22 +235,29 @@ public class WaveReviewTest
 	}
 
 	@Test
-	public void theReportCountsOnlyTheKindsTheSettingsCountAndSaysWhatARunsAreMostly()
+	public void theReportCountsEveryKindAndSaysWhatARunsAreMostly()
 	{
 		WaveReview review = WaveReview.of(wave(false), SAND, id -> 0);
-		Set<WaveReview.Kind> all = EnumSet.allOf(WaveReview.Kind.class);
-		assertEquals(11, review.counted(all, 2).size());
+		// Every kind counts, the idle stretch of 4 ticks among them: it is IDLE_FROM ticks or longer.
+		assertEquals(11, review.counted().size());
+		List<WaveReview> run = Collections.singletonList(review);
+		assertEquals("This run's most common mistakes are hits past your prayer: 5 of 11.", WaveReview.mostly(run));
+		// Too few to say.
+		assertNull(WaveReview.mostly(Collections.emptyList()));
+	}
+
+	/** A player who set, in an earlier release, which kinds count and from how many idle ticks keeps that (EarlierSettings). */
+	@Test
+	public void aPlayersEarlierChoiceOfKindsAndIdleTicksIsCounted()
+	{
+		WaveReview review = WaveReview.of(wave(false), SAND, id -> 0);
+		java.util.Set<WaveReview.Kind> all = java.util.EnumSet.allOf(WaveReview.Kind.class);
 		// The idle stretch of 4 ticks counts from 4 in a row, not from 5.
 		assertEquals(11, review.counted(all, 4).size());
 		assertEquals(10, review.counted(all, 5).size());
-		assertEquals(5, review.counted(EnumSet.of(WaveReview.Kind.PAST_PRAYER), 2).size());
-		List<WaveReview> run = Collections.singletonList(review);
-		assertEquals("This run's most common mistakes are hits past your prayer: 5 of 11.", WaveReview.mostly(run, all, 2));
-		assertEquals("Most of this run's mistakes are hits past your prayer: 5 of 6.",
-			WaveReview.mostly(run, EnumSet.of(WaveReview.Kind.PAST_PRAYER, WaveReview.Kind.LATE_FLICK), 2));
-		// Too few to say, and no kind ahead of the others.
-		assertNull(WaveReview.mostly(run, EnumSet.of(WaveReview.Kind.SPECIAL, WaveReview.Kind.VOLATILITY), 2));
-		assertNull(WaveReview.mostly(run, EnumSet.of(WaveReview.Kind.SPECIAL, WaveReview.Kind.VOLATILITY, WaveReview.Kind.LATE_FLICK), 2));
+		assertEquals(5, review.counted(java.util.EnumSet.of(WaveReview.Kind.PAST_PRAYER), 2).size());
+		assertEquals("Most of this run's mistakes are hits past your prayer: 5 of 6.", WaveReview.mostly(Collections.singletonList(review),
+			java.util.EnumSet.of(WaveReview.Kind.PAST_PRAYER, WaveReview.Kind.LATE_FLICK), 2));
 	}
 
 	@Test

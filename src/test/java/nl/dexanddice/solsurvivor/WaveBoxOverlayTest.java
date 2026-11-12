@@ -62,12 +62,12 @@ public class WaveBoxOverlayTest
 	private final Map<Modifier, Integer> held = Collections.emptyMap();
 
 	@Test
-	public void aCountIsColouredByHowMany()
+	public void aCountIsOneColourWhileAnyLive()
 	{
 		assertEquals(WaveBoxOverlay.countColour(0), WaveBoxOverlay.countColour(-1));
-		assertNotEquals(WaveBoxOverlay.countColour(1), WaveBoxOverlay.countColour(2));
-		assertNotEquals(WaveBoxOverlay.countColour(2), WaveBoxOverlay.countColour(3));
-		assertEquals(WaveBoxOverlay.countColour(3), WaveBoxOverlay.countColour(7));
+		assertNotEquals(WaveBoxOverlay.countColour(0), WaveBoxOverlay.countColour(1));
+		assertEquals(WaveBoxOverlay.countColour(1), WaveBoxOverlay.countColour(2));
+		assertEquals(WaveBoxOverlay.countColour(1), WaveBoxOverlay.countColour(7));
 	}
 
 	@Test

@@ -22,10 +22,11 @@ public class SiteTest
 	}
 
 	@Test
-	public void anythingButAnHttpsHostIsTheLiveSite()
+	public void anythingButAPreviewOfTheSiteIsTheLiveSite()
 	{
 		for (String odd : new String[]{"http://localhost:5173/", "solsurvivor.app", "https://a.dev/path", "https://a.dev/#s=1",
-			"javascript:alert(1)"})
+			"javascript:alert(1)", "https://a.dev/", "https://stefankessel.workers.dev/",
+			"https://release-1-5-sol-survivor.stefankessel.workers.dev.a.dev/", "https://sol-survivor.stefankessel.workers.dev/"})
 		{
 			assertEquals(odd, Site.LIVE, Site.of(odd));
 		}

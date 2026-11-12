@@ -21,7 +21,7 @@ import net.runelite.client.ui.overlay.components.TextComponent;
  * Doom's stacks by the hitpoints orb, a setting that is on by default: Doom's icon and "4/10", the game's own count
  * against the tier's limit, red on the last stack, beside the orb where the player already reads their hitpoints (the
  * third of the five designs of 2026-10-26, the user's choice). It sits just left of the orb, on its row, as the prayer
- * orb sits under it. Facts only, as the buffs bar's own Doom count: nothing of how to play. With Doom's place set to
+ * orb sits under it. Facts only, as the buffs bar's own Doom count: nothing of how to play. With Doom position set to
  * a movable box, DoomBoxOverlay draws the same box where the player puts it instead.
  */
 class DoomOverlay extends Overlay

@@ -113,20 +113,22 @@ public class SolSurvivorPanelTest
 	}
 
 	@Test
-	public void everyWatchSaysItNeedsUploadPastRunsWhileThatIsOff()
+	public void watchIsSecondaryWithNoStandingLineWhileUploadPastRunsIsOff()
 	{
 		SolSurvivorPanel panel = panel();
 		arena(panel, false);
 		WaveCards cards = panel.cards;
 		cards.showReview(report(5), null, false);
-		// Off, as it is until the player switches it on: secondary, with the line under it.
+		// Off, as it is until the player switches it on: secondary, and it says what it needs once pressed (the plugin's
+		// answer), with no line standing under it.
 		assertFalse(button(cards.reportCard, "Watch wave 5").isPrimary());
-		assertEquals(1, shows(cards.reportCard, "Watch needs Upload past runs"));
-		assertEquals(1, shows(cards.reportPage, "Watch needs Upload past runs"));
+		assertEquals(0, shows(cards.reportCard, "Upload past runs"));
+		assertEquals(0, shows(cards.reportPage, "Upload past runs"));
+		assertTrue(button(cards.reportCard, "Watch wave 5").getToolTipText().contains("Needs Upload past runs"));
 		lobby(panel);
 		cards.showReview(report(6), recap(6), true);
 		assertFalse(button(cards.deathPage, "Watch from tick 0").isPrimary());
-		assertEquals(1, shows(cards.deathPage, "Watch needs Upload past runs"));
+		assertEquals(0, shows(cards.deathPage, "Upload past runs"));
 
 		panel.showSends(true, false, false);
 		assertTrue(button(cards.deathPage, "Watch from tick 0").isPrimary());
@@ -228,7 +230,7 @@ public class SolSurvivorPanelTest
 		arena(panel, true);
 		panel.cards.showReview(null, null, false);
 		assertEquals(0, shows(panel, "Modifier pick"));
-		assertEquals(0, shows(panel, "Open the pick"));
+		assertEquals(0, shows(panel, "Open Modifier pick"));
 		assertEquals(0, shows(panel, "Comes when the wave ends"));
 		// Sol Heredit's too, though Arena now has nothing to open in it.
 		panel.showState(true, true, 12, "Wave 12", "Under way", NO_OFFERS, "", runs(true));
@@ -237,11 +239,11 @@ public class SolSurvivorPanelTest
 		// Between waves, its head alone until Minimus offers.
 		arena(panel, false);
 		assertEquals(1, shows(panel, "Opens when Minimus makes his offers."));
-		assertEquals(0, shows(panel, "Open the pick"));
+		assertEquals(0, shows(panel, "Open Modifier pick"));
 
 		panel.showState(true, false, 7, "Wave 7 next", "Between waves", Arrays.asList(new SolSurvivorPanel.Offer("myopia", "Myopia"),
 			new SolSurvivorPanel.Offer("frailty", "Frailty"), new SolSurvivorPanel.Offer("blasphemy", "Blasphemy")), "", runs(false));
-		assertEquals(1, shows(panel, "Open the pick"));
+		assertEquals(1, shows(panel, "Open Modifier pick"));
 	}
 
 	@Test
@@ -254,11 +256,11 @@ public class SolSurvivorPanelTest
 		assertEquals(1, shows(panel, "Walk into the Fortis Colosseum"));
 		// What you share, on the Past tab, is open while the card shows out of the arena.
 		panel.showTab(SolSurvivorPanel.Tab.PAST);
-		assertEquals(1, shows(panel, "Each is off until you switch it on"));
+		assertEquals(1, shows(panel, "With all three off, nothing is sent"));
 
 		arena(panel, false);
 		panel.showGettingStarted(true, true, true);
-		assertEquals(0, shows(panel, "Each is off until you switch it on"));
+		assertEquals(0, shows(panel, "With all three off, nothing is sent"));
 		panel.showTab(SolSurvivorPanel.Tab.WAVE);
 		assertEquals(0, shows(panel, "Try a sample wave"));
 		assertEquals(1, shows(panel, "You are in the Colosseum."));
@@ -269,7 +271,7 @@ public class SolSurvivorPanelTest
 		panel.showGettingStarted(true, true, false);
 		assertEquals(1, shows(panel, "Try a sample wave"));
 		panel.showTab(SolSurvivorPanel.Tab.PAST);
-		assertEquals(1, shows(panel, "Each is off until you switch it on"));
+		assertEquals(1, shows(panel, "With all three off, nothing is sent"));
 	}
 
 	@Test
@@ -448,25 +450,66 @@ public class SolSurvivorPanelTest
 	}
 
 	@Test
-	public void aFreshInstallsSwitchesReadAsTheDefaultNotAsThePlayersOwn()
+	public void aFreshInstallsSwitchesReadAsThePlannerPreset()
 	{
 		SolSurvivorPanel panel = panel();
+		boolean[] installed = installed();
+		lobby(panel);
+		panel.showInGame(installed);
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		assertEquals("Planner", SolSurvivorPanel.presetOf(installed));
+		assertEquals(0, shows(panel, "Your own"));
+		// One switch from it, it is the player's own.
+		installed[5] = !installed[5];
+		panel.showInGame(installed);
+		assertEquals(1, shows(panel, "Your own"));
+	}
+
+	@Test
+	public void moreToSwitchOnShowsWhatAFreshInstallHasOffWithItsPictureAndSwitch()
+	{
+		List<String> pressed = new ArrayList<>();
+		SolSurvivorPanel panel = new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(
+			SolSurvivorPanelTest.class.getClassLoader(), new Class<?>[] {SolSurvivorPanel.Actions.class}, (p, m, a) ->
+			{
+				pressed.add(m.getName() + (a == null ? "" : Arrays.toString(a)));
+				return null;
+			}));
+		lobby(panel);
+		panel.showInGame(installed());
+		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
+		assertEquals(0, shows(panel, "More to switch on"));
+		assertEquals(1, shows(panel, "NPC hitpoints"));
+		panel.showMore(true);
+		assertEquals(1, shows(panel, "More to switch on"));
+		// Each of its features has a picture, and stands on the card as well as under In the game.
+		for (String key : SolSurvivorPanel.MORE)
+		{
+			assertTrue(key, SolSurvivorPanel.OFF_AS_INSTALLED.contains(key));
+			assertNotNull(key, FeaturePreviews.of(key));
+			assertEquals(FeaturePreviews.WIDTH, FeaturePreviews.of(key).getIconWidth());
+		}
+		assertEquals(2, shows(panel, "NPC hitpoints"));
+		assertEquals(2, shows(panel, "Left-click Bank-all"));
+		// The card stands first, so its first Off is NPC hitpoints'.
+		shownButton(panel, "Off").doClick();
+		assertTrue(pressed.toString(), pressed.contains("setInGame[npcHitpoints, true]"));
+		shownButton(panel, "Hide").doClick();
+		assertTrue(pressed.contains("hideMore"));
+		panel.showMore(false);
+		assertEquals(0, shows(panel, "More to switch on"));
+		assertEquals(1, shows(panel, "NPC hitpoints"));
+	}
+
+	/** In the game's switches as a fresh install has them. */
+	private static boolean[] installed()
+	{
 		boolean[] installed = new boolean[SolSurvivorPanel.IN_GAME.length];
 		for (int i = 0; i < installed.length; i++)
 		{
 			installed[i] = !SolSurvivorPanel.OFF_AS_INSTALLED.contains(SolSurvivorPanel.IN_GAME[i][0]);
 		}
-		lobby(panel);
-		panel.showInGame(installed);
-		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
-		assertNull(SolSurvivorPanel.presetOf(installed));
-		assertEquals(1, shows(panel, "Default"));
-		assertEquals(0, shows(panel, "Your own"));
-		// One switch from it, it is the player's own.
-		installed[5] = !installed[5];
-		panel.showInGame(installed);
-		assertEquals(0, shows(panel, "Default"));
-		assertEquals(1, shows(panel, "Your own"));
+		return installed;
 	}
 
 	@Test
@@ -577,7 +620,7 @@ public class SolSurvivorPanelTest
 		assertEquals("×2 · 12 idle ticks · t36–t44", groups.get(2).figures());
 		SolSurvivorPanel panel = panel();
 		arena(panel, false);
-		panel.cards.showReview(new WaveCards.Report(5, 5, "1:15", 10, 0, 0, 3, 74, 12, rows, null, new int[] {5}, new int[] {6}, null), null, false);
+		panel.cards.showReview(new WaveCards.Report(5, 5, "1:15", 10, 0, 0, 3, 74, 12, rows, new int[] {5}, new int[] {6}, null), null, false);
 		assertEquals(1, shows(panel.cards.reportCard, "Manticore: attacks past your prayer"));
 		assertEquals(1, shows(panel.cards.reportCard, "Special landed on your tile"));
 		assertEquals(1, shows(panel.cards.reportCard, "×3 · 57 damage"));
@@ -597,7 +640,7 @@ public class SolSurvivorPanelTest
 			new WaveCards.Row(18, "East Manticore's magic orb", "5", "npc-manticore", true, "East Manticore: attacks past your prayer", "PAST_PRAYER:21")));
 		assertEquals(2, groups.size());
 		assertEquals("×2 · 20 damage · t10–t15", groups.get(0).figures());
-		assertEquals("×1 · 5 damage · t18", groups.get(1).figures());
+		assertEquals("5 damage · t18", groups.get(1).figures());
 	}
 
 	@Test
@@ -685,7 +728,7 @@ public class SolSurvivorPanelTest
 			new WaveCards.Row(319, "Manticore's magic orb: Protect from Magic a tick late", "31", "npc-manticore", true, "Manticore: prayer a tick off", "b", "magic"),
 			new WaveCards.Row(320, "Manticore's melee orb: Protect from Melee a tick late", "28", "npc-manticore", true, "Manticore: prayer a tick off", "b", "melee"),
 			new WaveCards.Row(422, "Volatility blast from the Manticore you killed", "24", "modifier-volatility", true));
-		panel.cards.showReview(new WaveCards.Report(5, 5, "5:01", 76, 2, 1, 0, 84, 0, rows, null, new int[] {5}, new int[] {4}, null, 500), null, false);
+		panel.cards.showReview(new WaveCards.Report(5, 5, "5:01", 76, 2, 1, 0, 84, 0, rows, new int[] {5}, new int[] {4}, null, 500), null, false);
 		draw(panel, "build/panel-wave.png");
 		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
 		draw(panel, "build/panel-screen.png");
@@ -701,11 +744,11 @@ public class SolSurvivorPanelTest
 	}
 
 	/**
-	 * Ideas and bugs sits at the foot of Wave and Past outside the arena, never on Screen or in the arena, and its buttons
-	 * open the public tracker's two forms. Draws it to build/panel-feedback.png, to look at.
+	 * The question mark opens the help's page: its five lines, and Ideas and bugs, whose buttons open the public tracker's
+	 * two forms; Back shows the tab again. No tab holds them. Draws it to build/panel-help.png, to look at.
 	 */
 	@Test
-	public void ideasAndBugsOpenThePublicTrackersFormsOutsideTheArena() throws IOException
+	public void theQuestionMarkOpensTheHelpWithIdeasAndBugs() throws IOException
 	{
 		List<String> opened = new ArrayList<>();
 		SolSurvivorPanel panel = new SolSurvivorPanel((SolSurvivorPanel.Actions) Proxy.newProxyInstance(
@@ -718,23 +761,36 @@ public class SolSurvivorPanelTest
 				return null;
 			}));
 		lobby(panel);
-		assertEquals(1, shows(panel, "Suggest a feature"));
-		draw(panel, "build/panel-feedback.png");
+		for (SolSurvivorPanel.Tab t : SolSurvivorPanel.Tab.values())
+		{
+			panel.showTab(t);
+			assertEquals(0, shows(panel, "Report a bug"));
+		}
+		panel.showTab(SolSurvivorPanel.Tab.WAVE);
+		Component help = null;
+		for (Component c : all(panel))
+		{
+			if (c.getAccessibleContext() != null && "Help".equals(c.getAccessibleContext().getAccessibleName()))
+			{
+				help = c;
+			}
+		}
+		assertNotNull(help);
+		for (java.awt.event.MouseListener l : help.getMouseListeners())
+		{
+			l.mouseClicked(new java.awt.event.MouseEvent(help, java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, 1, 1, 1, false));
+		}
+		assertEquals(1, shows(panel, "Ideas and bugs"));
+		assertEquals(0, shows(panel, "Not in the Colosseum"));
+		draw(panel, "build/panel-help.png");
 		shownButton(panel, "Suggest a feature").doClick();
 		shownButton(panel, "Report a bug").doClick();
 		assertEquals(Arrays.asList(
 			"https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=feature-idea.md",
 			"https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=bug-report.md"), opened);
-
-		panel.showTab(SolSurvivorPanel.Tab.PAST);
-		assertEquals(1, shows(panel, "Report a bug"));
-		panel.showTab(SolSurvivorPanel.Tab.SCREEN);
-		assertEquals(0, shows(panel, "Report a bug"));
-		panel.showTab(SolSurvivorPanel.Tab.PAST);
-		arena(panel, false);
-		assertEquals(0, shows(panel, "Report a bug"));
-		lobby(panel);
-		assertEquals(1, shows(panel, "Report a bug"));
+		shownButton(panel, "\u2039 Back").doClick();
+		assertEquals(0, shows(panel, "Ideas and bugs"));
+		assertEquals(1, shows(panel, "Not in the Colosseum"));
 	}
 
 	/** Profit tops the Past tab with "Track profit" on: the session, its last run and every run since the reset. */
@@ -745,7 +801,7 @@ public class SolSurvivorPanelTest
 		lobby(panel);
 		panel.showTab(SolSurvivorPanel.Tab.PAST);
 		panel.showProfit(true, ProfitRecord.empty(), ProfitRecord.empty());
-		assertTrue(showsText(panel, "Each run shows here as you leave the arena"));
+		assertFalse(showsText(panel, "This session"));
 		assertTrue(showsText(panel, "No runs counted yet."));
 		draw(panel, "build/panel-profit-none.png");
 
@@ -755,9 +811,12 @@ public class SolSurvivorPanelTest
 		ProfitRecord allTime = ProfitRecord.of("v1;23,6,41200000,9800000").with(session.getLast());
 		panel.showProfit(true, session, allTime);
 		assertTrue(showsText(panel, "+1.66M"));
-		assertTrue(showsText(panel, "This session: 2 runs, 1 death, loot 2.34M, supplies 670K, death fees 7,500."));
-		assertTrue(showsText(panel, "Last run, died on wave 8: -267K (supplies 260K, death fee 7,500, the chest lost)."));
-		assertTrue(showsText(panel, "Total: +31.13M over 24 runs, 7 deaths."));
+		assertTrue(showsText(panel, "2 runs, 1 death<br>"));
+		assertTrue(showsText(panel, "loot 2.34M \u00b7 supplies 670K \u00b7 fees 7,500"));
+		assertTrue(showsText(panel, "died on wave 8 \u00b7 -267K"));
+		assertTrue(showsText(panel, "supplies 260K \u00b7 fee 7,500 \u00b7 chest lost"));
+		assertTrue(showsText(panel, "+31.13M<br>"));
+		assertTrue(showsText(panel, "24 runs, 7 deaths"));
 		draw(panel, "build/panel-profit.png");
 
 		panel.showProfit(false, session, allTime);
@@ -833,7 +892,7 @@ public class SolSurvivorPanelTest
 	/** The report of wave `wave`, a clean one. */
 	private static WaveCards.Report report(int wave)
 	{
-		return new WaveCards.Report(wave, wave, "1:15", 10, 0, 0, 0, 0, 0, Collections.emptyList(), null, new int[] {wave}, new int[] {0}, null);
+		return new WaveCards.Report(wave, wave, "1:15", 10, 0, 0, 0, 0, 0, Collections.emptyList(), new int[] {wave}, new int[] {0}, null);
 	}
 
 	private static WaveCards.Recap recap(int wave)

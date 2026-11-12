@@ -17,6 +17,7 @@ import java.awt.RenderingHints;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import javax.swing.ButtonModel;
 import javax.swing.Icon;
@@ -828,17 +829,82 @@ final class Stone
 		});
 	}
 
-	/** A question mark in a ring, which holds the panel's help in its tooltip. */
-	static ImageIcon question(int size, Color color, Font font)
+	/** The question mark of `question`, set out pixel by pixel: a letter is a pixel in the ring's colour, a dot is clear. */
+	private static final String[] QUESTION_MARK = {
+		".###.",
+		"#...#",
+		"....#",
+		"...#.",
+		"..#..",
+		".....",
+		"..#..",
+	};
+
+	/**
+	 * A question mark in a ring, which holds the panel's help in its tooltip. The mark is set out pixel by pixel in the
+	 * middle of the ring: drawn from a font, its box's spacing put it low and to the right, cut off by the ring, and a
+	 * font scaled to fit lost its dot (Stefan's report, 2026-11-12).
+	 */
+	static ImageIcon question(int size, Color color)
 	{
 		return draw(size, (g, n) ->
 		{
 			g.setColor(color);
 			g.setStroke(new BasicStroke(1.2f));
 			g.drawOval(0, 0, n - 1, n - 1);
-			g.setFont(font.deriveFont((float) n));
-			FontMetrics fm = g.getFontMetrics();
-			g.drawString("?", (n - fm.stringWidth("?")) / 2 + 1, n - 2);
+			int pixel = Math.max(1, n / 13);
+			int width = QUESTION_MARK[0].length() * pixel;
+			int height = QUESTION_MARK.length * pixel;
+			int left = (n - width) / 2;
+			int top = (n - height) / 2;
+			for (int row = 0; row < QUESTION_MARK.length; row++)
+			{
+				for (int col = 0; col < QUESTION_MARK[row].length(); col++)
+				{
+					if (QUESTION_MARK[row].charAt(col) == '#')
+					{
+						g.fillRect(left + col * pixel, top + row * pixel, pixel, pixel);
+					}
+				}
+			}
 		});
+	}
+
+	/**
+	 * How far above the baseline a line through text set in `font` falls: the middle of its small letters, read off the
+	 * drawn shape of an x. Swing's own strike-through and the middle of the line's box both missed it in the game's
+	 * fonts, the panel's falling under the letters (Stefan's report, 2026-11-12).
+	 */
+	static int strikeRise(Graphics2D g, Font font)
+	{
+		Rectangle2D x = font.createGlyphVector(g.getFontRenderContext(), "x").getVisualBounds();
+		return (int) Math.round(-x.getCenterY());
+	}
+
+	/** A label whose words are struck through at the middle of their small letters (strikeRise), for a dead NPC's line. */
+	static JLabel struck(String text, Font font, Color color)
+	{
+		JLabel label = new JLabel(text)
+		{
+			@Override
+			protected void paintComponent(Graphics g)
+			{
+				super.paintComponent(g);
+				Graphics2D g2 = (Graphics2D) g;
+				int baseline = getBaseline(getWidth(), getHeight());
+				if (baseline < 0)
+				{
+					return;
+				}
+				FontMetrics fm = g2.getFontMetrics(getFont());
+				int left = getInsets().left;
+				int width = Math.min(fm.stringWidth(getText()), getWidth() - left - getInsets().right);
+				g2.setColor(getForeground());
+				g2.fillRect(left - 1, baseline - strikeRise(g2, getFont()), width + 2, 1);
+			}
+		};
+		label.setFont(font);
+		label.setForeground(color);
+		return label;
 	}
 }

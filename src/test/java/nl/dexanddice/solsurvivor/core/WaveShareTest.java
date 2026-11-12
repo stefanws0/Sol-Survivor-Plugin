@@ -122,4 +122,15 @@ public class WaveShareTest
 		// The gear it was made from keeps its levels.
 		assertEquals(1, gear.getStats().size());
 	}
+
+	@Test
+	public void aLogIsSentAgainForTheSitesOwnFailuresOnly()
+	{
+		assertTrue(WaveShare.again(500));
+		assertTrue(WaveShare.again(503));
+		assertFalse(WaveShare.again(400));
+		assertFalse(WaveShare.again(429));
+		assertFalse(WaveShare.again(404));
+		assertFalse(WaveShare.again(413));
+	}
 }

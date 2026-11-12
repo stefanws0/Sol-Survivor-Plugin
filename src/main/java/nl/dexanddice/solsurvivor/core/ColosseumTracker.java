@@ -116,9 +116,24 @@ public final class ColosseumTracker
 	private Map<String, Integer> dosesBefore;
 	private boolean dosesWhole;
 
+	/**
+	 * How many ticks after a wave's NPCs appear its message may still come before the start counts as unseen
+	 * (isStartUnseen): the message comes with them, so this is slack, not a measured delay.
+	 */
+	public static final int START_GRACE = 10;
+	/** The wave NPCs out now, by index. */
+	private final Set<Integer> present = new HashSet<>();
+	/** Whether the plugin has seen the arena empty of them with no wave under way, since the last wave's start or reset. */
+	private boolean calm;
+	/** The tick wave NPCs appeared in a calm arena with no wave message yet, or -1. */
+	private int unseenStartTick = -1;
+
 	/** Forget the run: the player left the Colosseum, hopped or logged out. */
 	public void reset()
 	{
+		present.clear();
+		calm = false;
+		unseenStartTick = -1;
 		wave = null;
 		waveStarted = false;
 		waveStartTick = -1;
@@ -193,6 +208,8 @@ public final class ColosseumTracker
 		wave = number;
 		waveStarted = true;
 		waveStartTick = tick;
+		calm = false;
+		unseenStartTick = -1;
 		waveDamage = 0;
 		freshWave = true;
 		resetWave();
@@ -202,6 +219,19 @@ public final class ColosseumTracker
 	public boolean isWaveStartTick(int tick)
 	{
 		return waveStarted && tick == waveStartTick;
+	}
+
+	/**
+	 * Whether a wave began that the game's message did not announce: its NPCs appeared in an arena the plugin had seen
+	 * empty between waves, and START_GRACE ticks on no "Wave: N" has come. The plugin follows a wave only from that
+	 * message, so a game update that rewords it would leave it waiting without a word; with this the panel can say so.
+	 * It is not set for a wave the plugin joined part way, after a login or being switched on, whose NPCs were out
+	 * before it saw the arena empty. One case reads the same and is not the game's doing: the plugin switched on in a
+	 * wave after its last NPC died and before its reinforcements came.
+	 */
+	public boolean isStartUnseen(int tick)
+	{
+		return !waveStarted && unseenStartTick >= 0 && tick - unseenStartTick >= START_GRACE;
 	}
 
 	/** Whether a wave is under way that the plugin saw start. */
@@ -245,6 +275,10 @@ public final class ColosseumTracker
 			dosesBefore = doses.get();
 			// Whole only when read between waves or on a wave's first tick.
 			dosesWhole = !waveStarted || freshWave;
+		}
+		if (!waveStarted && present.isEmpty())
+		{
+			calm = true;
 		}
 		if (waveStarted && freshWave)
 		{
@@ -294,6 +328,11 @@ public final class ColosseumTracker
 		{
 			return;
 		}
+		present.add(index);
+		if (!waveStarted && calm && unseenStartTick < 0)
+		{
+			unseenStartTick = tick;
+		}
 		if (waveStarted && tick != waveStartTick)
 		{
 			reinforcements.add(index);
@@ -312,6 +351,7 @@ public final class ColosseumTracker
 
 	public void onNpcDespawned(int index)
 	{
+		present.remove(index);
 		reinforcements.remove(index);
 		orbs.remove(index);
 		lastAttack.remove(index);

@@ -13,16 +13,18 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import javax.inject.Inject;
@@ -106,6 +108,7 @@ import nl.dexanddice.solsurvivor.core.ColosseumTracker;
 import nl.dexanddice.solsurvivor.core.Equipment;
 import nl.dexanddice.solsurvivor.core.ExportException;
 import nl.dexanddice.solsurvivor.core.GridTile;
+import nl.dexanddice.solsurvivor.core.LateTicks;
 import nl.dexanddice.solsurvivor.core.Modifier;
 import nl.dexanddice.solsurvivor.core.ModifierLevels;
 import nl.dexanddice.solsurvivor.core.NpcHitpoints;
@@ -126,6 +129,7 @@ import nl.dexanddice.solsurvivor.core.RunUpload;
 import nl.dexanddice.solsurvivor.core.SeenNpc;
 import nl.dexanddice.solsurvivor.core.StatePayload;
 import nl.dexanddice.solsurvivor.core.TileMarker;
+import nl.dexanddice.solsurvivor.core.EarlierSettings;
 import nl.dexanddice.solsurvivor.core.TriangleDot;
 import nl.dexanddice.solsurvivor.core.WaveLog;
 import nl.dexanddice.solsurvivor.core.WaveLogWriter;
@@ -304,8 +308,12 @@ public class SolSurvivorPlugin extends Plugin
 	/** Only one upload at a time. Cleared and cancelled on shutdown; late callbacks cannot open the browser. */
 	private volatile Call replayCall;
 
+	/** Whether the panel last said that a wave began unannounced (ColosseumTracker.isStartUnseen), to log it once. */
+	private boolean startUnseen;
 	/** The last shared wave log on its way to the site, cancelled on shutdown. */
 	private volatile Call shareCall;
+	/** A shared wave log's second sending, waiting its turn (sendShare); cancelled on shutdown. */
+	private volatile ScheduledFuture<?> shareRetry;
 	/** The last request to the leaderboard, a wave going on it or Remove my times, cancelled on shutdown. */
 	private volatile Call boardCall;
 	/** Which run the waves belong to and which log was shared last, for "Share wave logs"; on the client thread only. */
@@ -327,6 +335,19 @@ public class SolSurvivorPlugin extends Plugin
 	private String waveShareState;
 	/** The log of the wave under way, or of the last one until the next starts, and the past ones; on the client thread only. */
 	private final WaveLog waveLog = new WaveLog();
+	/**
+	 * The late game ticks of each wave logged in this session, by its log's id (LateTicks), for its report and its death
+	 * recap: the newest LATE_WAVES_KEPT of them, in memory alone.
+	 */
+	private final Map<Integer, LateTicks> lateTicks = new LinkedHashMap<Integer, LateTicks>()
+	{
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<Integer, LateTicks> eldest)
+		{
+			return size() > LATE_WAVES_KEPT;
+		}
+	};
+	private static final int LATE_WAVES_KEPT = 30;
 	/**
 	 * The projectiles in flight that the wave log has been given, by identity, so that each goes in once: the game keeps
 	 * the same object for a projectile from the tick it comes to the tick it lands.
@@ -581,6 +602,12 @@ public class SolSurvivorPlugin extends Plugin
 			}
 
 			@Override
+			public void hideMore()
+			{
+				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.MORE_HIDDEN, true);
+			}
+
+			@Override
 			public void hideWhatsNew()
 			{
 				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.WHATS_NEW_SEEN, SolSurvivorConfig.WHATS_NEW);
@@ -597,6 +624,16 @@ public class SolSurvivorPlugin extends Plugin
 				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LAYOUT_PLACED, true);
 			}
 		}
+		// A fresh install draws the Planner preset alone since 2026-11-11, and its Screen tab shows More to switch on for the
+		// rest. A player who had the plugin before keeps what it drew: each of those settings they never touched, which
+		// would now read off, is written as on, once, and the card stays away.
+		if (!config.quietDefaultsSettled())
+		{
+			boolean had = config.gettingStartedDone()
+				|| configManager.getConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.WHATS_NEW_SEEN) != null;
+			settleDefaults(had, key -> configManager.getConfiguration(SolSurvivorConfig.GROUP, key),
+				(key, value) -> configManager.setConfiguration(SolSurvivorConfig.GROUP, key, value));
+		}
 		// A fresh install, which has not yet been through Getting started, takes the settings as they are now: New in this
 		// update's card is for a player who had the plugin before them.
 		if (!config.gettingStartedDone() && config.whatsNewSeen() < SolSurvivorConfig.WHATS_NEW)
@@ -610,6 +647,7 @@ public class SolSurvivorPlugin extends Plugin
 		clientThread.invokeLater(this::findOverlaps);
 		panel.showLooks(config.inRangeStyle(), config.hitForecast());
 		panel.showWhatsNew(false, config.whatsNewSeen() < SolSurvivorConfig.WHATS_NEW);
+		panel.showMore(!config.moreToSwitchOnHidden());
 		navButton = NavigationButton.builder()
 			.tooltip("Sol Survivor")
 			.icon(SolSurvivorPanel.icon())
@@ -662,6 +700,12 @@ public class SolSurvivorPlugin extends Plugin
 		if (pending != null)
 		{
 			pending.cancel();
+		}
+		ScheduledFuture<?> retry = shareRetry;
+		shareRetry = null;
+		if (retry != null)
+		{
+			retry.cancel(false);
 		}
 		Call sharing = shareCall;
 		shareCall = null;
@@ -822,6 +866,27 @@ public class SolSurvivorPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * Takes an install through the change of 2026-11-11 (SolSurvivorConfig.DEFAULTS_SETTLED), once: for a player who
+	 * `had` the plugin before it, each setting that started on and now starts off is written as on unless `get` finds
+	 * they set it themself, and More to switch on is hidden; a fresh install is only marked as through it.
+	 */
+	static void settleDefaults(boolean had, java.util.function.Function<String, String> get, java.util.function.BiConsumer<String, Boolean> set)
+	{
+		if (had)
+		{
+			for (String key : SolSurvivorConfig.QUIET_FROM_INSTALL)
+			{
+				if (get.apply(key) == null)
+				{
+					set.accept(key, true);
+				}
+			}
+			set.accept(SolSurvivorConfig.MORE_HIDDEN, true);
+		}
+		set.accept(SolSurvivorConfig.DEFAULTS_SETTLED, true);
+	}
+
 	/** Which of the panel's In the game features are on, in SolSurvivorPanel.IN_GAME's order, as the settings hold them. */
 	private boolean[] inGame()
 	{
@@ -906,6 +971,12 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			return;
 		}
+		// The player chose a Suggested plan: the choice takes the place of the earlier releases' switch, so that the site's
+		// own can be chosen again. The default that RuneLite writes for an install without one is no choice (no old value).
+		if (SolSurvivorConfig.SUGGESTED_PLAN.equals(e.getKey()) && e.getOldValue() != null)
+		{
+			configManager.unsetConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.EARLIER_TRIANGLE);
+		}
 		if ("countFlicks".equals(e.getKey()))
 		{
 			clientThread.invokeLater(() ->
@@ -959,7 +1030,7 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		if ("uploadPastRuns".equals(e.getKey()) || "openOnEntering".equals(e.getKey()) || "trackProfit".equals(e.getKey())
 			|| SolSurvivorConfig.GETTING_STARTED_DONE.equals(e.getKey()) || isInGame(e.getKey())
-			|| SolSurvivorConfig.WHATS_NEW_SEEN.equals(e.getKey()) || "inRangeStyle".equals(e.getKey()) || "hitForecast".equals(e.getKey()))
+			|| SolSurvivorConfig.WHATS_NEW_SEEN.equals(e.getKey()) || SolSurvivorConfig.MORE_HIDDEN.equals(e.getKey()) || "inRangeStyle".equals(e.getKey()) || "hitForecast".equals(e.getKey()))
 		{
 			clientThread.invokeLater(this::updatePanel);
 			return;
@@ -1505,6 +1576,7 @@ public class SolSurvivorPlugin extends Plugin
 		}
 		projectiles();
 		waveLog.record(tick, playerTick(), npcTicks(), counters());
+		lateTicks.computeIfAbsent(waveLog.getId(), id -> new LateTicks()).record(tick - logStartTick, System.currentTimeMillis());
 		if (tracker.isReinforcementsArrived() && !waveLog.hasReinforcementState())
 		{
 			// The tick the reinforcements came, which the panel opens on the site for a wave gone by.
@@ -1595,40 +1667,9 @@ public class SolSurvivorPlugin extends Plugin
 		return stats == null || stats.getEquipment() == null ? 0 : stats.getEquipment().getAspeed();
 	}
 
-	/** The mistake kinds the settings count, each its own switch under Mistake tracker. */
-	private Set<WaveReview.Kind> countedKinds()
-	{
-		Set<WaveReview.Kind> kinds = EnumSet.noneOf(WaveReview.Kind.class);
-		if (config.countPastPrayer())
-		{
-			kinds.add(WaveReview.Kind.PAST_PRAYER);
-		}
-		if (config.countLateFlicks())
-		{
-			kinds.add(WaveReview.Kind.LATE_FLICK);
-		}
-		if (config.countSpecials())
-		{
-			kinds.add(WaveReview.Kind.SPECIAL);
-		}
-		if (config.countVolatility())
-		{
-			kinds.add(WaveReview.Kind.VOLATILITY);
-		}
-		if (config.countSolarflareSand())
-		{
-			kinds.add(WaveReview.Kind.SOLARFLARE_SAND);
-		}
-		if (config.countIdle())
-		{
-			kinds.add(WaveReview.Kind.IDLE);
-		}
-		return kinds;
-	}
-
 	/**
-	 * The report of the logged wave `id` as the panel shows it, the settings applied: the mistakes counted, the kinds left
-	 * out, and the run's waves up to this one with their mistakes. Null when the wave has no review or is no longer kept.
+	 * The report of the logged wave `id` as the panel shows it: the mistakes counted, and the run's waves up to this one
+	 * with their mistakes. Null when the wave has no review or is no longer kept.
 	 */
 	private WaveCards.Report reportOf(int id)
 	{
@@ -1654,7 +1695,11 @@ public class SolSurvivorPlugin extends Plugin
 				break;
 			}
 		}
-		return WaveCards.Report.of(id, wave.getWave(), duration(wave.size()), r, countedKinds(), config.idleFrom(), waves, runReviews);
+		WaveCards.Report report = WaveCards.Report.of(id, wave.getWave(), duration(wave.size()), r, EarlierSettings.counted(this::earlier),
+			EarlierSettings.idleFrom(this::earlier), waves, runReviews);
+		LateTicks late = lateTicks.get(id);
+		report.late = late == null ? null : LateTicks.text(late.between(0, Integer.MAX_VALUE));
+		return report;
 	}
 
 	/** The death recap of the logged wave `id`, or null when the player did not die in it or it is no longer kept. */
@@ -1666,7 +1711,10 @@ public class SolSurvivorPlugin extends Plugin
 		{
 			return null;
 		}
-		return new WaveCards.Recap(id, wave.getWave(), r.getDied(), duration(r.getDied()), r.getCause(), r.getRecap(), r.getMaxHitpoints());
+		// Was it lag? The late ticks of the recap's own stretch, the last ticks before the death.
+		LateTicks late = lateTicks.get(id);
+		String lateText = late == null ? null : LateTicks.text(late.between(r.getDied() - WaveReview.RECAP_TICKS, r.getDied()));
+		return new WaveCards.Recap(id, wave.getWave(), r.getDied(), duration(r.getDied()), r.getCause(), r.getRecap(), r.getMaxHitpoints(), lateText);
 	}
 
 	/** Copies the report of the logged wave `id` as text, for a clan's chat or the site's Discord. */
@@ -1712,8 +1760,7 @@ public class SolSurvivorPlugin extends Plugin
 	 * The wave log under way or the last one has its turn to be shared, as its wave ends: with "Share wave logs" on it goes
 	 * to the site as WaveLogWriter.toShare writes it, gzipped, under the run's id (WaveShare). Each log has one turn, so
 	 * that a wave that ended with the setting off is never sent. On the client thread, which the log is read on, as far as
-	 * a snapshot of it: its JSON, the gzip and the upload go on OkHttp's threads, and a log the site refuses or cannot
-	 * reach is dropped without a word to the player.
+	 * a snapshot of it: its JSON, the gzip and the upload go on OkHttp's threads (sendShare, which tries twice).
 	 */
 	private void shareLog()
 	{
@@ -1732,6 +1779,19 @@ public class SolSurvivorPlugin extends Plugin
 		String entry = name == null || done.getWave() == null ? null : BoardEntry.body(run, done.getWave(), name, boardKey());
 		Request request = new Request.Builder().url(WaveShare.endpoint(SITE)).header(WaveShare.RUN_HEADER, run)
 			.post(new LazyBody(WaveShare.TYPE, () -> WaveShare.gzip(WaveLogWriter.toShare(done)))).build();
+		sendShare(request, entry, name, 0);
+	}
+
+	/**
+	 * Sends a shared wave log, and again once, WaveShare.RETRY_SECONDS later, when the site could not be reached or was
+	 * too busy to take it (WaveShare.again): one dropped connection as a wave ended lost the log, and with it the wave's
+	 * time on the leaderboard and a full run's place there, without a word. The site keeps one log for a run's wave, so
+	 * a log that did arrive is not stored twice, and the body keeps its bytes for the second sending (LazyBody). When
+	 * the second fails too, a player with Leaderboard on is told that the time is not on it; a log alone is dropped
+	 * quietly, as before. Nothing is sent or said once the plugin has stopped.
+	 */
+	private void sendShare(Request request, String entry, String name, int sent)
+	{
 		Call call = httpClient.newCall(request);
 		shareCall = call;
 		call.enqueue(new Callback()
@@ -1740,38 +1800,81 @@ public class SolSurvivorPlugin extends Plugin
 			public void onFailure(Call failed, IOException ex)
 			{
 				log.debug("Could not share the wave log", ex);
+				if (!failed.isCanceled())
+				{
+					again();
+				}
 			}
 
 			@Override
 			public void onResponse(Call completed, Response response)
 			{
-				boolean taken = response.isSuccessful();
-				if (!taken)
-				{
-					log.debug("The site did not take the shared wave log: {}", response.code());
-				}
+				int code = response.code();
 				response.close();
-				if (taken && entry != null)
+				if (panel == null)
 				{
-					enterBoard(entry, name);
+					return;
+				}
+				if (code >= 200 && code < 300)
+				{
+					if (entry != null)
+					{
+						enterBoard(entry, name);
+					}
+					return;
+				}
+				log.debug("The site did not take the shared wave log: {}", code);
+				if (WaveShare.again(code))
+				{
+					again();
+				}
+			}
+
+			private void again()
+			{
+				if (panel == null)
+				{
+					return;
+				}
+				if (sent == 0)
+				{
+					shareRetry = executor.schedule(() -> sendShare(request, entry, name, 1), WaveShare.RETRY_SECONDS, TimeUnit.SECONDS);
+				}
+				else if (entry != null)
+				{
+					clientThread.invokeLater(() -> report("The site could not be reached, so this wave's time is not on the leaderboard."));
 				}
 			}
 		});
 	}
 
 	/**
-	 * The player's key on the leaderboard (core.BoardEntry), made and kept in the settings the first time a wave goes up,
-	 * so that the name and the times stay the player's. On the client thread.
+	 * The account's key on the leaderboard (core.BoardEntry), made and kept the first time a wave of its goes up, so that
+	 * the name and the times stay the player's. It is kept per RuneScape account, as the profit record is: one key for
+	 * the whole RuneLite profile put a main's and an alt's times under one player on the site, which renames a key's
+	 * times to the last name sent and removes them together. The key the plugin kept for the whole profile before 1.5
+	 * goes to the first account that plays after the update, whose times it most likely holds, so that Remove my times
+	 * still finds them. On the client thread, logged in.
 	 */
 	private String boardKey()
 	{
-		String key = config.leaderboardKey();
-		if (!BoardEntry.isKey(key))
+		String key = BoardEntry.keptKey(accountBoardKey(), config.leaderboardKey());
+		if (key == null)
 		{
 			key = BoardEntry.newKey(new SecureRandom());
-			configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD_KEY, key);
+		}
+		if (!key.equals(accountBoardKey()))
+		{
+			configManager.setRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD_KEY, key);
+			configManager.unsetConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD_KEY);
 		}
 		return key;
+	}
+
+	/** The key kept for the account logged in, or null before a login or before a wave of its went up. */
+	private String accountBoardKey()
+	{
+		return configManager.getRSProfileConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD_KEY);
 	}
 
 	/**
@@ -1895,11 +1998,14 @@ public class SolSurvivorPlugin extends Plugin
 	{
 		clientThread.invokeLater(() ->
 		{
-			String key = config.leaderboardKey();
-			if (!BoardEntry.isKey(key))
+			// This account's key, or the whole profile's from before 1.5 while no account has taken it over (boardKey).
+			String key = BoardEntry.keptKey(accountBoardKey(), config.leaderboardKey());
+			if (key == null)
 			{
 				configManager.setConfiguration(SolSurvivorConfig.GROUP, SolSurvivorConfig.LEADERBOARD, false);
-				report("You have no times on the leaderboard.");
+				report(client.getGameState() == GameState.LOGGED_IN
+					? "This account has no times on the leaderboard."
+					: "Log in on the account whose times you want removed: each account's times are its own.");
 				return;
 			}
 			Call call = httpClient.newCall(BoardUpload.remove(SITE, key));
@@ -2593,11 +2699,35 @@ public class SolSurvivorPlugin extends Plugin
 
 	/**
 	 * Where the player set the site's Safe / Fast / Easy triangle to start, which the state links give the site; null when
-	 * "Set the triangle" is off, or Safe, Fast and Easy are all 0, and the site keeps its own.
+	 * Suggested plan is the site's own, and the site keeps its own. An install that set the earlier releases' switch and
+	 * shares keeps them, as stored, until its player chooses a Suggested plan (onConfigChanged).
 	 */
 	private TriangleDot triangle()
 	{
-		return config.setTriangle() ? TriangleDot.of(config.triangleSafe(), config.triangleFast(), config.triangleEasy()) : null;
+		return config.suggestedPlan().dotWith(earlier(SolSurvivorConfig.EARLIER_TRIANGLE), earlier(SolSurvivorConfig.EARLIER_SAFE),
+			earlier(SolSurvivorConfig.EARLIER_FAST), earlier(SolSurvivorConfig.EARLIER_EASY));
+	}
+
+	/**
+	 * A setting of an earlier release as its player stored it, by its key; null when never stored. No setting shows these
+	 * any more and nothing writes them: they are read so that a player who set one keeps it (EarlierSettings).
+	 */
+	String earlier(String key)
+	{
+		return configManager == null ? null : configManager.getConfiguration(SolSurvivorConfig.GROUP, key);
+	}
+
+	/** An earlier release's colour setting as stored, or null when never stored or unreadable. */
+	Color earlierColour(String key)
+	{
+		try
+		{
+			return configManager == null ? null : configManager.getConfiguration(SolSurvivorConfig.GROUP, key, Color.class);
+		}
+		catch (RuntimeException ex)
+		{
+			return null;
+		}
 	}
 
 	/**
@@ -3059,7 +3189,7 @@ public class SolSurvivorPlugin extends Plugin
 			}
 			if (!config.uploadPastRuns())
 			{
-				reply.accept("Watching a run needs Upload past runs, in the plugin's settings: it sends the run to the Sol Survivor site to play it back there.");
+				reply.accept("Watch needs Upload past runs, in the plugin's settings: it sends the run to the site to play back.");
 				return;
 			}
 			if (replayCall != null)
@@ -3261,29 +3391,42 @@ public class SolSurvivorPlugin extends Plugin
 		boolean colosseum = inColosseum;
 		Integer wave = tracker.getWave();
 		String title;
-		String state;
+		String usual;
 		if (!colosseum)
 		{
 			title = "Not in the Colosseum";
-			state = "Enter it to open a wave.";
+			usual = "Enter it to open a wave.";
 		}
 		else if (wave == null)
 		{
 			title = "In the Colosseum";
-			state = "Waiting for a wave to start.";
+			usual = "Waiting for a wave to start.";
 		}
 		else if (tracker.isWaveStarted())
 		{
 			title = "Wave " + wave;
-			state = "Under way";
+			usual = "Under way";
 		}
 		else
 		{
 			title = "Wave " + wave + " next";
-			state = "Between waves";
+			usual = "Between waves";
+		}
+		// A wave the game did not announce in the words the plugin knows: said here, where "waiting" would mislead.
+		boolean unseen = colosseum && tracker.isStartUnseen(client.getTickCount());
+		String state = unseen
+			? "This wave began without the game's usual message, so the plugin cannot follow it. Look for a plugin update, or report it under the ? above."
+			: usual;
+		if (unseen != startUnseen)
+		{
+			startUnseen = unseen;
+			if (unseen)
+			{
+				log.warn("Wave NPCs appeared with no wave message within {} ticks: the game's message may have changed", ColosseumTracker.START_GRACE);
+			}
 		}
 		String note = config.recordWaveLog()
-			? "Each wave you play shows here, newest first, once the plugin sees it start."
+			? "Waves you play show here, newest first."
 			: "Switch on \"Record wave log\" in the plugin's settings to keep past waves here.";
 		List<SolSurvivorPanel.RunGroup> runs = runGroups();
 		List<SolSurvivorPanel.Offer> offers = offers();
@@ -3348,8 +3491,9 @@ public class SolSurvivorPlugin extends Plugin
 		boolean whatsNew = newTags && config.gettingStartedDone() && !during && offers.isEmpty();
 		SolSurvivorConfig.InRangeStyle look = config.inRangeStyle();
 		boolean forecast = config.hitForecast();
+		boolean more = !config.moreToSwitchOnHidden();
 		List<Object> firstRun = Arrays.asList(upload, share, leaderboard, gettingStarted, opensItself, during, colosseum,
-			Arrays.toString(inGame), newTags, whatsNew, look, forecast);
+			Arrays.toString(inGame), newTags, whatsNew, look, forecast, more);
 		if (!firstRun.equals(shownFirstRun))
 		{
 			shownFirstRun = firstRun;
@@ -3361,6 +3505,7 @@ public class SolSurvivorPlugin extends Plugin
 				p.showInGame(inGame);
 				p.showLooks(look, forecast);
 				p.showWhatsNew(whatsNew, newTags);
+				p.showMore(more);
 			});
 		}
 		if (colosseum == shownInColosseum && title.equals(shownTitle) && state.equals(shownState)
@@ -3431,8 +3576,6 @@ public class SolSurvivorPlugin extends Plugin
 	{
 		List<SolSurvivorPanel.RunGroup> out = new ArrayList<>();
 		boolean tracking = config.trackMistakes() && config.recordWaveLog();
-		Set<WaveReview.Kind> kinds = countedKinds();
-		int idleFrom = config.idleFrom();
 		List<List<WaveLog.Past>> runs = waveLog.getRuns();
 		for (int i = 0; i < runs.size(); i++)
 		{
@@ -3445,7 +3588,7 @@ public class SolSurvivorPlugin extends Plugin
 				String detail = wave.isRecording() ? "Under way" : duration(wave.size()) + endName(wave) + glory(wave.getGlory());
 				WaveReview review = tracking && !wave.isRecording() ? reviews.get(wave.getId()) : null;
 				rows.add(0, new SolSurvivorPanel.WaveRow(wave.getId(), wave.getWave(), detail, wave.isRecording(),
-					wave.getStartState() != null, wave.getReinforcementState() != null, review == null ? null : review.counted(kinds, idleFrom).size()));
+					wave.getStartState() != null, wave.getReinforcementState() != null, review == null ? null : review.counted(EarlierSettings.counted(this::earlier), EarlierSettings.idleFrom(this::earlier)).size()));
 				if (!wave.isRecording())
 				{
 					ticksDone += wave.size();

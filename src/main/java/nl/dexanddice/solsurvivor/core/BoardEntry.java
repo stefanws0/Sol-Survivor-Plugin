@@ -80,6 +80,15 @@ public final class BoardEntry
 		return key != null && SECRET.matcher(key).matches();
 	}
 
+	/**
+	 * The key an account's times go under, of the one kept for the account itself and the one the plugin kept for the
+	 * whole RuneLite profile before each account had its own: the account's, or else the profile's; null with neither.
+	 */
+	public static String keptKey(String account, String profile)
+	{
+		return isKey(account) ? account : isKey(profile) ? profile : null;
+	}
+
 	/** A new key: 32 random hexadecimal digits. */
 	public static String newKey(Random random)
 	{

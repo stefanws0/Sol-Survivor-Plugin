@@ -19,7 +19,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "copyHotkey",
 		name = "Copy link hotkey",
-		description = "Copies a link of the arena as it is now, without opening the browser, so that the game keeps its focus mid-wave. Paste it into the site.",
+		description = "Copies the arena's link without opening your browser, so the game keeps focus.",
 		position = 0
 	)
 	default Keybind copyHotkey()
@@ -30,7 +30,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "includeGear",
 		name = "Include gear and stats",
-		description = "Puts your worn items, weapon, attack style, prayer bonus, prayer points and combat levels in the link, and your gear in the wave log.",
+		description = "Puts your gear, weapon, prayer points and combat levels in the link, and your gear in the wave log.",
 		position = 1
 	)
 	default boolean includeGear()
@@ -41,7 +41,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "sendMarkers",
 		name = "Send my tile markers",
-		description = "Puts the arena's tiles you marked with RuneLite's Ground Markers, and those of the packs Tile Packs draws, with their colours and labels, in Arena now's link, and the site draws them on its map. A label goes into a short link you make of the page.",
+		description = "Puts the arena tiles you marked with Ground Markers or Tile Packs, with their colours and labels, on the site's map.",
 		position = 2
 	)
 	default boolean sendMarkers()
@@ -52,7 +52,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "chatConfirm",
 		name = "Messages in chat",
-		description = "Puts the plugin's messages in your chat box: what each button did, or why it could not, the hint as you first enter and the leaderboard's answers. Off, they show only in the panel.",
+		description = "Puts the plugin's messages in your chat box as well as the panel.",
 		position = 3
 	)
 	default boolean chatConfirm()
@@ -63,7 +63,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "openOnEntering",
 		name = "Open panel on entering",
-		description = "Opens this panel as you enter the Fortis Colosseum, and RuneLite's sidebar with it if it is shut. Off, the panel opens only from its sun in the sidebar.",
+		description = "Opens this panel as you enter the Fortis Colosseum.",
 		position = 4
 	)
 	default boolean openOnEntering()
@@ -76,7 +76,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = ONLY_AT_COLOSSEUM,
 		name = "Sidebar icon only at the Colosseum",
-		description = "Shows the plugin's sun in RuneLite's sidebar only in the Fortis Colosseum and its lobby. Past waves are then at hand only there.",
+		description = "Shows the plugin's sun in RuneLite's sidebar only in the Fortis Colosseum and its lobby.",
 		position = 5
 	)
 	default boolean onlyAtColosseum()
@@ -87,7 +87,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "recordWaveLog",
 		name = "Record wave log",
-		description = "Keeps the last 25 waves for Past waves: tiles, hitpoints, prayers, attacks, projectiles, hits and optional gear. Nothing uploads unless Upload past runs or Share wave logs is on.",
+		description = "Keeps your last 25 waves for Past waves. Nothing uploads unless Upload past runs or Share wave logs is on.",
 		position = 6
 	)
 	default boolean recordWaveLog()
@@ -100,7 +100,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = KEEP_RUNS,
 		name = "Keep runs between sessions",
-		description = "Saves the waves Record wave log keeps on this computer, in RuneLite's folder for this plugin, each account's apart, so that Past waves still lists them after RuneLite closes. Nothing is sent anywhere. Off, they last until RuneLite closes, and those saved are deleted.",
+		description = "Saves your last 25 waves in RuneLite's folder on this computer, so they are still there after RuneLite closes. Off deletes the saved ones.",
 		position = 7
 	)
 	default boolean keepRuns()
@@ -119,10 +119,10 @@ public interface SolSurvivorConfig extends Config
 		return Keybind.NOT_SET;
 	}
 
-	/** The mistake tracker: the wave report once each wave ends, and which mistakes it counts. */
+	/** The mistake tracker: the wave report once each wave ends, and the death report. */
 	@ConfigSection(
 		name = "Mistake tracker",
-		description = "Counts your mistakes quietly from the wave log, and shows the report in the panel once the wave ends. Nothing shows while a wave is under way.",
+		description = "Counts your mistakes from the wave log and shows the report once the wave ends, never during it.",
 		position = 10,
 		closedByDefault = true
 	)
@@ -155,96 +155,10 @@ public interface SolSurvivorConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "countPastPrayer",
-		name = "Hits past my prayer",
-		description = "Counts each attack that met the wrong protection prayer or none, with what it hit for.",
-		position = 3,
-		section = mistakesSection
-	)
-	default boolean countPastPrayer()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "countLateFlicks",
-		name = "Flicks a tick late",
-		description = "Counts each attack whose protection prayer came on a tick late or went off a tick early.",
-		position = 4,
-		section = mistakesSection
-	)
-	default boolean countLateFlicks()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "countSpecials",
-		name = "Javelin specials that hit",
-		description = "Counts each Javelin Colossus special that landed on you.",
-		position = 5,
-		section = mistakesSection
-	)
-	default boolean countSpecials()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "countVolatility",
-		name = "Volatility blasts that hit",
-		description = "Counts each Volatility explosion you stood in.",
-		position = 6,
-		section = mistakesSection
-	)
-	default boolean countVolatility()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "countSolarflareSand",
-		name = "Solarflare and molten sand",
-		description = "Counts each hit of Solarflare's orb, and each hit no attack explains while you stood on molten sand.",
-		position = 7,
-		section = mistakesSection
-	)
-	default boolean countSolarflareSand()
-	{
-		return true;
-	}
-
-	@ConfigItem(
-		keyName = "countIdle",
-		name = "Idle ticks",
-		description = "Counts each stretch in which you had a living NPC as your target and your weapon ready, but neither attacked, ate nor took a step. Waiting with no target, as on a pillar stack, is not counted.",
-		position = 8,
-		section = mistakesSection
-	)
-	default boolean countIdle()
-	{
-		return true;
-	}
-
-	@Range(min = 1, max = 20)
-	@Units(Units.TICKS)
-	@ConfigItem(
-		keyName = "idleFrom",
-		name = "Idle from",
-		description = "How many idle ticks in a row count as a mistake.",
-		position = 9,
-		section = mistakesSection
-	)
-	default int idleFrom()
-	{
-		return 2;
-	}
-
-	@ConfigItem(
 		keyName = "deathRecap",
-		name = "Death recap",
-		description = "After a death, shows in the panel the last ticks before it: your hitpoints, your prayer, and each hit and what dealt it.",
-		position = 10,
+		name = "Death report",
+		description = "After a death, shows your last ticks in the panel: hitpoints, prayer, and each hit with what dealt it.",
+		position = 3,
 		section = mistakesSection
 	)
 	default boolean deathRecap()
@@ -255,7 +169,7 @@ public interface SolSurvivorConfig extends Config
 	/** What the panel lists of the wave under way and the next, and of the modifiers held. */
 	@ConfigSection(
 		name = "Waves and modifiers",
-		description = "What the panel and the wave box list of each wave and of the modifiers you hold: only what is in the arena, no timers.",
+		description = "What the panel and the wave box list of each wave and of the modifiers you hold.",
 		position = 11,
 		closedByDefault = true
 	)
@@ -287,8 +201,8 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "mostFirst",
-		name = "Most first",
-		description = "Lists each wave's NPCs by how many there are, most first, in the panel and the wave box. Those still to come and the dead go to the foot.",
+		name = "Sort by count",
+		description = "Lists each wave's NPCs by how many there are, most first. Those still to come and the dead go last.",
 		position = 7,
 		section = wavesSection
 	)
@@ -383,45 +297,19 @@ public interface SolSurvivorConfig extends Config
 	 * want (Stefan's choice, 2026-10-30); the range's outline and hiding the pillars stay off.
 	 */
 	@ConfigSection(
-		name = "On the game screen",
+		name = "On screen",
 		description = "What the plugin draws on the game's screen, only in the Fortis Colosseum. Switch off any you have from another plugin.",
 		position = 12
 	)
 	String screenSection = "screen";
 
 	/**
-	 * RuneLite cannot hide a setting while another is off (checked in 1.13.4's ConfigItem and ConfigPanel), so each
-	 * feature with settings of its own has a shut section, its switch first and the settings it needs under it
-	 * (Stefan's choice, 2026-10-30). Their switches are on by default as On the game screen's are, but for My attack
-	 * range and Hide the pillars.
+	 * RuneLite cannot hide a setting while another is off (checked in 1.13.4's ConfigItem and ConfigPanel), so a
+	 * feature with several settings of its own has a shut section, its switch first and the settings it needs under it
+	 * (Stefan's choice, 2026-10-30). The modifiers above the chatbox and Doom, with two settings each beside their
+	 * switch, sit in On screen itself since the design updates' item 14 (2026-11-12), which left twelve sections ten. A fresh install has on those the Planner preset draws, and the rest off
+	 * (Stefan's choice, 2026-11-11).
 	 */
-	/**
-	 * The wave box's names in the colour of how each NPC attacks, so that the wave's styles read at a glance (Stefan's
-	 * request, 2026-11-08): light tints by default, so that the names stay easy to read on the box's dark ground.
-	 */
-	@ConfigSection(
-		name = "Wave box name colours",
-		description = "The wave box's NPC names tinted by how each attacks: magic, ranged or melee.",
-		position = 13,
-		closedByDefault = true
-	)
-	String waveBoxColoursSection = "waveBoxColours";
-
-	@ConfigSection(
-		name = "Modifiers above the chatbox",
-		description = "The modifiers you hold in a row of their pictures, above the chatbox.",
-		position = 14,
-		closedByDefault = true
-	)
-	String modifiersBarSection = "modifiersBar";
-
-	@ConfigSection(
-		name = "Doom",
-		description = "Doom's stacks on the game's screen.",
-		position = 15,
-		closedByDefault = true
-	)
-	String doomSection = "doom";
 
 	@ConfigSection(
 		name = "Attack range",
@@ -431,21 +319,7 @@ public interface SolSurvivorConfig extends Config
 	)
 	String rangeSection = "range";
 
-	@ConfigSection(
-		name = "Frem and orb colours",
-		description = "Each Fremennik outlined in its attack style's colour, and the tile under each of Solarflare's orbs.",
-		position = 17,
-		closedByDefault = true
-	)
-	String npcColoursSection = "npcColours";
 
-	@ConfigSection(
-		name = "Pillars",
-		description = "Hiding the arena's four pillars.",
-		position = 18,
-		closedByDefault = true
-	)
-	String pillarsSection = "pillars";
 
 	@ConfigSection(
 		name = "Tick counter and wave timer",
@@ -458,7 +332,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "waveBox",
 		name = "Wave box",
-		description = "A box on the game's screen with the wave's NPCs, the next wave's, or both: the same as the panel's list, no timers. Move it by holding Alt and dragging.",
+		description = "A box with the wave's NPCs, the next wave's, or both. Hold Alt and drag to move it.",
 		position = 1,
 		section = screenSection
 	)
@@ -472,8 +346,8 @@ public interface SolSurvivorConfig extends Config
 		keyName = "modifiersBar",
 		name = "Modifiers above the chatbox",
 		description = "The modifiers you hold in a row of their pictures with their tiers, above the chatbox, as the panel shows them. Move it by holding Alt and dragging.",
-		position = 1,
-		section = modifiersBarSection
+		position = 11,
+		section = screenSection
 	)
 	default boolean modifiersBar()
 	{
@@ -484,10 +358,10 @@ public interface SolSurvivorConfig extends Config
 	@Units(Units.PERCENT)
 	@ConfigItem(
 		keyName = "modifiersBarSize",
-		name = "Size",
+		name = "Modifiers: size",
 		description = "How big the modifiers' pictures are, from 100% to 300%.",
-		position = 2,
-		section = modifiersBarSection
+		position = 12,
+		section = screenSection
 	)
 	default int modifiersBarSize()
 	{
@@ -519,10 +393,10 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "modifiersBarTiers",
-		name = "Tiers",
+		name = "Modifiers: tiers",
 		description = "Each modifier's tier in its slot's corner, or its name and tier written under its slot.",
-		position = 3,
-		section = modifiersBarSection
+		position = 13,
+		section = screenSection
 	)
 	default ModifierTiers modifiersBarTiers()
 	{
@@ -531,14 +405,14 @@ public interface SolSurvivorConfig extends Config
 
 	/**
 	 * Doom's stacks on the game's screen. The key keeps 1.0's name, from when they showed only by the hitpoints orb, so
-	 * that a player who switched them on keeps them on; Doom's place now says where they show.
+	 * that a player who switched them on keeps them on; Doom position now says where they show.
 	 */
 	@ConfigItem(
 		keyName = "doomByOrb",
 		name = "Doom stacks",
 		description = "Doom's stacks against its limit, as \"4/10\", red on the last stack.",
-		position = 1,
-		section = doomSection
+		position = 14,
+		section = screenSection
 	)
 	default boolean doomByOrb()
 	{
@@ -566,10 +440,10 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "doomPlace",
-		name = "Doom's place",
+		name = "Doom position",
 		description = "Beside the hitpoints orb, or in a box you move with Alt and drag.",
-		position = 2,
-		section = doomSection
+		position = 15,
+		section = screenSection
 	)
 	default DoomPlace doomPlace()
 	{
@@ -579,7 +453,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "volatilityReminder",
 		name = "Volatility reminder",
-		description = "While you hold Volatility, Volatility's picture over each NPC that dies, for 5 ticks, as a reminder that it will explode. It does not mark the blast's area.",
+		description = "While you hold Volatility, its picture over each NPC that dies, for 5 ticks. It does not mark the blast's area.",
 		position = 3,
 		section = screenSection
 	)
@@ -591,7 +465,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "offerNames",
 		name = "Names on Minimus's offers",
-		description = "Writes each of Minimus's three offers' names on his screen with the tier taking it brings, such as Frailty III, its tier white for I, blue for II and purple for III.",
+		description = "Writes each offer's name on Minimus's screen with the tier taking it brings, such as Frailty III.",
 		position = 4,
 		section = screenSection
 	)
@@ -603,19 +477,19 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "npcHitpoints",
 		name = "NPC hitpoints",
-		description = "Each NPC's hitpoints in a small box over its head, as \"172/250\" with a bar, red at a quarter or less and \"~\" when only the game's health bar gives them.",
+		description = "Each NPC's hitpoints over its head, as \"172/250\" with a bar, red at a quarter or less.",
 		position = 5,
 		section = screenSection
 	)
 	default boolean npcHitpoints()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
 		keyName = "hitForecast",
 		name = "Your hit on its way",
-		description = "With NPC hitpoints on, the hitpoints your attack will leave once it lands, read from your XP drop, as \"172 \u203a 131/250\" with the hit's share of the bar in orange, red when it kills. An estimate, which can be a point out.",
+		description = "With NPC hitpoints on, shows what your attack will leave before it lands, as \"172 \u203a 131/250\". An estimate, which can be a point out.",
 		position = 6,
 		section = screenSection
 	)
@@ -632,7 +506,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "quietOnSol",
 		name = "Quiet on Sol Heredit's wave",
-		description = "Hides the wave box, the tick counter and the wave timer on Sol Heredit's wave, which they have nothing for. Switch off to keep them.",
+		description = "Hides the wave box, the tick counter and the wave timer on Sol Heredit's wave.",
 		position = 7,
 		section = screenSection
 	)
@@ -668,7 +542,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "npcArrows",
 		name = "Arrows to NPCs out of view",
-		description = "An arrow on the game view's edge towards each living NPC outside it, in its attack style's colour, as the minimap places them. Nothing about line of sight or range.",
+		description = "An arrow on the game view's edge towards each living NPC outside it, as the minimap places them.",
 		position = 8,
 		section = screenSection
 	)
@@ -691,14 +565,14 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "highlightInRange",
-		name = "Highlight NPCs in range",
+		name = "NPCs in range",
 		description = "Marks the NPCs you can hit from where you stand.",
 		position = 2,
 		section = rangeSection
 	)
 	default boolean highlightInRange()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
@@ -744,10 +618,10 @@ public interface SolSurvivorConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "rangeColour",
-		name = "Range colour",
+		name = "In range",
 		description = "The colour of the range's outline and of the NPCs in it.",
-		position = 4,
-		section = rangeSection
+		position = 1,
+		section = coloursSection
 	)
 	default Color rangeColour()
 	{
@@ -758,21 +632,21 @@ public interface SolSurvivorConfig extends Config
 		keyName = "npcColours",
 		name = "Frem and orb colours",
 		description = "Outlines each Fremennik in its attack style's colour, and the tile under each of Solarflare's orbs.",
-		position = 1,
-		section = npcColoursSection
+		position = 9,
+		section = screenSection
 	)
 	default boolean npcColours()
 	{
-		return true;
+		return false;
 	}
 
 	@Alpha
 	@ConfigItem(
 		keyName = "fremArcherColour",
-		name = "Archer (ranged)",
+		name = "Frem archer (ranged)",
 		description = "The Fremennik archer's outline; set its opacity to 0 for none.",
 		position = 2,
-		section = npcColoursSection
+		section = coloursSection
 	)
 	default Color fremArcherColour()
 	{
@@ -782,10 +656,10 @@ public interface SolSurvivorConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "fremSeerColour",
-		name = "Seer (magic)",
+		name = "Frem seer (magic)",
 		description = "The Fremennik seer's outline; set its opacity to 0 for none.",
 		position = 3,
-		section = npcColoursSection
+		section = coloursSection
 	)
 	default Color fremSeerColour()
 	{
@@ -795,10 +669,10 @@ public interface SolSurvivorConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "fremBerserkerColour",
-		name = "Berserker (melee)",
+		name = "Frem berserker (melee)",
 		description = "The Fremennik berserker's outline; set its opacity to 0 for none.",
 		position = 4,
-		section = npcColoursSection
+		section = coloursSection
 	)
 	default Color fremBerserkerColour()
 	{
@@ -811,7 +685,7 @@ public interface SolSurvivorConfig extends Config
 		name = "Solarflare's orbs",
 		description = "The outline of the tile under each of Solarflare's orbs; set its opacity to 0 for none.",
 		position = 5,
-		section = npcColoursSection
+		section = coloursSection
 	)
 	default Color orbColour()
 	{
@@ -821,9 +695,9 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "waveBoxStyleColours",
 		name = "Names by attack style",
-		description = "Tints each NPC's name in the wave box by how it attacks: the Serpent shaman and the Shockwave Colossus magic, the Javelin Colossus ranged, the Jaguar warrior and the Minotaur melee, and each Fremennik by its own. The Manticore, which uses all three, stays white.",
-		position = 1,
-		section = waveBoxColoursSection
+		description = "Tints each NPC's name in the wave box by how it attacks: magic, ranged or melee. The Manticore, which uses all three, stays white.",
+		position = 8,
+		section = wavesSection
 	)
 	default boolean waveBoxStyleColours()
 	{
@@ -832,10 +706,10 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "waveBoxMagicColour",
-		name = "Magic",
+		name = "Wave box: magic",
 		description = "The name of an NPC that attacks with magic: the Serpent shaman, the Shockwave Colossus and the seer.",
-		position = 2,
-		section = waveBoxColoursSection
+		position = 6,
+		section = coloursSection
 	)
 	default Color waveBoxMagicColour()
 	{
@@ -844,10 +718,10 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "waveBoxRangedColour",
-		name = "Ranged",
+		name = "Wave box: ranged",
 		description = "The name of an NPC that attacks with ranged: the Javelin Colossus and the archer.",
-		position = 3,
-		section = waveBoxColoursSection
+		position = 7,
+		section = coloursSection
 	)
 	default Color waveBoxRangedColour()
 	{
@@ -856,10 +730,10 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "waveBoxMeleeColour",
-		name = "Melee",
+		name = "Wave box: melee",
 		description = "The name of an NPC that attacks with melee: the Jaguar warrior, the Minotaur and the berserker.",
-		position = 4,
-		section = waveBoxColoursSection
+		position = 8,
+		section = coloursSection
 	)
 	default Color waveBoxMeleeColour()
 	{
@@ -872,8 +746,8 @@ public interface SolSurvivorConfig extends Config
 		keyName = HIDE_PILLARS,
 		name = "Hide the pillars",
 		description = "Hides the four pillars and marks their squares on the floor; they still block paths and sight.",
-		position = 1,
-		section = pillarsSection
+		position = 10,
+		section = screenSection
 	)
 	default boolean hidePillars()
 	{
@@ -883,10 +757,10 @@ public interface SolSurvivorConfig extends Config
 	@Alpha
 	@ConfigItem(
 		keyName = "hiddenPillarsColour",
-		name = "Hidden pillars' colour",
+		name = "Hidden pillars",
 		description = "The colour of each hidden pillar's square; set its opacity to 0 for none.",
-		position = 2,
-		section = pillarsSection
+		position = 9,
+		section = coloursSection
 	)
 	default Color hiddenPillarsColour()
 	{
@@ -902,7 +776,7 @@ public interface SolSurvivorConfig extends Config
 	)
 	default boolean tickCounter()
 	{
-		return true;
+		return false;
 	}
 
 	enum TickCounterCounts
@@ -925,7 +799,7 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "tickCounterCounts",
-		name = "Tick counter counts",
+		name = "Count",
 		description = "Up from 0 restarts on your modifier pick and your hotkey; Loop 1 to N only on your hotkey.",
 		position = 2,
 		section = clocksSection
@@ -974,74 +848,14 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigItem(
 		keyName = "combineWaveTimers",
-		name = "Combine them",
-		description = "Puts the tick counter and the wave timer in one box.",
+		name = "One box for both",
+		description = "Puts the tick counter and the wave timer in one box: the tick large, the time small beneath it.",
 		position = 7,
 		section = clocksSection
 	)
 	default boolean combineWaveTimers()
 	{
 		return true;
-	}
-
-	enum CombinedTimerLayout
-	{
-		STACKED("Stacked"), ROWS("Rows");
-
-		private final String label;
-
-		CombinedTimerLayout(String label)
-		{
-			this.label = label;
-		}
-
-		@Override
-		public String toString()
-		{
-			return label;
-		}
-	}
-
-	@ConfigItem(
-		keyName = "combinedTimerLayout",
-		name = "Combined layout",
-		description = "Stacked puts a large number over a small one; Rows puts Ticks and Time on two lines.",
-		position = 8,
-		section = clocksSection
-	)
-	default CombinedTimerLayout combinedTimerLayout()
-	{
-		return CombinedTimerLayout.STACKED;
-	}
-
-	enum LargeTimerNumber
-	{
-		TICK("Tick"), TIME("Time");
-
-		private final String label;
-
-		LargeTimerNumber(String label)
-		{
-			this.label = label;
-		}
-
-		@Override
-		public String toString()
-		{
-			return label;
-		}
-	}
-
-	@ConfigItem(
-		keyName = "largeTimerNumber",
-		name = "Large number",
-		description = "Which number is large in the stacked box.",
-		position = 9,
-		section = clocksSection
-	)
-	default LargeTimerNumber largeTimerNumber()
-	{
-		return LargeTimerNumber.TICK;
 	}
 
 	enum LoopColours
@@ -1065,142 +879,13 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "loopColours",
 		name = "Loop colours",
-		description = "With Loop 1 to N, colours each position from Tick loop colours, on the number or the box.",
+		description = "With Loop 1 to N, colours each position, on the number or the box. Five colours, repeating on a longer loop.",
 		position = 4,
 		section = clocksSection
 	)
 	default LoopColours loopColours()
 	{
 		return LoopColours.OFF;
-	}
-
-	/** The colours of the tick counter's loop, one for each position, used only with Loop colours on. */
-	@ConfigSection(
-		name = "Tick loop colours",
-		description = "One colour for each position of the tick counter's loop, used with Loop colours on. Positions past the loop's length are not used.",
-		position = 20,
-		closedByDefault = true
-	)
-	String loopColoursSection = "loopColours";
-
-	@ConfigItem(
-		keyName = "tickLoopColour1",
-		name = "Position 1",
-		description = "The colour of the loop's position 1, with Loop colours on.",
-		position = 1,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour1()
-	{
-		return new Color(0x5ce1e6);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour2",
-		name = "Position 2",
-		description = "The colour of the loop's position 2, with Loop colours on.",
-		position = 2,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour2()
-	{
-		return new Color(0x7bd96b);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour3",
-		name = "Position 3",
-		description = "The colour of the loop's position 3, with Loop colours on.",
-		position = 3,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour3()
-	{
-		return new Color(0xf2d45c);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour4",
-		name = "Position 4",
-		description = "The colour of the loop's position 4, with Loop colours on.",
-		position = 4,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour4()
-	{
-		return new Color(0xff9a3d);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour5",
-		name = "Position 5",
-		description = "The colour of the loop's position 5, with Loop colours on.",
-		position = 5,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour5()
-	{
-		return new Color(0xe57ad9);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour6",
-		name = "Position 6",
-		description = "The colour of the loop's position 6, with Loop colours on.",
-		position = 6,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour6()
-	{
-		return new Color(0x6a9cff);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour7",
-		name = "Position 7",
-		description = "The colour of the loop's position 7, with Loop colours on.",
-		position = 7,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour7()
-	{
-		return new Color(0xff6b6b);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour8",
-		name = "Position 8",
-		description = "The colour of the loop's position 8, with Loop colours on.",
-		position = 8,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour8()
-	{
-		return new Color(0xc8f26b);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour9",
-		name = "Position 9",
-		description = "The colour of the loop's position 9, with Loop colours on.",
-		position = 9,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour9()
-	{
-		return new Color(0xff9ecb);
-	}
-
-	@ConfigItem(
-		keyName = "tickLoopColour10",
-		name = "Position 10",
-		description = "The colour of the loop's position 10, with Loop colours on.",
-		position = 10,
-		section = loopColoursSection
-	)
-	default Color tickLoopColour10()
-	{
-		return new Color(0xb39dff);
 	}
 
 	/** Minimus's loot: what it adds up to, and banking it in one click. */
@@ -1214,13 +899,13 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "lootTotals",
 		name = "Loot totals",
-		description = "On Minimus's screen between waves, the value of all the loot so far under the last wave's, and what it comes to with the next wave's.",
+		description = "On Minimus's screen between waves, the value of all your loot so far, and what it comes to with the next wave's.",
 		position = 1,
 		section = lootSection
 	)
 	default boolean lootTotals()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
@@ -1232,13 +917,13 @@ public interface SolSurvivorConfig extends Config
 	)
 	default boolean leftClickBankAll()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
 		keyName = "trackProfit",
 		name = "Track profit",
-		description = "Adds up each run's profit on the panel's Past tab: the reward chest you claim, less the food, potions, ammunition and runes the run used, the rune pouch and weapon charges too, at Grand Exchange prices. A death loses the chest and costs the grave's fee, estimated.",
+		description = "Adds up each run's profit on the Past tab: the chest you claim, less the supplies used and any death's fee, at Grand Exchange prices.",
 		position = 3,
 		section = lootSection
 	)
@@ -1265,8 +950,8 @@ public interface SolSurvivorConfig extends Config
 	 * after the general settings, where the panel's What you share sends the player (the UX review of 2026-10-27, F7).
 	 */
 	@ConfigSection(
-		name = "Sending to the site",
-		description = "Off until you switch them on. With Upload past runs and Share wave logs off, the plugin sends nothing to the Sol Survivor site.",
+		name = "What you share",
+		description = "All off until you switch them on. With them off, the plugin sends nothing.",
 		position = 9
 	)
 	String sendingSection = "sending";
@@ -1274,7 +959,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "uploadPastRuns",
 		name = "Upload past runs",
-		description = "Lets a past run's Watch button upload the run to the Sol Survivor site, which opens it in your browser to play back: tiles, hitpoints, prayers, hits and your gear with Include gear and stats on, with no account name. Anyone with its link can view it for seven days.",
+		description = "Lets Watch upload a run to the Sol Survivor site to play back: tiles, hitpoints, prayers and hits, with no account name. Anyone with its link can view it for seven days.",
 		warning = SHARE_WARNING,
 		position = 1,
 		section = sendingSection
@@ -1287,7 +972,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = "shareWaveLogs",
 		name = "Share wave logs",
-		description = "Sends each wave's log to the Sol Survivor site as the wave ends, so that the planner can be checked against real games, and its Learned ranking trained on how waves start. No account name or combat levels; your gear only with Include gear and stats on. Shown on the site only on its leaderboard, with Leaderboard on, and deleted after 90 days but for the leaderboard's records.",
+		description = "Sends each wave's log to the Sol Survivor site as the wave ends, to check and train the planner. No account name or combat levels. Deleted after 90 days, but for leaderboard records.",
 		warning = SHARE_WARNING,
 		position = 2,
 		section = sendingSection
@@ -1309,7 +994,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = LEADERBOARD,
 		name = "Leaderboard",
-		description = "Puts each wave you finish on the Sol Survivor site's leaderboard, timed by the game's own wave clock, where anyone can see it and watch the run: under your RuneScape name, or the Leaderboard name below.",
+		description = "Puts each wave you finish on the site's public leaderboard under your RuneScape name, or the Leaderboard name below. Anyone can watch those runs.",
 		warning = LEADERBOARD_WARNING,
 		position = 3,
 		section = sendingSection
@@ -1325,7 +1010,7 @@ public interface SolSurvivorConfig extends Config
 	@ConfigItem(
 		keyName = LEADERBOARD_NAME,
 		name = "Leaderboard name",
-		description = "The name your waves go up under with Leaderboard on. Blank, your RuneScape name. Up to 12 letters, digits, spaces, hyphens or underscores.",
+		description = "The name your waves go up under. Blank, your RuneScape name. Up to 12 letters, digits, spaces, hyphens or underscores.",
 		position = 4,
 		section = sendingSection
 	)
@@ -1353,64 +1038,96 @@ public interface SolSurvivorConfig extends Config
 
 	@ConfigSection(
 		name = "Safe / Fast / Easy",
-		description = "Where the site's Safe / Fast / Easy triangle starts when you open a wave from the plugin.",
+		description = "Which plan the site suggests when you open a wave from the plugin: the safest, the fastest or the easiest.",
 		position = 22,
 		closedByDefault = true
 	)
 	String triangleSection = "triangle";
 
+	/**
+	 * Which plan the site suggests for a wave opened from the plugin: the site's own choice, which sends nothing, or one of
+	 * the dots of its Safe / Fast / Easy triangle.
+	 */
+	enum SuggestedPlan
+	{
+		SITES_OWN("Site's own", null), BALANCED("Balanced", TriangleDot.BALANCED), SAFE("Safe", TriangleDot.SAFE),
+		FAST("Fast", TriangleDot.FAST), EASY("Easy", TriangleDot.EASY);
+
+		private final String label;
+		private final TriangleDot dot;
+
+		SuggestedPlan(String label, TriangleDot dot)
+		{
+			this.label = label;
+			this.dot = dot;
+		}
+
+		/** The dot the links carry; null for the site's own, which carries none. */
+		TriangleDot dot()
+		{
+			return dot;
+		}
+
+		/**
+		 * The dot the links carry for this choice beside what earlier releases held as a switch and three shares, each as
+		 * the settings store it and null when the player never set it. A plan chosen here goes first. With the site's own,
+		 * which every install holds until the player chooses, an earlier install that had the switch on keeps its three
+		 * shares exactly as it set them (Stefan's rule, 2026-11-12: an existing player's settings are left alone); the switch
+		 * off, or every share 0, sent nothing then and sends nothing now.
+		 */
+		TriangleDot dotWith(String on, String safe, String fast, String easy)
+		{
+			if (dot != null || !Boolean.parseBoolean(on))
+			{
+				return dot;
+			}
+			int s = share(safe);
+			int f = share(fast);
+			int e = share(easy);
+			return s + f + e == 0 ? null : new TriangleDot(s, f, e);
+		}
+
+		/** A share as stored, 33 when never set, as its default was; 0 for one that does not read as a number. */
+		private static int share(String stored)
+		{
+			if (stored == null)
+			{
+				return 33;
+			}
+			try
+			{
+				return Math.max(0, Integer.parseInt(stored.trim()));
+			}
+			catch (NumberFormatException ex)
+			{
+				return 0;
+			}
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
+	String SUGGESTED_PLAN = "suggestedPlan";
+	/** The switch and the three shares of earlier releases, which no setting shows any more: read, never written. */
+	String EARLIER_TRIANGLE = "setTriangle";
+	String EARLIER_SAFE = "triangleSafe";
+	String EARLIER_FAST = "triangleFast";
+	String EARLIER_EASY = "triangleEasy";
+
 	@ConfigItem(
-		keyName = "setTriangle",
-		name = "Set the triangle",
-		description = "Opens every wave from the plugin with the triangle's dot where Safe, Fast and Easy below put it, and the plan it suggests. Off, the site keeps the dot where you last left it.",
+		keyName = SUGGESTED_PLAN,
+		name = "Suggested plan",
+		description = "Opens every wave from the plugin with the safest, the fastest or the easiest plan suggested, or one that weighs all three alike. Site's own leaves the choice to the site. Shares you set in an earlier version stay in use until you choose here.",
 		position = 1,
 		section = triangleSection
 	)
-	default boolean setTriangle()
+	default SuggestedPlan suggestedPlan()
 	{
-		return false;
-	}
-
-	@Range(max = TriangleDot.MAX_SHARE)
-	@Units(Units.PERCENT)
-	@ConfigItem(
-		keyName = "triangleSafe",
-		name = "Safe",
-		description = "How much the plan suggested minds the hits you take. Copy the three from the site, as it reads them out under the triangle; they need not add up to 100, as each counts as its share of their total.",
-		position = 2,
-		section = triangleSection
-	)
-	default int triangleSafe()
-	{
-		return 33;
-	}
-
-	@Range(max = TriangleDot.MAX_SHARE)
-	@Units(Units.PERCENT)
-	@ConfigItem(
-		keyName = "triangleFast",
-		name = "Fast",
-		description = "How much the plan suggested minds the ticks the wave takes.",
-		position = 3,
-		section = triangleSection
-	)
-	default int triangleFast()
-	{
-		return 33;
-	}
-
-	@Range(max = TriangleDot.MAX_SHARE)
-	@Units(Units.PERCENT)
-	@ConfigItem(
-		keyName = "triangleEasy",
-		name = "Easy",
-		description = "How much the plan suggested minds the inputs: prayer switches, clicks and tiles walked.",
-		position = 4,
-		section = triangleSection
-	)
-	default int triangleEasy()
-	{
-		return 33;
+		return SuggestedPlan.SITES_OWN;
 	}
 
 	@ConfigSection(
@@ -1421,10 +1138,23 @@ public interface SolSurvivorConfig extends Config
 	)
 	String prayerSection = "prayer";
 
+	/**
+	 * Every colour setting in one shut section at the foot (the plugin's UI review of 2026-11-11): they stood in four
+	 * sections, two of them nothing but colours, and are the settings fewest players change. Each is named for what it
+	 * colours. Their keys are as they were, so a colour a player chose stays.
+	 */
+	@ConfigSection(
+		name = "Colours",
+		description = "Every colour the plugin draws in, each named for what it colours.",
+		position = 24,
+		closedByDefault = true
+	)
+	String coloursSection = "colours";
+
 	@ConfigItem(
 		keyName = "countFlicks",
 		name = "Count my flicks",
-		description = "Counts each wave's protection prayers against the attacks, on time or late, and puts the newest 60 waves' totals in the links, so that the site's Prayer reliability opens on Mine: as reliable as your flicks show, kept on the safe side.",
+		description = "Counts your protection prayers on time or late over your newest 60 waves, and puts the totals in the links for the site's Prayer reliability.",
 		position = 1,
 		section = prayerSection
 	)
@@ -1536,5 +1266,44 @@ public interface SolSurvivorConfig extends Config
 	default int whatsNewSeen()
 	{
 		return 0;
+	}
+
+	/**
+	 * Whether the Screen tab's More to switch on card is done with: on its Hide, and at once for a player who had the
+	 * plugin before a fresh install came to draw the Planner preset alone (2026-11-11), who keeps what it drew. Not shown.
+	 */
+	String MORE_HIDDEN = "moreToSwitchOnHidden";
+
+	@ConfigItem(
+		keyName = MORE_HIDDEN,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean moreToSwitchOnHidden()
+	{
+		return false;
+	}
+
+	/**
+	 * Whether this install has been through the change of 2026-11-11, when NPC hitpoints, NPCs in range, Frem and orb
+	 * colours, the tick counter, Loot totals and Left-click Bank-all came to start off (QUIET_FROM_INSTALL): a player who
+	 * had the plugin before it has each of them still unset written as on, once, so that an update takes nothing off their
+	 * screen. Not shown.
+	 */
+	String DEFAULTS_SETTLED = "quietDefaultsSettled";
+
+	/** The settings that started on until 2026-11-11 and start off since: see DEFAULTS_SETTLED. */
+	String[] QUIET_FROM_INSTALL = {"npcHitpoints", "highlightInRange", "npcColours", "tickCounter", "lootTotals", "leftClickBankAll"};
+
+	@ConfigItem(
+		keyName = DEFAULTS_SETTLED,
+		name = "",
+		description = "",
+		hidden = true
+	)
+	default boolean quietDefaultsSettled()
+	{
+		return false;
 	}
 }

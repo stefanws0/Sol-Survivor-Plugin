@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -45,7 +46,7 @@ public final class WaveReview
 		NONE
 	}
 
-	/** What the report counts as a mistake, each with a switch of its own in the settings. */
+	/** What the report counts as a mistake. */
 	public enum Kind
 	{
 		/** An attack that met the wrong prayer or none, with what it hit for. */
@@ -266,6 +267,9 @@ public final class WaveReview
 	/** The most lines the death recap shows: the ticks up to the one the player died on. */
 	public static final int RECAP_TICKS = 8;
 
+	/** How many idle ticks in a row count as a mistake: a single idle tick is too easily a misclick to count. */
+	public static final int IDLE_FROM = 2;
+
 	static
 	{
 		PRAYER_NAMES.put("magic", "Protect from Magic");
@@ -462,15 +466,21 @@ public final class WaveReview
 		return n;
 	}
 
-	/** Every mistake of the wave, by tick: each kind, whatever the settings count. */
+	/** Every mistake of the wave, by tick: each kind, and every idle stretch however short. */
 	public List<Mistake> getMistakes()
 	{
 		return mistakes;
 	}
 
+	/** The mistakes the report counts: every kind, and of the idle stretches only those IDLE_FROM ticks or longer. */
+	public List<Mistake> counted()
+	{
+		return counted(EnumSet.allOf(Kind.class), IDLE_FROM);
+	}
+
 	/**
-	 * The mistakes the settings count: those of the kinds in `kinds`, and of the idle stretches only those `idleFrom` ticks
-	 * or longer.
+	 * The mistakes counted for a player who set it otherwise in an earlier release (EarlierSettings): those of the kinds
+	 * in `kinds`, and of the idle stretches only those `idleFrom` ticks or longer.
 	 */
 	public List<Mistake> counted(Set<Kind> kinds, int idleFrom)
 	{
@@ -510,6 +520,12 @@ public final class WaveReview
 	 * run's mistakes are hits past your prayer: 7 of 12." Null for fewer than 3 mistakes, too few to say, or when no kind
 	 * has more than any other.
 	 */
+	public static String mostly(List<WaveReview> run)
+	{
+		return mostly(run, EnumSet.allOf(Kind.class), IDLE_FROM);
+	}
+
+	/** As mostly(run), of the mistakes counted(kinds, idleFrom) counts. */
 	public static String mostly(List<WaveReview> run, Set<Kind> kinds, int idleFrom)
 	{
 		Map<Kind, Integer> by = new EnumMap<>(Kind.class);
@@ -912,8 +928,8 @@ public final class WaveReview
 	 * firing on, starts no animation (Stefan's wave 7 of 26 October, from tick 151), but its darts land. A weapon whose
 	 * speed is not known takes the commonest gap of 2 ticks or more between two of the player's attacks in the wave, or
 	 * 4 ticks without one: an animation the player shows as they are hit, which the log cannot tell from an attack, makes
-	 * a shorter gap now and then. Each stretch is one mistake, whatever its length; the settings say from how many ticks
-	 * it counts.
+	 * a shorter gap now and then. Each stretch is one mistake, whatever its length; the report counts it from IDLE_FROM
+	 * ticks.
 	 */
 	private static List<Mistake> idle(List<WaveLog.Tick> ticks, Map<Integer, Seen> latest, Integer died, IntUnaryOperator speedOf)
 	{

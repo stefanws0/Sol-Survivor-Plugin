@@ -55,6 +55,17 @@ public class BoardEntryTest
 	}
 
 	@Test
+	public void anAccountsOwnKeyComesBeforeTheProfilesOldOne()
+	{
+		String other = KEY.replace(KEY.charAt(0), KEY.charAt(0) == 'a' ? 'b' : 'a');
+		assertEquals(KEY, BoardEntry.keptKey(KEY, other));
+		assertEquals(other, BoardEntry.keptKey(null, other));
+		assertEquals(other, BoardEntry.keptKey("", other));
+		assertNull(BoardEntry.keptKey(null, ""));
+		assertNull(BoardEntry.keptKey("not a key", null));
+	}
+
+	@Test
 	public void theBodiesAreTheJsonTheSiteReads()
 	{
 		assertEquals("{\"run\":\"" + RUN + "\",\"wave\":7,\"name\":\"Tile Hugger\",\"key\":\"" + KEY + "\"}",

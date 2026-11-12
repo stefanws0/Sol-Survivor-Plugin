@@ -16,7 +16,7 @@ import net.runelite.client.ui.overlay.components.TextComponent;
 import nl.dexanddice.solsurvivor.core.NpcHitpoints;
 
 /**
- * "NPC hitpoints", a setting that is on by default: a stone tag over each of the wave's NPCs' heads, its hitpoints in
+ * "NPC hitpoints", a setting that starts off since 2026-11-11: a stone tag over each of the wave's NPCs' heads, its hitpoints in
  * the game's yellow against its full hitpoints in grey, as "172/250", over a thin bar of the share left (design B,
  * "Stone tag", of the NPC hitpoints designs of 2026-10-30, the user's choice). The number goes red at a quarter or
  * fewer and green at full health (the user's choice, 2026-10-30), a heal shows in pink for a few ticks, and "~" leads the number while only the game's health bar gives it

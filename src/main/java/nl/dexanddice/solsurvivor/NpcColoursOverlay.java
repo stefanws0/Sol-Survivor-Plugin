@@ -16,7 +16,7 @@ import nl.dexanddice.solsurvivor.core.NpcKind;
 import nl.dexanddice.solsurvivor.core.WaveReview;
 
 /**
- * "Frem and orb colours", a setting that is on by default: each Fremennik of the warband outlined in the colour of its
+ * "Frem and orb colours", a setting that starts off since 2026-11-11: each Fremennik of the warband outlined in the colour of its
  * attack style, the archer's, the seer's and the berserker's, and the tile under each of Solarflare's orbs outlined in
  * its own colour. Players set this up by hand today, pasting NPC ids and colours into Better NPC Highlight (a community
  * Colosseum FAQ hands out the codes, checked 2026-11-02; Stefan's choice of the same day to build it in). It colours

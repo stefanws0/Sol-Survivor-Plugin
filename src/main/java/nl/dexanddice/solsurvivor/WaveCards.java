@@ -20,6 +20,7 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,13 +76,11 @@ final class WaveCards
 	/** Orange, as the words of the plain button it sits on: the report card's Watch between waves. */
 	private static final ImageIcon WATCH_PLAIN_ICON = Stone.replay(12, Stone.ORANGE);
 	private static final ImageIcon WATCH_OFF_ICON = Stone.replay(12, Stone.MUTED);
-	/** What every Watch needs, under the buttons while it is off. */
-	private static final String UPLOAD_OFF = "Watch needs Upload past runs, in the settings.";
 	/** The log book in the report's slot, as the site marks a wave's log with it (design round two's item 7). */
 	private static final Icon REPORT_ICON = Icons.of("log-book", 24);
 	private static final Icon SKULL = Icons.of("skull", 20);
 
-	/** The wave report as the panel shows it, with the settings applied: the mistakes the player counts, and their run's. */
+	/** The wave report as the panel shows it: the mistakes it counts, and the run's. */
 	static final class Report
 	{
 		final int id;
@@ -95,8 +94,6 @@ final class WaveCards
 		final int damage;
 		final int idleTicks;
 		final List<Row> mistakes;
-		/** The kinds the settings leave out, in a sentence; null when every kind counts. */
-		final String notCounted;
 		/** The run's waves so far and each one's mistakes, oldest first, for the chart. */
 		final int[] runWaves;
 		final int[] runMistakes;
@@ -104,16 +101,20 @@ final class WaveCards
 		final String common;
 		/** The wave's last tick, the length of the report's strip of the wave. */
 		final int lastTick;
+		/** The game ticks that came late in the wave, in a line (LateTicks.text); null for none. Set by the plugin, which timed them. */
+		String late;
+		/** The kinds a player's earlier settings leave out, in a sentence (EarlierSettings); null when every kind counts. */
+		String notCounted;
 
 		Report(int id, int wave, String time, int onTime, int tickOff, int wrong, int none, int damage, int idleTicks, List<Row> mistakes,
-			String notCounted, int[] runWaves, int[] runMistakes, String common)
+			int[] runWaves, int[] runMistakes, String common)
 		{
-			this(id, wave, time, onTime, tickOff, wrong, none, damage, idleTicks, mistakes, notCounted, runWaves, runMistakes, common,
+			this(id, wave, time, onTime, tickOff, wrong, none, damage, idleTicks, mistakes, runWaves, runMistakes, common,
 				mistakes.stream().mapToInt(m -> m.tick).max().orElse(0));
 		}
 
 		Report(int id, int wave, String time, int onTime, int tickOff, int wrong, int none, int damage, int idleTicks, List<Row> mistakes,
-			String notCounted, int[] runWaves, int[] runMistakes, String common, int lastTick)
+			int[] runWaves, int[] runMistakes, String common, int lastTick)
 		{
 			this.lastTick = lastTick;
 			this.id = id;
@@ -126,16 +127,25 @@ final class WaveCards
 			this.damage = damage;
 			this.idleTicks = idleTicks;
 			this.mistakes = mistakes;
-			this.notCounted = notCounted;
 			this.runWaves = runWaves;
 			this.runMistakes = runMistakes;
 			this.common = common;
 		}
 
 		/**
-		 * The report of the logged wave `id`, wave `wave`, `time` long, from its review, as the settings ask: the mistakes
-		 * of the kinds counted, idle stretches from `idleFrom` ticks, and the kinds left out; and its run's waves up to and
-		 * with this one that have a review, `runWaves` and `runReviews` in the same order, for the chart.
+		 * The report of the logged wave `id`, wave `wave`, `time` long, from its review: the mistakes it counts, idle
+		 * stretches from WaveReview.IDLE_FROM ticks; and its run's waves up to and with this one that have a review,
+		 * `runWaves` and `runReviews` in the same order, for the chart.
+		 */
+		static Report of(int id, int wave, String time, WaveReview r, List<Integer> runWaves, List<WaveReview> runReviews)
+		{
+			return of(id, wave, time, r, EnumSet.allOf(WaveReview.Kind.class), WaveReview.IDLE_FROM, runWaves, runReviews);
+		}
+
+		/**
+		 * That report for a player who set, in an earlier release, which kinds count and from how many ticks an idle
+		 * stretch does (EarlierSettings): the mistakes of the kinds in `kinds`, idle stretches from `idleFrom` ticks, and
+		 * the kinds left out in a sentence.
 		 */
 		static Report of(int id, int wave, String time, WaveReview r, Set<WaveReview.Kind> kinds, int idleFrom, List<Integer> runWaves,
 			List<WaveReview> runReviews)
@@ -155,6 +165,16 @@ final class WaveCards
 				rows.add(new Row(m.getTick(), m.getText(), badge, m.getIcon(), m.getDamage() != null && m.getDamage() > 0, m.getSummary(), m.getGroup(),
 					m.getStyle()));
 			}
+			int[] waves = new int[runWaves.size()];
+			int[] counts = new int[runWaves.size()];
+			for (int i = 0; i < waves.length; i++)
+			{
+				waves[i] = runWaves.get(i);
+				counts[i] = runReviews.get(i).counted(kinds, idleFrom).size();
+			}
+			Report report = new Report(id, wave, time, r.count(WaveReview.Prayed.ON_TIME), r.count(WaveReview.Prayed.LATE) + r.count(WaveReview.Prayed.EARLY),
+				r.count(WaveReview.Prayed.WRONG), r.count(WaveReview.Prayed.NONE), r.getDamage(), idle, rows, waves, counts,
+				WaveReview.mostly(runReviews, kinds, idleFrom), r.getLast());
 			List<String> off = new ArrayList<>();
 			for (WaveReview.Kind kind : WaveReview.Kind.values())
 			{
@@ -163,17 +183,8 @@ final class WaveCards
 					off.add(WaveReview.kindName(kind));
 				}
 			}
-			String notCounted = off.isEmpty() ? null : "Not counted, as your settings ask: " + String.join(", ", off) + ".";
-			int[] waves = new int[runWaves.size()];
-			int[] counts = new int[runWaves.size()];
-			for (int i = 0; i < waves.length; i++)
-			{
-				waves[i] = runWaves.get(i);
-				counts[i] = runReviews.get(i).counted(kinds, idleFrom).size();
-			}
-			return new Report(id, wave, time, r.count(WaveReview.Prayed.ON_TIME), r.count(WaveReview.Prayed.LATE) + r.count(WaveReview.Prayed.EARLY),
-				r.count(WaveReview.Prayed.WRONG), r.count(WaveReview.Prayed.NONE), r.getDamage(), idle, rows, notCounted, waves, counts,
-				WaveReview.mostly(runReviews, kinds, idleFrom), r.getLast());
+			report.notCounted = off.isEmpty() ? null : "Not counted, as you set in an earlier version: " + String.join(", ", off) + ".";
+			return report;
 		}
 
 		int attacks()
@@ -183,8 +194,8 @@ final class WaveCards
 
 		private String key()
 		{
-			return id + "|" + wave + "|" + time + "|" + onTime + "," + tickOff + "," + wrong + "," + none + "|" + damage + "," + idleTicks + "|" + mistakes + "|" + notCounted + "|"
-				+ Arrays.toString(runWaves) + Arrays.toString(runMistakes) + "|" + common + "|" + lastTick;
+			return id + "|" + wave + "|" + time + "|" + onTime + "," + tickOff + "," + wrong + "," + none + "|" + damage + "," + idleTicks + "|" + mistakes + "|"
+				+ Arrays.toString(runWaves) + Arrays.toString(runMistakes) + "|" + common + "|" + lastTick + "|" + late + "|" + notCounted;
 		}
 
 		@Override
@@ -272,7 +283,7 @@ final class WaveCards
 
 		String figures()
 		{
-			return "×" + count + " · " + (hasDamage ? damage + " damage" : idle + " idle ticks") + " · t" + first
+			return (count > 1 ? "×" + count + " · " : "") + (hasDamage ? damage + " damage" : idle + " idle ticks") + " · t" + first
 				+ (last == first ? "" : "–t" + last);
 		}
 	}
@@ -316,9 +327,17 @@ final class WaveCards
 		final String cause;
 		final List<WaveReview.RecapLine> lines;
 		final int maxHitpoints;
+		/** The game ticks that came late in the recap's last ticks, in a line (LateTicks.text); null for none. */
+		final String late;
 
 		Recap(int id, int wave, int tick, String time, String cause, List<WaveReview.RecapLine> lines, int maxHitpoints)
 		{
+			this(id, wave, tick, time, cause, lines, maxHitpoints, null);
+		}
+
+		Recap(int id, int wave, int tick, String time, String cause, List<WaveReview.RecapLine> lines, int maxHitpoints, String late)
+		{
+			this.late = late;
 			this.id = id;
 			this.wave = wave;
 			this.into = time + " into the wave";
@@ -337,7 +356,7 @@ final class WaveCards
 			}
 			Recap r = (Recap) o;
 			return r.id == id && r.when.equals(when) && Objects.equals(r.cause, cause) && r.lines.size() == lines.size()
-				&& r.maxHitpoints == maxHitpoints;
+				&& r.maxHitpoints == maxHitpoints && Objects.equals(r.late, late);
 		}
 
 		@Override
@@ -499,7 +518,7 @@ final class WaveCards
 			if (doom && view.underWay && view.doomLimit > 0 && view.held.containsKey(Modifier.DOOM))
 			{
 				// Doom's stacks this wave against the tier's limit, from the game's own count, red on the last.
-				JLabel stacks = label("Doom " + view.doomStacks + " of " + view.doomLimit, small(), view.doomLast() ? Stone.BAD : Stone.GOLD);
+				JLabel stacks = label("Doom " + view.doomStacks + "/" + view.doomLimit, small(), view.doomLast() ? Stone.BAD : Stone.GOLD);
 				stacks.setToolTipText("Doom's stacks this wave, from the game's own count, against the hits its tier allows.");
 				stacks.setBorder(new EmptyBorder(6, 2, 0, 0));
 				chips.add(stacks);
@@ -527,13 +546,9 @@ final class WaveCards
 		row.add(face, BorderLayout.WEST);
 		String name = escape(line.getShortName());
 		String html;
-		if (dead)
+		if (toCome)
 		{
-			html = "<s>" + name + "</s>";
-		}
-		else if (toCome)
-		{
-			html = name + ", the reinforcement";
+			html = name;
 		}
 		else if (line.getNote() != null && !"warband".equals(line.getNote()) && !"Quartet".equals(line.getNote()))
 		{
@@ -543,8 +558,13 @@ final class WaveCards
 		{
 			html = name;
 		}
-		row.add(label(wrapHtml(html, toCome ? 100 : 128), small(), dead ? Stone.DIM : toCome ? Stone.MUTED : Stone.TEXT), BorderLayout.CENTER);
-		JLabel right = dead ? new JLabel(Icons.of("skull", 12, 0.8f)) : label(toCome ? "to come" : line.getCount() + " left", small(),
+		// A dead NPC's short name, on one line, struck through by hand: the HTML <s> drew its line under the game's small
+		// letters, where it read as an underline.
+		JLabel words = dead ? Stone.struck(line.getShortName(), small(), Stone.DIM) : label(wrapHtml(html, 128), small(), toCome ? Stone.MUTED : Stone.TEXT);
+		// At the top, as the count is: centred in the row, the name sat a pixel or two under its count.
+		words.setVerticalAlignment(JLabel.TOP);
+		row.add(words, BorderLayout.CENTER);
+		JLabel right = dead ? new JLabel(Icons.of("skull", 12, 0.8f)) : label(toCome ? "+" + line.getCount() + " to come" : line.getCount() + " left", small(),
 			toCome ? Stone.MUTED : Stone.YELLOW);
 		right.setVerticalAlignment(JLabel.TOP);
 		row.add(right, BorderLayout.EAST);
@@ -729,7 +749,7 @@ final class WaveCards
 	 * The wave report in short, between waves in the arena: the wave's time, its three figures, its mistakes by their
 	 * pictures with what each cost, the first few of them, and the buttons to the site and to the report's own page. On
 	 * that page, the whole report: the figures, the prayer against the wave's attacks, every mistake by tick with a button
-	 * to watch it, the kinds the settings leave out, and the run's mistakes wave by wave.
+	 * to watch it, and the run's mistakes wave by wave.
 	 *
 	 * The card is neither ringed nor holds a main button: between waves Minimus's pick is the panel's one lit card, the
 	 * decision with a clock on it, and the report a look back (the design pass of 2026-10-31, Stefan's choice of
@@ -770,7 +790,6 @@ final class WaveCards
 		full.setToolTipText("Opens the whole report in the panel: your prayer, every mistake with a button to watch it, and the run's waves.");
 		full.addActionListener(e -> open(reportPage));
 		reportCard.add(left(buttons(reviewButton(r, false), full)));
-		addUploadOff(reportCard);
 	}
 
 	/** The report's three figures side by side: the damage the wave cost, the attacks prayed on time and the idle ticks. */
@@ -811,16 +830,6 @@ final class WaveCards
 		head.add(new Stone.Shadowed("Wave " + r.wave + " report", bold(), Stone.ORANGE), BorderLayout.WEST);
 		head.add(label(r.time, small(), Stone.YELLOW), BorderLayout.EAST);
 		return head;
-	}
-
-	/** The line under a card's Watch while Upload past runs is off. */
-	private void addUploadOff(JPanel card)
-	{
-		if (!upload)
-		{
-			card.add(SolSurvivorPanel.gap(4));
-			card.add(left(label(wrap(UPLOAD_OFF, 200), small(), Stone.MUTED)));
-		}
 	}
 
 	/**
@@ -871,6 +880,12 @@ final class WaveCards
 		// The figures, as the short card has them, so that the page holds the whole report where the panel shows a line.
 		reportPage.add(left(stats(r)));
 		reportPage.add(SolSurvivorPanel.gap(6));
+		if (r.late != null)
+		{
+			// Was it lag? One line under the figures, only for a wave with a late tick.
+			reportPage.add(left(label(wrap("Late ticks: " + r.late, 196), small(), Stone.MUTED)));
+			reportPage.add(SolSurvivorPanel.gap(6));
+		}
 
 		if (r.attacks() > 0)
 		{
@@ -887,14 +902,6 @@ final class WaveCards
 			legend.add(key(WRONG, r.wrong + " wrong prayer"));
 			legend.add(key(NONE_UP, r.none + " with none up"));
 			prayer.add(left(legend));
-			prayer.add(SolSurvivorPanel.gap(5));
-			JPanel judged = clear(new FlowLayout(FlowLayout.LEFT, 3, 0));
-			for (String p : new String[] {"magic", "ranged", "melee"})
-			{
-				judged.add(new JLabel(Icons.of("prayer-" + p, 14)));
-			}
-			judged.add(label(wrap("Judged as the site's run review judges them.", 140), small(), Stone.MUTED));
-			prayer.add(left(judged));
 			reportPage.add(left(prayer));
 			reportPage.add(SolSurvivorPanel.gap(6));
 		}
@@ -943,32 +950,33 @@ final class WaveCards
 		JPanel foot = buttons(reviewButton(r, true), copy);
 		foot.setBorder(new EmptyBorder(8, 0, 0, 0));
 		reportPage.add(left(foot));
-		addUploadOff(reportPage);
-		reportPage.add(SolSurvivorPanel.gap(6));
-		reportPage.add(left(label(wrap("Counted from the wave log once the wave ended. Nothing here is shown while a wave is under way.", 210),
-			small(), Stone.MUTED)));
 	}
 
-	/** A mistake on the report's page: its tick, its picture, what happened, its badge, and a button to watch it. */
+	/**
+	 * A mistake on the report's page: its picture, what happened across the line's width, and under it its tick and its
+	 * badge, with a button to watch it at the line's end. The words have the width to themselves, as the short card's
+	 * have (the plugin's UI review of 2026-11-11): beside the tick and the badge they wrapped two words to a line.
+	 */
 	private JPanel fullLine(int id, Row m, boolean last)
 	{
-		JPanel line = new JPanel(new GridBagLayout());
-		line.setOpaque(false);
-		GridBagConstraints c = new GridBagConstraints();
-		c.anchor = GridBagConstraints.NORTHWEST;
-		c.insets = new Insets(0, 0, 0, 4);
-		cell(line, c, 0, fixed(label("t" + m.tick, small(), Stone.MUTED), 26), 0);
+		JPanel line = clear(new BorderLayout(5, 0));
 		JLabel face = new JLabel(m.icon == null ? null : Icons.of(m.icon, 16));
 		face.setPreferredSize(new Dimension(16, 16));
-		cell(line, c, 1, face, 0);
-		cell(line, c, 2, label(wrap(m.text, 88), small(), Stone.TEXT), 1);
-		c.anchor = GridBagConstraints.NORTHEAST;
-		cell(line, c, 3, new Stone.Pill(m.badge, m.hit, small()), 0);
-		c.insets = new Insets(0, 0, 0, 0);
+		face.setVerticalAlignment(JLabel.TOP);
+		line.add(face, BorderLayout.WEST);
+		JPanel words = clear(new BorderLayout(0, 2));
+		words.add(label(wrap(m.text, 140), small(), Stone.TEXT), BorderLayout.NORTH);
+		JPanel figures = clear(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		JLabel tick = label("t" + m.tick, small(), Stone.MUTED);
+		tick.setBorder(new EmptyBorder(0, 0, 0, 6));
+		figures.add(tick);
+		figures.add(new Stone.Pill(m.badge, m.hit, small()));
+		words.add(figures, BorderLayout.CENTER);
+		line.add(words, BorderLayout.CENTER);
 		Stone.Button watch = new Stone.Button(upload ? PLAY_ICON : PLAY_OFF_ICON, 16);
 		watch.setToolTipText("Watch the run on the site from tick " + m.tick + ". Needs Upload past runs, in the settings.");
 		watch.addActionListener(e -> actions.watchAt(id, m.tick));
-		cell(line, c, 4, watch, 0);
+		line.add(top(watch), BorderLayout.EAST);
 		line.setBorder(lined(last, new EmptyBorder(4, 3, 4, 2)));
 		return left(line);
 	}
@@ -1008,16 +1016,28 @@ final class WaveCards
 			cause.add(left(label(wrap(r.cause, 184), small(), Stone.TEXT)));
 			head.add(left(cause));
 		}
+		if (r.late != null)
+		{
+			// Was it lag? One line, only when a tick in the recap's stretch came late.
+			head.add(SolSurvivorPanel.gap(4));
+			Stone.Well late = new Stone.Well(null, 4, 6, 5, 6);
+			late.setLayout(new BoxLayout(late, BoxLayout.Y_AXIS));
+			late.add(left(label("Late ticks", small(), Stone.MUTED)));
+			late.add(left(label(wrap(r.late, 184), small(), Stone.TEXT)));
+			late.setToolTipText("Game ticks that took a second or more to reach you, by your computer's clock. A late tick can land a hit before your click does.");
+			head.add(left(late));
+		}
 		deathPage.add(left(head));
 
 		List<Step> steps = steps(r.lines);
+		Stone.Row how = null;
 		if (!steps.isEmpty())
 		{
 			// How it happened, in steps (the design review's 9, Stefan's choice of 2026-10-31): each hit that cost
 			// hitpoints and each attack that got past the prayer, in order, the one past the prayer marked in yellow as
 			// the moment to have done otherwise; every tick stays one click under it.
 			deathPage.add(SolSurvivorPanel.gap(5));
-			Stone.Row how = card();
+			how = card();
 			how.add(left(new Stone.Shadowed("How it happened", bold(), Stone.ORANGE)));
 			how.add(SolSurvivorPanel.gap(4));
 			for (int i = 0; i < steps.size(); i++)
@@ -1030,8 +1050,12 @@ final class WaveCards
 
 		if (!r.lines.isEmpty())
 		{
-			deathPage.add(SolSurvivorPanel.gap(5));
-			Stone.Row ticks = card();
+			// Under the steps, every tick folds out of their own card; with no steps the ticks have a card of their own.
+			Stone.Row ticks = how != null ? how : card();
+			if (how == null)
+			{
+				deathPage.add(SolSurvivorPanel.gap(5));
+			}
 			String span = r.lines.get(0).getTick() + " to " + r.lines.get(r.lines.size() - 1).getTick();
 			if (steps.isEmpty())
 			{
@@ -1074,20 +1098,22 @@ final class WaveCards
 				ticks.add(SolSurvivorPanel.gap(4));
 			}
 			ticks.add(left(well));
-			deathPage.add(left(ticks));
+			if (how == null)
+			{
+				deathPage.add(left(ticks));
+			}
 		}
 
 		int from = r.lines.isEmpty() ? 0 : r.lines.get(0).getTick();
 		Stone.Button open = new Stone.Button("Watch from tick " + from, null, upload, small(), 7, 6);
 		open.setToolTipText("Uploads this run and opens it on the Sol Survivor site at tick " + from + " of this wave. Needs Upload past runs, in the settings.");
 		open.addActionListener(e -> actions.watchAt(r.id, from));
-		Stone.Button watch = new Stone.Button("Watch the run", null, false, small(), 7, 6);
-		watch.setToolTipText("Uploads this run and opens it on the Sol Survivor site at this wave's start. Needs Upload past runs, in the settings.");
-		watch.addActionListener(e -> actions.watchAt(r.id, null));
-		JPanel foot = buttons(open, watch);
+		// One Watch on the death report, at the ticks that led to the death (the design updates' item 7, 2026-11-12):
+		// "Watch the run" beside it opened the same run at the wave's start, which Past has for every run.
+		JPanel foot = clear(new java.awt.GridLayout(1, 1));
+		foot.add(open);
 		foot.setBorder(new EmptyBorder(6, 0, 2, 0));
 		deathPage.add(left(foot));
-		addUploadOff(deathPage);
 		if (report != null)
 		{
 			// The wave's report as a line: the death is the page's, and the report's page is a click away, Back to here.

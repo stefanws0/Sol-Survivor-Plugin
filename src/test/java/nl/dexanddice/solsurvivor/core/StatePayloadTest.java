@@ -92,10 +92,10 @@ public class StatePayloadTest
 	@Test
 	public void theTrianglesPlaceComesAfterTheRestOfTheLink() throws Exception
 	{
-		// wave4-triangle.json is wave4-start.json with the dot of the site's readout "Safe 10% · Fast 0% · Easy 90%", which
-		// the site's tests open (test/link/pluginFixtures.test.ts).
+		// wave4-triangle.json is wave4-start.json with the dot at the triangle's Easy corner, which the site's tests open
+		// (test/link/pluginFixtures.test.ts).
 		String start = fixture("wave4-start.json");
-		TriangleDot dot = TriangleDot.of(10, 0, 90);
+		TriangleDot dot = TriangleDot.EASY;
 		assertEquals(fixture("wave4-triangle.json"), StatePayload.withTriangle(start, dot));
 		String link = StatePayload.linkOfJson("https://solsurvivor.app/", start, dot);
 		assertEquals(fixture("wave4-triangle.json"), unpack(link.substring(link.indexOf(StatePayload.STATE_HASH) + StatePayload.STATE_HASH.length())));
@@ -176,12 +176,12 @@ public class StatePayloadTest
 	}
 
 	@Test
-	public void theTrianglesSharesAreKeptToTheSettingsRangeAndNoneAboveNothingPlacesNoDot()
+	public void eachDotOfTheTriangleSendsItsCornersSharesAndTheMiddleSendsThemAlike()
 	{
-		assertEquals(TriangleDot.of(0, 100, 0), TriangleDot.of(-5, 200, 0));
-		assertEquals(TriangleDot.MAX_SHARE, TriangleDot.of(33, 101, 33).getFast());
-		assertNull(TriangleDot.of(0, 0, 0));
-		assertNull(TriangleDot.of(-1, 0, -40));
+		assertEquals("{\"wave\":4,\"triangle\":[100,0,0]}", StatePayload.withTriangle("{\"wave\":4}", TriangleDot.SAFE));
+		assertEquals("{\"wave\":4,\"triangle\":[0,100,0]}", StatePayload.withTriangle("{\"wave\":4}", TriangleDot.FAST));
+		assertEquals("{\"wave\":4,\"triangle\":[0,0,100]}", StatePayload.withTriangle("{\"wave\":4}", TriangleDot.EASY));
+		assertEquals("{\"wave\":4,\"triangle\":[33,33,33]}", StatePayload.withTriangle("{\"wave\":4}", TriangleDot.BALANCED));
 	}
 
 	@Test

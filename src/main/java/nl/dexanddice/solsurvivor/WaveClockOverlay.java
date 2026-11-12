@@ -13,6 +13,7 @@ import net.runelite.client.ui.overlay.components.ComponentConstants;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.components.LayoutableRenderableEntity;
 import net.runelite.client.ui.overlay.components.TitleComponent;
+import nl.dexanddice.solsurvivor.core.EarlierSettings;
 import nl.dexanddice.solsurvivor.core.WaveClock;
 
 /** Shared drawing for the movable clocks: the wave box's background, orange title and white shadowed figures. */
@@ -47,8 +48,25 @@ abstract class WaveClockOverlay extends OverlayPanel
 	}
 
 	/**
+	 * The loop's colours: one fixed palette of five (Stefan's choice, 2026-11-12), each far enough from its neighbours to
+	 * tell apart at a glance. A loop longer than five starts the colours again at its sixth position.
+	 */
+	static final Color[] LOOP_COLOURS = {
+		new Color(0x5ce1e6), new Color(0x7bd96b), new Color(0xf2d45c), new Color(0xff9a3d), new Color(0xe57ad9)
+	};
+
+	/**
+	 * The ten Tick loop colours' defaults while each position had a setting of its own, up to 2026-11-12, which RuneLite
+	 * stored for every install: a stored colour that differs from its position's is one the player chose.
+	 */
+	static final Color[] EARLIER_DEFAULTS = {
+		new Color(0x5ce1e6), new Color(0x7bd96b), new Color(0xf2d45c), new Color(0xff9a3d), new Color(0xe57ad9),
+		new Color(0x6a9cff), new Color(0xff6b6b), new Color(0xc8f26b), new Color(0xff9ecb), new Color(0xb39dff)
+	};
+
+	/**
 	 * The colour of the loop's current position, or null for the plain white look: counting up, with Loop colours off,
-	 * or with the counter hidden. Every position has a colour of its own, so no tick stands out from the rest.
+	 * or with the counter hidden. Every position has a colour, so no tick stands out from the rest.
 	 */
 	protected Color loopColour(WaveClock.View view)
 	{
@@ -57,19 +75,11 @@ abstract class WaveClockOverlay extends OverlayPanel
 		{
 			return null;
 		}
-		switch (view.loopPosition(config.tickLoopLength()))
-		{
-			case 1: return config.tickLoopColour1();
-			case 2: return config.tickLoopColour2();
-			case 3: return config.tickLoopColour3();
-			case 4: return config.tickLoopColour4();
-			case 5: return config.tickLoopColour5();
-			case 6: return config.tickLoopColour6();
-			case 7: return config.tickLoopColour7();
-			case 8: return config.tickLoopColour8();
-			case 9: return config.tickLoopColour9();
-			default: return config.tickLoopColour10();
-		}
+		int position = view.loopPosition(config.tickLoopLength());
+		// A player who chose this position's colour in an earlier release keeps it. One still at that release's default
+		// was never chosen, and takes the palette as it is now.
+		Color earlier = position >= 1 && position <= EARLIER_DEFAULTS.length ? plugin.earlierColour(EarlierSettings.LOOP_COLOUR + position) : null;
+		return earlier != null && !earlier.equals(EARLIER_DEFAULTS[position - 1]) ? earlier : LOOP_COLOURS[Math.floorMod(position - 1, LOOP_COLOURS.length)];
 	}
 
 	/** The number's colour: the loop's colour with Number chosen, else white. */

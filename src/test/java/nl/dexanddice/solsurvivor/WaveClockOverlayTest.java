@@ -57,12 +57,10 @@ public class WaveClockOverlayTest
 		assertNull(render(time));
 		config.combine = true;
 		assertFits(both, 170, 120);
-		config.rows = true;
-		assertFits(both, 170, 90);
 	}
 
 	@Test
-	public void separateAndEveryCombinedLookFitAtTheirNativeSizeAndMoveAsRuneLitePanels()
+	public void separateAndCombinedFitAtTheirNativeSizeAndMoveAsRuneLitePanels()
 	{
 		plugin.clock.onTick(90);
 		plugin.clock.onModifierChosen(7, 100, System.currentTimeMillis() - 22_000, true);
@@ -73,15 +71,11 @@ public class WaveClockOverlayTest
 		assertFits(time, 160, 100);
 		config.combine = true;
 		assertFits(both, 170, 120);
-		config.large = SolSurvivorConfig.LargeTimerNumber.TIME;
-		assertFits(both, 170, 120);
-		config.rows = true;
-		assertFits(both, 170, 90);
 		config.loop = true;
-		assertFits(both, 170, 90);
+		assertFits(both, 170, 120);
 		plugin.clock.resetCounter(137);
 		plugin.clock.onTick(138);
-		assertFits(both, 170, 90);
+		assertFits(both, 170, 120);
 	}
 
 	@Test
@@ -95,13 +89,11 @@ public class WaveClockOverlayTest
 		assertNull(ticks.loopColour(plugin.clock.view()));
 		config.colours = SolSurvivorConfig.LoopColours.NUMBER;
 		Set<Color> seen = new HashSet<>();
-		Color[] expected = {config.tickLoopColour1(), config.tickLoopColour2(), config.tickLoopColour3(), config.tickLoopColour4(),
-			config.tickLoopColour5()};
 		for (int count = 1; count <= 10; count++)
 		{
 			plugin.clock.onTick(100 + count);
 			Color colour = ticks.numberColour(plugin.clock.view());
-			assertEquals(expected[(count - 1) % 5], colour);
+			assertEquals(WaveClockOverlay.LOOP_COLOURS[(count - 1) % 5], colour);
 			seen.add(colour);
 			assertNotNull(render(ticks));
 		}
@@ -115,6 +107,56 @@ public class WaveClockOverlayTest
 		assertFits(both, 170, 120);
 		config.loop = false;
 		assertNull(ticks.loopColour(plugin.clock.view()));
+	}
+
+	/** The palette is five colours (Stefan's choice, 2026-11-12): a loop of ten starts them again at its sixth position. */
+	@Test
+	public void aLoopLongerThanFiveStartsTheColoursAgain()
+	{
+		config.tick = true;
+		config.loop = true;
+		config.length = 10;
+		config.colours = SolSurvivorConfig.LoopColours.NUMBER;
+		assertEquals(5, WaveClockOverlay.LOOP_COLOURS.length);
+		plugin.clock.onTick(100);
+		for (int count = 1; count <= 10; count++)
+		{
+			plugin.clock.onTick(100 + count);
+			assertEquals(WaveClockOverlay.LOOP_COLOURS[(count - 1) % 5], ticks.numberColour(plugin.clock.view()));
+		}
+	}
+
+	/** The settings that left the list on 2026-11-12 stay as an earlier release's player set them (EarlierSettings). */
+	@Test
+	public void aPlayersEarlierLoopColoursAndCombinedLookAreKept()
+	{
+		config.tick = true;
+		config.loop = true;
+		config.length = 10;
+		config.colours = SolSurvivorConfig.LoopColours.NUMBER;
+		// Position 2 chosen, position 3 stored at its default of then: only the chosen one goes before the palette.
+		plugin.colours.put("tickLoopColour2", Color.MAGENTA);
+		plugin.colours.put("tickLoopColour3", WaveClockOverlay.EARLIER_DEFAULTS[2]);
+		plugin.colours.put("tickLoopColour7", Color.PINK);
+		plugin.clock.onTick(100);
+		Color[] expected = {WaveClockOverlay.LOOP_COLOURS[0], Color.MAGENTA, WaveClockOverlay.LOOP_COLOURS[2], WaveClockOverlay.LOOP_COLOURS[3],
+			WaveClockOverlay.LOOP_COLOURS[4], WaveClockOverlay.LOOP_COLOURS[0], Color.PINK, WaveClockOverlay.LOOP_COLOURS[2]};
+		for (int count = 1; count <= expected.length; count++)
+		{
+			plugin.clock.onTick(100 + count);
+			assertEquals("position " + count, expected[count - 1], ticks.numberColour(plugin.clock.view()));
+		}
+		// The combined box: the time large, then the labelled rows, which are lower than the stacked numbers.
+		plugin.clock.onModifierChosen(7, 100, System.currentTimeMillis() - 22_000, true);
+		plugin.clock.onTick(137);
+		config.timer = true;
+		config.combine = true;
+		int stacked = render(both).height;
+		plugin.earlier.put("largeTimerNumber", "TIME");
+		assertFits(both, 170, 120);
+		plugin.earlier.put("combinedTimerLayout", "ROWS");
+		assertFits(both, 170, 90);
+		assertTrue(render(both).height < stacked);
 	}
 
 	@Test
@@ -180,10 +222,6 @@ public class WaveClockOverlayTest
 		save(scene.time, new File(folder, "wave-timer.png"));
 		scene.config.combine = true;
 		save(scene.both, new File(folder, "combined-tick.png"));
-		scene.config.large = SolSurvivorConfig.LargeTimerNumber.TIME;
-		save(scene.both, new File(folder, "combined-time.png"));
-		scene.config.rows = true;
-		save(scene.both, new File(folder, "combined-rows.png"));
 		scene.config.loop = true;
 		save(scene.both, new File(folder, "loop.png"));
 		scene.config.colours = SolSurvivorConfig.LoopColours.NUMBER;
@@ -223,6 +261,20 @@ public class WaveClockOverlayTest
 	{
 		private final WaveClock clock = new WaveClock();
 		private boolean arena = true;
+		private final java.util.Map<String, String> earlier = new java.util.HashMap<>();
+		private final java.util.Map<String, Color> colours = new java.util.HashMap<>();
+
+		@Override
+		String earlier(String key)
+		{
+			return earlier.get(key);
+		}
+
+		@Override
+		Color earlierColour(String key)
+		{
+			return colours.get(key);
+		}
 
 		@Override
 		boolean inArena()
@@ -242,9 +294,8 @@ public class WaveClockOverlayTest
 		private boolean tick;
 		private boolean timer;
 		private boolean combine;
-		private boolean rows;
 		private boolean loop;
-		private LargeTimerNumber large = LargeTimerNumber.TICK;
+		private int length = 5;
 		private LoopColours colours = LoopColours.OFF;
 
 		@Override
@@ -254,12 +305,11 @@ public class WaveClockOverlayTest
 		@Override
 		public boolean combineWaveTimers() { return combine; }
 		@Override
-		public CombinedTimerLayout combinedTimerLayout() { return rows ? CombinedTimerLayout.ROWS : CombinedTimerLayout.STACKED; }
-		@Override
 		public TickCounterCounts tickCounterCounts() { return loop ? TickCounterCounts.LOOP : TickCounterCounts.UP_FROM_ZERO; }
 		@Override
-		public LargeTimerNumber largeTimerNumber() { return large; }
-		@Override
 		public LoopColours loopColours() { return colours; }
+
+		@Override
+		public int tickLoopLength() { return length; }
 	}
 }

@@ -119,6 +119,9 @@ class SolSurvivorPanel extends PluginPanel
 		/** Hide New in this update's card until an update brings more settings, and its NEW tags with it. */
 		void hideWhatsNew();
 
+		/** Hide the Screen tab's More to switch on card for good. */
+		void hideMore();
+
 		/** Open `url`, one of the public tracker's new-issue forms (IDEA_URL, BUG_URL), in the browser. */
 		void openFeedback(String url);
 	}
@@ -237,18 +240,18 @@ class SolSurvivorPanel extends PluginPanel
 	}
 
 	/**
-	 * The help, in the tooltip of the question mark beside the panel's title: a short line for each part of the panel, its
+	 * The help, on the page the question mark beside the panel's title opens (helpPage): a short line for each part of the panel, its
 	 * name lit, and what goes to the site left to What you share (the UX review of 2026-10-27, F5).
 	 */
 	static final String HELP = "<font color='#ff981f'>Arena now</font> opens the wave you are in on the Sol Survivor site, as it is "
 		+ "now, and copies its link.<br><br>"
-		+ "<font color='#ff981f'>Open the pick</font> opens Minimus's three offers there while he makes them.<br><br>"
+		+ "<font color='#ff981f'>Open Modifier pick</font> opens Minimus's three offers there while he makes them.<br><br>"
 		+ "<font color='#ff981f'>Past waves</font>: Play opens the start; More actions or right-click opens reinforcements and Copy wave log. "
-		+ "Click the heading in the arena.<br><br>"
+		+ "In the arena the list is folded: click Past waves to open it.<br><br>"
 		+ "The <font color='#ff981f'>wave report</font> comes as each wave ends, and the <font color='#ff981f'>death report</font> "
 		+ "as you leave after a death.<br><br>"
-		+ "<font color='#ff981f'>In the game</font> switches what the plugin draws. <font color='#ff981f'>What you share</font>, "
-		+ "at the foot, says what goes to the site: all of it is off until you switch it on.";
+		+ "<font color='#ff981f'>On screen</font> switches what the plugin draws. <font color='#ff981f'>What you share</font>, on "
+		+ "the Past tab, lists what goes to the site: all off until you switch it on.";
 
 	private static final ImageIcon SUN = Stone.sun(24);
 	/** Yellow, as the text of the primary button it sits on. */
@@ -291,7 +294,7 @@ class SolSurvivorPanel extends PluginPanel
 	private final JLabel pickState = label("", small(), Stone.MUTED);
 	/** Minimus's three by their pictures, and the button that opens them on the site, Arena now's twin, under the row's head. */
 	private final Stone.Well offersWell = new Stone.Well(new java.awt.GridLayout(1, 3, 4, 0), 4, 3, 4, 3);
-	private final Stone.Button openPick = new Stone.Button("Open the pick", PICK_ICON, true, small(), 7, 6);
+	private final Stone.Button openPick = new Stone.Button("Open Modifier pick", PICK_ICON, true, small(), 7, 6);
 	/** The leaderboard's row, while Leaderboard is on or the player has times to remove (showBoard). */
 	private final Stone.Row boardRow = new Stone.Row(new BorderLayout(0, 5), 5, 6, 6, 6);
 	private final JLabel boardState = label("", small(), Stone.TEXT);
@@ -379,6 +382,8 @@ class SolSurvivorPanel extends PluginPanel
 	 * the plugin's, which holds the templates (runelite-plugin/hub/.github/ISSUE_TEMPLATE) and the site's reports too.
 	 */
 	private final Stone.Row feedbackRow = new Stone.Row(new BorderLayout(0, 5), 5, 6, 6, 6);
+	/** The help's page: see helpPage(). */
+	private final JPanel helpPage = new Stone.Group(null);
 	/** The public tracker's new-issue forms, each opening its template, as the site's report form does (report.ts). */
 	static final String ISSUES = "https://github.com/stefanws0/Sol-Survivor-Plugin/issues/new?template=";
 	static final String IDEA_URL = ISSUES + "feature-idea.md";
@@ -448,7 +453,15 @@ class SolSurvivorPanel extends PluginPanel
 	/** The In the game keys no preset touches: they change the game rather than draw on it. */
 	private static final java.util.Set<String> NOT_IN_PRESETS = new java.util.HashSet<>(java.util.Arrays.asList("hidePillars", "leftClickBankAll"));
 	/** The In the game keys a fresh install has off, as SolSurvivorConfig's defaults are (SolSurvivorConfigTest holds them so). */
-	static final java.util.Set<String> OFF_AS_INSTALLED = new java.util.HashSet<>(java.util.Arrays.asList("myRange", "hidePillars"));
+	static final java.util.Set<String> OFF_AS_INSTALLED = new java.util.HashSet<>(java.util.Arrays.asList("myRange", "hidePillars",
+		"npcHitpoints", "highlightInRange", "npcColours", "tickCounter", "lootTotals", "leftClickBankAll"));
+	/**
+	 * More to switch on, on the Screen tab until it is hidden: the features a fresh install starts with off that have a
+	 * picture (FeaturePreviews), in In the game's order, each with its picture and its switch, so that a new player sees
+	 * what else there is and how it looks before choosing it (Stefan's ask of 2026-11-11).
+	 */
+	static final String[] MORE = {"npcHitpoints", "highlightInRange", "npcColours", "tickCounter", "lootTotals", "leftClickBankAll"};
+	private final Stone.Row moreRow = new Stone.Row(new BorderLayout(0, 5), 5, 6, 6, 6);
 	/**
 	 * The pages over the rows, the last the one that shows: the death report, and the wave report in full, which can open
 	 * from it and goes Back to it. Empty while the rows show.
@@ -527,13 +540,14 @@ class SolSurvivorPanel extends PluginPanel
 		JPanel screen = tabBody(Tab.SCREEN);
 		screen.add(presetsRow);
 		screen.add(gameRow);
-		feedbackRow();
+		helpPage();
 		buildTabs();
 		addRows();
 
 		showSharing(false);
 		whatsNewRow.setGlow(Stone.YELLOW);
 		whatsNewRow.setVisible(false);
+		moreRow.setVisible(false);
 		showInGame(new boolean[IN_GAME.length]);
 		showSends(false, false, false);
 		showBoard(null, false, true);
@@ -597,8 +611,7 @@ class SolSurvivorPanel extends PluginPanel
 	}
 
 	/**
-	 * The rows in their order: the name, the tabs, and the shown tab's body; then, outside the arena, Ideas and bugs under
-	 * Wave and Past. Screen keeps its body alone, and the arena keeps the panel to the wave.
+	 * The rows in their order: the name, the tabs, and the shown tab's body.
 	 */
 	private void addRows()
 	{
@@ -608,10 +621,6 @@ class SolSurvivorPanel extends PluginPanel
 			add(row);
 		}
 		add(tabBodies.get(tab));
-		if (showsFeedback())
-		{
-			add(feedbackRow);
-		}
 		revalidate();
 		repaint();
 	}
@@ -657,13 +666,26 @@ class SolSurvivorPanel extends PluginPanel
 	}
 
 	/** The sun, the panel's name, and the question mark that holds the help. */
-	private static JPanel header()
+	private JPanel header()
 	{
 		JPanel h = clear(new BorderLayout(6, 0));
 		h.add(new JLabel(Stone.sun(20)), BorderLayout.WEST);
 		h.add(new Stone.Shadowed("Sol Survivor", bold(), Stone.ORANGE), BorderLayout.CENTER);
-		JLabel help = new JLabel(Stone.question(13, Stone.MUTED, bold()));
-		help.setToolTipText(wrapHtml(HELP, 260));
+		JLabel help = new JLabel(Stone.question(13, Stone.MUTED));
+		help.setToolTipText("Help, and where to send ideas and bugs.");
+		help.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		help.getAccessibleContext().setAccessibleName("Help");
+		help.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				pastResultKey = null;
+				pages.remove(helpPage);
+				pages.add(helpPage);
+				showTop();
+			}
+		});
 		h.add(help, BorderLayout.EAST);
 		h.setBorder(new EmptyBorder(0, 0, 2, 2));
 		return h;
@@ -737,31 +759,57 @@ class SolSurvivorPanel extends PluginPanel
 		return l;
 	}
 
-	/** Whether Ideas and bugs is at the panel's foot: on Wave and Past, outside the arena. */
-	private boolean showsFeedback()
+	/**
+	 * The help page, which the question mark opens: Back, the help's five lines, and Ideas and bugs, the two buttons to the
+	 * public tracker's forms. They stood as a card at the foot of Wave and Past (2026-11-10) until the plugin's UI review
+	 * of 2026-11-11 moved them here, out of the tabs, with the help that was a hover tip and vanished with the mouse.
+	 */
+	private void helpPage()
 	{
-		return tab != Tab.SCREEN && !shownInColosseum;
-	}
+		helpPage.setLayout(new BoxLayout(helpPage, BoxLayout.Y_AXIS));
+		Stone.Button back = new Stone.Button("\u2039 Back", null, false, small(), 7, 5);
+		back.addActionListener(e ->
+		{
+			pages.remove(helpPage);
+			showTop();
+		});
+		JPanel bar = clear(new BorderLayout(8, 0));
+		bar.add(back, BorderLayout.WEST);
+		bar.add(new Stone.Shadowed("Help", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		bar.setAlignmentX(Component.LEFT_ALIGNMENT);
+		helpPage.add(bar);
+		helpPage.add(gap(8));
+		Stone.Row lines = new Stone.Row(null, 6, 6, 6, 6);
+		lines.setLayout(new BoxLayout(lines, BoxLayout.Y_AXIS));
+		String[] help = HELP.split("<br><br>");
+		for (int i = 0; i < help.length; i++)
+		{
+			if (i > 0)
+			{
+				lines.add(gap(6));
+			}
+			JPanel line = clear(new BorderLayout());
+			line.add(label(wrapHtml(help[i], 196), small(), Stone.TEXT), BorderLayout.CENTER);
+			line.setAlignmentX(Component.LEFT_ALIGNMENT);
+			lines.add(line);
+		}
+		lines.setAlignmentX(Component.LEFT_ALIGNMENT);
+		helpPage.add(lines);
+		helpPage.add(gap(6));
 
-	/** Ideas and bugs: its name, a line on where the buttons go, and Suggest a feature and Report a bug side by side. */
-	private void feedbackRow()
-	{
-		JLabel note = label(wrap("Both open a form on the plugin's GitHub page. You need a GitHub account, and what you post is public.", 190),
-			small(), Stone.MUTED);
-		JPanel text = clear(new BorderLayout(0, 2));
-		text.add(new Stone.Shadowed("Ideas and bugs", bold(), Stone.ORANGE), BorderLayout.NORTH);
-		text.add(note, BorderLayout.CENTER);
 		Stone.Button idea = new Stone.Button("Suggest a feature", null, false, small(), 4, 5);
-		idea.setToolTipText("Opens a form for your idea on GitHub, in your browser.");
-		idea.addActionListener(e -> currentAction(() -> actions.openFeedback(IDEA_URL)));
+		idea.setToolTipText("Opens a form for your idea on the plugin's GitHub page. You need a GitHub account, and what you post is public.");
+		idea.addActionListener(e -> actions.openFeedback(IDEA_URL));
 		Stone.Button bug = new Stone.Button("Report a bug", null, false, small(), 4, 5);
-		bug.setToolTipText("Opens a bug report form on GitHub, in your browser. Say the plugin's version and what you were doing.");
-		bug.addActionListener(e -> currentAction(() -> actions.openFeedback(BUG_URL)));
+		bug.setToolTipText("Opens a bug report form on the plugin's GitHub page. You need a GitHub account, and what you post is public.");
+		bug.addActionListener(e -> actions.openFeedback(BUG_URL));
 		JPanel buttons = clear(new java.awt.GridLayout(1, 2, 4, 0));
 		buttons.add(idea);
 		buttons.add(bug);
-		feedbackRow.add(text, BorderLayout.NORTH);
+		feedbackRow.add(new Stone.Shadowed("Ideas and bugs", bold(), Stone.ORANGE), BorderLayout.NORTH);
 		feedbackRow.add(buttons, BorderLayout.CENTER);
+		feedbackRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+		helpPage.add(feedbackRow);
 	}
 
 	/** The leaderboard's row: its name and what goes up, the page's Open, and Remove my times under them. */
@@ -863,27 +911,29 @@ class SolSurvivorPanel extends PluginPanel
 		profitTotal.setVisible(!none);
 		profitTotal.setText(ProfitRecord.signed(session.getProfit()));
 		profitTotal.setForeground(session.getProfit() >= 0 ? Stone.GOOD : Stone.BAD);
-		profitSession.setText(wrap(none
-			? "Each run shows here as you leave the arena: the chest you claim, less the supplies the run used and any death's fee, at "
-				+ "Grand Exchange prices."
-			: "This session: " + runs(session) + ", loot " + ProfitRecord.coins(session.getLoot()) + ", supplies "
-				+ ProfitRecord.coins(session.getSupplies())
-				+ (session.getDeathFees() > 0 ? ", death fees " + ProfitRecord.coins(session.getDeathFees()) : "") + ".", 190));
+		// Three short rows, a name and its figures (the plugin's UI review of 2026-11-11), where a sentence each stood.
+		profitSession.setVisible(!none);
+		profitSession.setText(row("This session", runs(session), "loot " + ProfitRecord.coins(session.getLoot()) + " \u00b7 supplies "
+			+ ProfitRecord.coins(session.getSupplies())
+			+ (session.getDeathFees() > 0 ? " \u00b7 fees " + ProfitRecord.coins(session.getDeathFees()) : "")));
 		RunProfit last = session.getLast();
 		profitLast.setVisible(last != null);
 		if (last != null)
 		{
-			String head = "Last run" + (last.getWave() == null ? "" : last.isDied() ? ", died on wave " + last.getWave() : ", to wave " + last.getWave());
-			profitLast.setText(wrap(last.isDied()
-				? head + ": " + ProfitRecord.signed(last.getProfit()) + " (supplies " + ProfitRecord.coins(last.getSupplies()) + ", death fee "
-					+ ProfitRecord.coins(last.getDeathFee()) + ", the chest lost)."
-				: head + ": " + ProfitRecord.signed(last.getProfit()) + " (loot " + ProfitRecord.coins(last.getLoot()) + ", supplies "
-					+ ProfitRecord.coins(last.getSupplies()) + ").", 190));
+			String how = last.getWave() == null ? "" : last.isDied() ? "died on wave " + last.getWave() : "to wave " + last.getWave();
+			profitLast.setText(row("Last run", (how.isEmpty() ? "" : how + " \u00b7 ") + ProfitRecord.signed(last.getProfit()), last.isDied()
+				? "supplies " + ProfitRecord.coins(last.getSupplies()) + " \u00b7 fee " + ProfitRecord.coins(last.getDeathFee()) + " \u00b7 chest lost"
+				: "loot " + ProfitRecord.coins(last.getLoot()) + " \u00b7 supplies " + ProfitRecord.coins(last.getSupplies())));
 		}
-		profitAllTime.setText(wrap(allTime.isEmpty() ? "No runs counted yet." : "Total: "
-			+ ProfitRecord.signed(allTime.getProfit()) + " over " + runs(allTime) + ".", 140));
+		profitAllTime.setText(allTime.isEmpty() ? "No runs counted yet." : row("Total", ProfitRecord.signed(allTime.getProfit()), runs(allTime)));
 		resetProfit.setEnabled(!allTime.isEmpty() || !session.isEmpty());
 		revalidate();
+	}
+
+	/** A row of the Profit card: its name in the muted colour, its figure beside it, and what it is made of on a line under them. */
+	private static String row(String name, String figure, String parts)
+	{
+		return "<html><font color='#bcab8b'>" + name + "</font>&nbsp; " + figure + "<br><font color='#bcab8b'>" + parts + "</font></html>";
 	}
 
 	/** "1 run", or "5 runs, 2 deaths". */
@@ -950,7 +1000,7 @@ class SolSurvivorPanel extends PluginPanel
 			+ "play the plan it finds."), small(), Stone.TEXT)));
 		steps.add(gap(5));
 		// What the plugin draws is set on the Screen tab, which a new player would not otherwise look for.
-		JLabel screen = label(wrapHtml("<u>Choose what the plugin draws on the game's screen, on the Screen tab.</u>", 200), small(), Stone.MUTED);
+		JLabel screen = label(wrapHtml("<u>See what else the plugin can draw, on the Screen tab.</u>", 200), small(), Stone.MUTED);
 		screen.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 		screen.addMouseListener(new MouseAdapter()
 		{
@@ -969,7 +1019,6 @@ class SolSurvivorPanel extends PluginPanel
 		sample.setToolTipText("Opens wave 7 on the Sol Survivor site with the plan it found, to look round before you play.");
 		sample.addActionListener(e -> actions.openSample());
 		startFoot.add(sample, BorderLayout.NORTH);
-		startFoot.add(label(wrap("Opens wave 7 on the site with its plan, no Colosseum needed.", 200), small(), Stone.MUTED), BorderLayout.CENTER);
 
 		startRow.setGlow(Stone.YELLOW);
 		startRow.add(head, BorderLayout.NORTH);
@@ -1005,14 +1054,13 @@ class SolSurvivorPanel extends PluginPanel
 	}
 
 	/**
-	 * The three settings that send anything to the site, as What you share lists them: each one's name in the settings,
-	 * what it sends and what it gets the player.
+	 * The three settings that send anything to the site, as What you share lists them: each one's name in the settings
+	 * and what it sends, in a line (the plugin's UI review of 2026-11-11; the settings' own descriptions say the rest).
 	 */
 	private static final String[][] SENDS = {
-		{"Upload past runs", "a run's tiles, hitpoints, prayers and hits, when you press Watch.", "your run played back on the site, "
-			+ "for anyone with its link, for seven days."},
-		{"Share wave logs", "each wave's log as it ends, with no name or levels.", "a planner checked against real waves."},
-		{"Leaderboard", "your name with each wave you finish. Needs Share wave logs.", "a place on the site's leaderboard."},
+		{"Upload past runs", "A run's recording, when you press Watch."},
+		{"Share wave logs", "Each wave's log as it ends, with no name."},
+		{"Leaderboard", "Your name and times. Needs Share wave logs."},
 	};
 
 	/**
@@ -1056,15 +1104,16 @@ class SolSurvivorPanel extends PluginPanel
 		{
 			JPanel body = clear(null);
 			body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-			body.add(text("Each is off until you switch it on. Here is what it sends, and what it gets you.", Stone.TEXT));
 			for (int i = 0; i < SENDS.length; i++)
 			{
-				body.add(gap(5));
+				if (i > 0)
+				{
+					body.add(gap(5));
+				}
 				body.add(send(SENDS[i], shownSends[i]));
 			}
 			body.add(gap(5));
-			body.add(text("Switch them under Sending to the site in this plugin's settings, where RuneLite warns you first. "
-				+ "With all three off, the plugin sends nothing.", Stone.MUTED));
+			body.add(text("Switched in the plugin's settings. With all three off, nothing is sent.", Stone.MUTED));
 			Stone.Row card = new Stone.Row(new BorderLayout(), 4, 6, 5, 5);
 			card.add(body, BorderLayout.CENTER);
 			sendsRow.add(card, BorderLayout.CENTER);
@@ -1083,7 +1132,7 @@ class SolSurvivorPanel extends PluginPanel
 		return p;
 	}
 
-	/** A setting in What you share's well: its name and whether it is on, what it sends and what it gets the player. */
+	/** A setting in What you share's well: its name and whether it is on, and what it sends. */
 	private static JComponent send(String[] setting, boolean on)
 	{
 		JPanel top = clear(new BorderLayout(4, 0));
@@ -1093,8 +1142,7 @@ class SolSurvivorPanel extends PluginPanel
 		east.add(tag, BorderLayout.NORTH);
 		top.add(east, BorderLayout.EAST);
 		JPanel words = clear(new BorderLayout(0, 1));
-		words.add(label(wrapHtml("Sends: " + setting[1], 180), small(), Stone.MUTED), BorderLayout.NORTH);
-		words.add(label(wrapHtml("<font color='#3cff3c'>Gets you:</font> " + setting[2], 180), small(), Stone.MUTED), BorderLayout.CENTER);
+		words.add(label(wrap(setting[1], 180), small(), Stone.MUTED), BorderLayout.NORTH);
 		Stone.Well well = new Stone.Well(new BorderLayout(0, 3), 4, 6, 5, 6);
 		well.add(top, BorderLayout.NORTH);
 		well.add(words, BorderLayout.CENTER);
@@ -1130,6 +1178,7 @@ class SolSurvivorPanel extends PluginPanel
 	private void buildGame()
 	{
 		buildPresets();
+		buildMore();
 		boolean open = gameOpen == null || gameOpen;
 		int on = 0;
 		for (boolean feature : shownGame)
@@ -1140,7 +1189,7 @@ class SolSurvivorPanel extends PluginPanel
 
 		JPanel head = clear(new BorderLayout(5, 0));
 		head.add(new JLabel(open ? OPEN_ICON : SHUT_ICON), BorderLayout.WEST);
-		head.add(new Stone.Shadowed("In the game", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		head.add(new Stone.Shadowed("On screen", bold(), Stone.ORANGE), BorderLayout.CENTER);
 		head.add(label(on + " of " + IN_GAME.length + " on", small(), on == 0 ? Stone.MUTED : Stone.GOOD), BorderLayout.EAST);
 		head.setBorder(new EmptyBorder(0, 1, 0, 1));
 		head.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -1165,12 +1214,25 @@ class SolSurvivorPanel extends PluginPanel
 		{
 			JPanel body = clear(null);
 			body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-			body.add(text(shownOverlaps.isEmpty() ? "What the plugin draws in the arena. Switch off any you already have from another plugin."
-				: "What the plugin draws in the arena. \"also\" means another plugin you have on draws the same: hover it to see"
-				+ " which of its settings.", Stone.TEXT));
+			// Only the "also" marks need a word: the rest is a name, a picture and a switch.
+			if (!shownOverlaps.isEmpty())
+			{
+				body.add(text("\"also\" means another plugin of yours draws it too.", Stone.MUTED));
+			}
+			// While More to switch on's card shows above, a feature on it that is still off is left out here (the design
+			// updates' item 11, 2026-11-12): a fresh install listed the same six switches twice. One switched on joins
+			// the list, where its own choices fold out under it, and Hide brings them all back.
+			java.util.List<String> onCard = moreRow.isVisible() ? java.util.Arrays.asList(MORE) : java.util.Collections.emptyList();
 			for (int i = 0; i < IN_GAME.length; i++)
 			{
-				body.add(gap(3));
+				if (!shownGame[i] && onCard.contains(IN_GAME[i][0]))
+				{
+					continue;
+				}
+				if (body.getComponentCount() > 0)
+				{
+					body.add(gap(3));
+				}
 				body.add(feature(IN_GAME[i], shownGame[i]));
 				// A feature's own choice folds out under it while it is on: the look of NPCs in range, and Your hit on its
 				// way under NPC hitpoints, which needs it.
@@ -1183,8 +1245,6 @@ class SolSurvivorPanel extends PluginPanel
 					body.add(branch(forecastSwitch(shownNewTags)));
 				}
 			}
-			body.add(gap(5));
-			body.add(text("Each one's colours, places and sizes are in this plugin's settings.", Stone.MUTED));
 			Stone.Row card = new Stone.Row(new BorderLayout(), 4, 6, 5, 5);
 			card.add(body, BorderLayout.CENTER);
 			gameRow.add(card, BorderLayout.CENTER);
@@ -1402,6 +1462,98 @@ class SolSurvivorPanel extends PluginPanel
 		}
 	}
 
+	/** More to switch on: whether its card shows on the Screen tab, as it does until hidden. On the Swing thread. */
+	void showMore(boolean card)
+	{
+		if (card != moreRow.isVisible())
+		{
+			// In the tab's body only while it shows: the grid gives a hidden row its gap still, which would lower the presets.
+			JPanel screen = tabBodies.get(Tab.SCREEN);
+			screen.remove(moreRow);
+			if (card)
+			{
+				screen.add(moreRow, 0);
+			}
+			moreRow.setVisible(card);
+			buildMore();
+			revalidate();
+			repaint();
+		}
+	}
+
+	/** More to switch on's card: its head with Hide, and each of MORE's features with its picture, name and switch. */
+	private void buildMore()
+	{
+		moreRow.removeAll();
+		if (!moreRow.isVisible() || shownGame == null)
+		{
+			return;
+		}
+		Stone.Button hide = new Stone.Button("Hide", null, false, small(), 6, 3);
+		hide.setToolTipText("Hides this card for good. Its switches move to On screen, below.");
+		hide.addActionListener(e -> actions.hideMore());
+		JPanel head = clear(new BorderLayout(6, 0));
+		head.add(new Stone.Shadowed("More to switch on", bold(), Stone.ORANGE), BorderLayout.CENTER);
+		head.add(hide, BorderLayout.EAST);
+
+		JPanel body = clear(null);
+		body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+		for (String key : MORE)
+		{
+			for (int i = 0; i < IN_GAME.length; i++)
+			{
+				if (IN_GAME[i][0].equals(key))
+				{
+					if (body.getComponentCount() > 0)
+					{
+						body.add(gap(5));
+					}
+					body.add(preview(IN_GAME[i], shownGame[i]));
+				}
+			}
+		}
+		moreRow.add(head, BorderLayout.NORTH);
+		moreRow.add(body, BorderLayout.CENTER);
+		moreRow.revalidate();
+		moreRow.repaint();
+	}
+
+	/**
+	 * A line of More to switch on: the feature's picture, a sketch of how it looks in the game, at full strength
+	 * whether it is on or off since the picture is what the card is for, with its name and its switch beside it. The picture switches it too.
+	 */
+	private JComponent preview(String[] feature, boolean on)
+	{
+		ImageIcon picture = FeaturePreviews.of(feature[0]);
+		JLabel shown = new JLabel(picture);
+		shown.setToolTipText(feature[2]);
+		shown.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		shown.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				actions.setInGame(feature[0], !on);
+			}
+		});
+		JLabel name = label(wrap(feature[1], 100), small(), on ? Stone.TEXT : Stone.MUTED);
+		name.setToolTipText(feature[2]);
+		Stone.Button toggle = Stone.Button.toggle(on, Stone.dot(9, on ? Stone.GOOD : Stone.MUTED), small(), 6, 3);
+		toggle.setToolTipText((on ? "Switch off: " : "Switch on: ") + feature[2]);
+		toggle.getAccessibleContext().setAccessibleName(feature[1] + (on ? ", on" : ", off"));
+		toggle.addActionListener(e -> actions.setInGame(feature[0], !on));
+		JPanel words = clear(new BorderLayout(0, 3));
+		words.add(name, BorderLayout.NORTH);
+		JPanel under = clear(new BorderLayout());
+		under.add(toggle, BorderLayout.WEST);
+		words.add(under, BorderLayout.SOUTH);
+		JPanel line = clear(new BorderLayout(7, 0));
+		line.add(shown, BorderLayout.WEST);
+		line.add(words, BorderLayout.CENTER);
+		line.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return line;
+	}
+
 	/**
 	 * New in this update's card: its head with Hide, each new setting with its icon, a line on what it does and its choice
 	 * right there, and a link to the Screen tab for the rest.
@@ -1428,21 +1580,6 @@ class SolSurvivorPanel extends PluginPanel
 		body.add(gap(7));
 		body.add(news("npcHitpoints", "Your hit on its way", "On NPC hitpoints, the orange part of the bar is what your hit will take.",
 			forecastToggle()));
-		body.add(gap(6));
-		JLabel rest = label(wrapHtml("<u>Everything the plugin draws is on the Screen tab.</u>", 200), small(), Stone.MUTED);
-		rest.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		rest.addMouseListener(new MouseAdapter()
-		{
-			@Override
-			public void mouseClicked(MouseEvent e)
-			{
-				showTab(Tab.SCREEN);
-			}
-		});
-		JPanel restLine = clear(new BorderLayout());
-		restLine.add(rest, BorderLayout.CENTER);
-		restLine.setAlignmentX(Component.LEFT_ALIGNMENT);
-		body.add(restLine);
 
 		whatsNewRow.add(head, BorderLayout.NORTH);
 		whatsNewRow.add(body, BorderLayout.CENTER);
@@ -1563,7 +1700,11 @@ class SolSurvivorPanel extends PluginPanel
 		String named = current != null ? current : asInstalled(shownGame) ? "Default" : null;
 		JPanel head = clear(new BorderLayout(5, 0));
 		head.add(new Stone.Shadowed("Preset", bold(), Stone.ORANGE), BorderLayout.CENTER);
-		head.add(label(named == null ? "Your own" : named, small(), named == null ? Stone.MUTED : Stone.GOOD), BorderLayout.EAST);
+		// The lit button names a preset; only switches that match none need a word.
+		if (current == null)
+		{
+			head.add(label(named == null ? "Your own" : named, small(), Stone.MUTED), BorderLayout.EAST);
+		}
 		presetsRow.add(head, BorderLayout.NORTH);
 		JPanel buttons = clear(new java.awt.GridLayout(1, PRESETS.length, 4, 0));
 		for (String[] preset : PRESETS)
@@ -1622,7 +1763,8 @@ class SolSurvivorPanel extends PluginPanel
 			shownWave = wave;
 		}
 		waveTitle.setText(title);
-		waveState.setText(state);
+		// One state is a sentence, not a word or two (a wave the game did not announce): it wraps beside the slot.
+		waveState.setText(state.length() > 40 ? wrap(state, 150) : state);
 		// Arena now stays where it is, greyed while it has nothing to open, so that the panel does not jump and shows what it
 		// is for (the user's choice, 2026-10-26); it is lit only while a wave it plans is under way, as the arena has nothing
 		// to open before a wave or between two (the UX review of 2026-10-27, F1).
@@ -1666,14 +1808,8 @@ class SolSurvivorPanel extends PluginPanel
 		}
 		shownRuns = new ArrayList<>(runs);
 		shownNote = note;
-		boolean feedback = showsFeedback();
 		shownInColosseum = inColosseum;
 		buildRuns();
-		// Ideas and bugs comes and goes with the arena; under a page it follows once the page closes (showTop).
-		if (feedback != showsFeedback() && pages.isEmpty())
-		{
-			addRows();
-		}
 	}
 
 	/** Whether the waves' logs are shared, as "Share wave logs" and "Record wave log" are set. On the Swing thread. */

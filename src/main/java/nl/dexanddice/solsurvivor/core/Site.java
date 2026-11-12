@@ -20,12 +20,19 @@ public final class Site
 	}
 
 	/**
-	 * The site for `override`, the system property's value: the live site for none, or for anything but an https address
-	 * of a host of its own; otherwise that address, ending in "/" as LIVE does.
+	 * The hosts a development run may name: a branch's preview of the site's own Worker, as build.gradle names it. The
+	 * property ships in the plugin the Hub builds, so it takes no other host: a player talked into starting RuneLite
+	 * with it set cannot be made to send their runs, their name and their leaderboard key to a stranger's server.
+	 */
+	private static final String PREVIEW = "https://[a-z0-9-]+-sol-survivor\\.stefankessel\\.workers\\.dev/?";
+
+	/**
+	 * The site for `override`, the system property's value: the live site for none, or for anything but the https
+	 * address of one of the site's previews (PREVIEW); otherwise that address, ending in "/" as LIVE does.
 	 */
 	public static String of(String override)
 	{
-		if (override == null || !override.trim().matches("https://[A-Za-z0-9.-]+/?"))
+		if (override == null || !override.trim().matches(PREVIEW))
 		{
 			return LIVE;
 		}
